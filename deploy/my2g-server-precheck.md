@@ -400,15 +400,41 @@ firewall-cmd --list-all
 
 保持当前 SSH 会话，在另一个终端确认仍能登录后再继续。
 
-先创建最小 HTTP 配置，再用 Certbot 签发证书：
+先在 Nginx 的 `http` 作用域定义 WebSocket `Connection` 变量。创建
+`/etc/nginx/conf.d/00-websocket-map.conf`：
+
+```bash
+cat >/etc/nginx/conf.d/00-websocket-map.conf <<'EOF'
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+EOF
+```
+
+再创建最小 HTTP 配置，并定义单 IP 入口限流。后台是 SPA，首屏会并发加载较多
+`/assets/` chunk，因此静态资源不计入请求速率限流；动态入口保留限流，避免少量
+客户端同时建立大量长连接或上传大请求时耗尽 1.8 GiB 内存：
 
 ```bash
 cat >/etc/nginx/conf.d/sub2api.conf <<'EOF'
+limit_req_zone $binary_remote_addr zone=sub2api_per_ip:10m rate=30r/s;
+limit_conn_zone $binary_remote_addr zone=sub2api_conn_per_ip:10m;
+
 server {
     listen 80;
     server_name api.example.com;
 
+    limit_req_status 429;
+    limit_conn_status 429;
+
+    location ^~ /assets/ {
+        proxy_pass http://127.0.0.1:8080;
+    }
+
     location / {
+        limit_conn sub2api_conn_per_ip 20;
+        limit_req zone=sub2api_per_ip burst=120 nodelay;
         proxy_pass http://127.0.0.1:8080;
     }
 }
@@ -424,8 +450,11 @@ certbot --nginx -d api.example.com
 ```nginx
 client_max_body_size 64m;
 underscores_in_headers on;
+limit_req_status 429;
+limit_conn_status 429;
 
-location / {
+location ^~ /assets/ {
+    # 静态 chunk 加载并发高，不计入动态请求速率限流。
     proxy_pass http://127.0.0.1:8080;
     proxy_http_version 1.1;
 
@@ -433,7 +462,28 @@ location / {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header Connection "";
+
+    proxy_read_timeout 1800s;
+    proxy_send_timeout 1800s;
+}
+
+location / {
+    # 单 IP 最多 20 个并发连接；普通 HTTP 请求允许短时突发 120 个。
+    # WebSocket 和流式响应会长期占用连接，因此连接数限制比请求速率更重要。
+    limit_conn sub2api_conn_per_ip 20;
+    limit_req zone=sub2api_per_ip burst=120 nodelay;
+
+    proxy_pass http://127.0.0.1:8080;
+    proxy_http_version 1.1;
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # 同时支持普通 HTTP、SSE/流式响应和 OpenAI Responses WebSocket。
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
 
     proxy_buffering off;
     proxy_request_buffering off;
@@ -443,6 +493,16 @@ location / {
 ```
 
 `underscores_in_headers on` 是项目要求，否则 `session_id` 等请求头可能被丢弃。
+`Upgrade` 和 `Connection` 必须成对转发，否则
+`GET /openai/v1/responses` 的 WebSocket 握手会失败。
+
+以上限流值用于首次低流量部署，不是容量承诺：
+
+- 多个用户共享同一 NAT 出口时，单 IP 限制可能产生 `429`，应结合日志逐步上调。
+- 如果只需要文本 API，可将 `client_max_body_size`、
+  `SERVER_MAX_REQUEST_BODY_SIZE` 和 `GATEWAY_MAX_BODY_SIZE` 一并降到 `16m`；
+  三处上限应保持一致。
+- 不要只提高 Nginx 限制；需要更高并发时，应同时观察应用内存、Swap、数据库连接和上游连接数。
 
 验收：
 
@@ -450,9 +510,18 @@ location / {
 nginx -t
 systemctl reload nginx
 curl -fsS https://api.example.com/health
+curl -i --http1.1 https://api.example.com/openai/v1/responses \
+  -H 'Connection: Upgrade' \
+  -H 'Upgrade: websocket' \
+  -H 'Sec-WebSocket-Version: 13' \
+  -H 'Sec-WebSocket-Key: SGVsbG9Xb3JsZDEyMzQ1Ng=='
 certbot renew --dry-run
 systemctl list-timers '*certbot*'
 ```
+
+WebSocket 验收请求即使因缺少 API Key 返回 `401`，也不应由 Nginx 返回
+`400`、`404` 或丢失升级请求；正式 API Key 可用后，再使用实际 WebSocket
+客户端完成一次 `101 Switching Protocols` 验证。
 
 再从服务器之外验证：
 
@@ -539,6 +608,8 @@ journalctl -k --since today |
 - Redis 接近 96 MiB。
 - PostgreSQL 连接接近 30。
 - API 5xx 或上游超时持续增加。
+- Nginx 日志持续出现限流状态码，或日志中出现
+  `limiting requests`、`limiting connections`。
 
 每次只调整一个主要参数，观察一个完整业务周期后再继续。这是“较小闭环较佳实践”在运行期的核心要求。
 
