@@ -8,7 +8,7 @@
 
 ## 故障现象
 
-原地址 `https://codex.lizubin.online/` 先后出现：
+旧入口地址先后出现：
 
 - Cloudflare `525 SSL handshake failed`
 - 静态 JS 文件加载时报 `net::ERR_CONNECTION_CLOSED`
@@ -20,7 +20,7 @@
 - Let's Encrypt 源站证书有效。
 - 应用和静态资源在服务器本机均返回 `200`。
 - 故障发生在客户端或 Cloudflare 到源站的网络链路，不是应用文件缺失。
-- `codex.lizubin.online` 主机名在部分网络中会触发连接重置。
+- 旧入口主机名在部分网络中会触发连接重置。
 
 ## 对 portal.lizubin.online 所做的配置
 
@@ -84,7 +84,7 @@ ingress:
 ## 当前访问建议
 
 - 正式使用：`https://portal.lizubin.online/`
-- 不建议继续使用：`https://codex.lizubin.online/`
+- 不建议继续使用旧入口域名。
 
 旧域名的应用和资源本身没有问题，但其主机名在部分网络链路中仍可能被重置。Cloudflare Tunnel 能解决公网回源问题，不能修复访问者网络对特定域名的干扰，因此最终通过更换入口域名解决。
 

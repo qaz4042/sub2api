@@ -1,15 +1,16 @@
 # my2g 部署结果摘要
 
-部署目标：Sub2API 在 `my2g` 服务器完成部署，并通过 HTTPS 对外展示主页。
+部署目标：Sub2API 在 `my2g` 服务器完成部署，并通过 Cloudflare Tunnel 对外提供 HTTPS 访问。
 
 ## 访问地址
 
-- 主页：<https://codex.lizubin.online/>
-- 健康检查：<https://codex.lizubin.online/health>
+- 主页：<https://portal.lizubin.online/>
+- 健康检查：<https://portal.lizubin.online/health>
 
 ## 当前状态
 
-- HTTPS 已接入完成，HTTP 会自动 301 跳转到 HTTPS。
+- HTTPS 已通过 Cloudflare Tunnel 接入完成。
+- Nginx 当前保留 `portal.lizubin.online` 的 80 端口反代配置，不再绑定废弃入口的 443 证书。
 - 主页已在浏览器验证可正常展示，标题为 `Sub2API - AI API Gateway`。
 - `/health` 返回正常：`{"status":"ok"}`。
 - WebSocket/长连接代理路径已验证，应用侧能正常返回认证拦截。
@@ -26,9 +27,7 @@
 - 环境变量与密钥：`/opt/sub2api/.env`
 - 备份目录：`/opt/sub2api/backups/`
 - Nginx 站点配置：`/etc/nginx/conf.d/sub2api.conf`
-- HTTPS 证书：
-  - `/etc/letsencrypt/live/codex.lizubin.online/fullchain.pem`
-  - `/etc/letsencrypt/live/codex.lizubin.online/privkey.pem`
+- Cloudflare Tunnel 配置：`/etc/cloudflared/config.yml`
 
 ## 密钥查看
 
@@ -41,20 +40,18 @@ ssh my2g 'sudo grep "^ADMIN_PASSWORD=" /opt/sub2api/.env'
 
 注意：`/opt/sub2api/.env` 权限已设置为 `root:root 600`，不要提交到 Git，也不要公开粘贴。
 
-## 证书与续期
+## 证书与入口
 
-- 证书签发方：Let's Encrypt
-- 证书到期时间：`2026-09-17 15:44:09+00:00`
-- 自动续期 timer 已启用：`certbot-renew.timer`
-- 续期 dry-run 已通过。
+- 公网 HTTPS 证书由 Cloudflare 侧托管。
+- `portal.lizubin.online` 通过 Cloudflare Tunnel 回源到服务器本机 `127.0.0.1:8080`。
+- 服务器上的历史 Let's Encrypt 证书材料不参与当前 `portal.lizubin.online` 入口。
 
 ## 对外端口
 
 服务器公网只需要开放：
 
 - `22/tcp`：SSH
-- `80/tcp`：HTTP，用于跳转和证书续期
-- `443/tcp`：HTTPS
+- `80/tcp`：Nginx HTTP 反代备用入口
 
 PostgreSQL、Redis、应用 8080 端口不直接暴露公网。
 
@@ -71,7 +68,6 @@ PostgreSQL、Redis、应用 8080 端口不直接暴露公网。
 ## 备注
 
 - DNS 和 HTTPS 已满足当前访问要求。
-- 阿里云安全组需持续保持 `80/443` 对公网开放，否则证书续期和外部访问会失败。
+- 当前公网 HTTPS 访问依赖 Cloudflare Tunnel 服务，需保持 `cloudflared` 正常运行。
 - 如需登录后台，请从 `/opt/sub2api/.env` 查看 `ADMIN_EMAIL` 和 `ADMIN_PASSWORD`。
 - 国内服务器访问 OpenAI 的代理方案见：[my2g-openai-proxy-runbook.md](./my2g-openai-proxy-runbook.md)。
-
