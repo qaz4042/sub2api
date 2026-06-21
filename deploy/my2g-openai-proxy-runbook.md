@@ -8,7 +8,7 @@
 
 ```text
 用户请求
-  -> https://codex.lizubin.online
+  -> https://portal.lizubin.online
   -> Sub2API
   -> OpenAI 账号绑定的 proxy_id
   -> Mihomo/远程代理
@@ -192,7 +192,7 @@ ssh my2g 'sudo docker exec sub2api sh -lc "curl -sS -x http://mihomo:7890 --conn
 最终用户侧闭环：
 
 ```bash
-curl https://codex.lizubin.online/openai/v1/chat/completions \
+curl https://portal.lizubin.online/openai/v1/chat/completions \
   -H 'Authorization: Bearer sk-your-sub2api-user-key' \
   -H 'Content-Type: application/json' \
   -d '{"model":"gpt-4.1-mini","messages":[{"role":"user","content":"ping"}]}'
@@ -496,7 +496,7 @@ sub2api-redis    healthy
 公网健康检查：
 
 ```bash
-curl -fsS https://codex.lizubin.online/health
+curl -fsS https://portal.lizubin.online/health
 ```
 
 结果：
@@ -600,7 +600,7 @@ ssh my2g 'sudo docker exec sub2api-postgres psql -U sub2api -d sub2api -c "SELEC
 站点注册用户在 Codex Desktop 切换到当前站点后，基础请求报错：
 
 ```text
-stream disconnected before completion: error sending request for url (https://codex.lizubin.online/responses)
+stream disconnected before completion: error sending request for url (https://portal.lizubin.online/responses)
 ```
 
 最终判断：
@@ -638,13 +638,13 @@ stream disconnected before completion: error sending request for url (https://co
 用户侧现象：
 
 ```text
-stream disconnected before completion: error sending request for url (https://codex.lizubin.online/responses)
+stream disconnected before completion: error sending request for url (https://portal.lizubin.online/responses)
 ```
 
 截图中的客户端为 Codex Desktop，切换到当前站点后，请求根路径：
 
 ```text
-POST https://codex.lizubin.online/responses
+POST https://portal.lizubin.online/responses
 ```
 
 ### 路由判断
@@ -722,7 +722,7 @@ proxy-groups:
 使用站点已注册用户的 Sub2API key，从 `my2g` 直接请求公网域名：
 
 ```bash
-POST https://codex.lizubin.online/responses
+POST https://portal.lizubin.online/responses
 Content-Type: application/json
 Accept: text/event-stream
 
@@ -764,7 +764,7 @@ method=POST path=/responses status_code=200 platform=openai
 
 ```text
 Codex Desktop
-  -> https://codex.lizubin.online/responses
+  -> https://portal.lizubin.online/responses
   -> Nginx
   -> Sub2API
   -> account proxy_id=1
@@ -789,7 +789,7 @@ Codex Desktop
 
 ```text
 Codex Desktop / curl
-  -> codex.lizubin.online
+  -> portal.lizubin.online
   -> 39.102.86.235:443
   -> 阿里云未备案域名接入拦截
   -> TLS 握手被断开
@@ -798,7 +798,7 @@ Codex Desktop / curl
 表现为 Codex Desktop 报：
 
 ```text
-stream disconnected before completion: error sending request for url (https://codex.lizubin.online/responses)
+stream disconnected before completion: error sending request for url (https://portal.lizubin.online/responses)
 ```
 
 这个报错发生在请求还没有进入 Nginx/应用层之前，和服务端 `/responses` 流式处理不是同一类问题。
@@ -808,7 +808,7 @@ stream disconnected before completion: error sending request for url (https://co
 从 `my2g` 服务器本机使用站点 API key 请求公网 `/responses` 成功：
 
 ```text
-POST https://codex.lizubin.online/responses
+POST https://portal.lizubin.online/responses
 HTTP 200
 Content-Type: text/event-stream
 包含 response.created / response.completed
@@ -830,10 +830,10 @@ OpenAI OAuth accounts: 3 active/schedulable
 proxy_id: 1 (mihomo-openai)
 ```
 
-但从本机直连域名时，DNS 被解析到异常地址：
+但当时从本机直连旧入口域名时，DNS 被解析到异常地址：
 
 ```bash
-dig +short codex.lizubin.online A
+dig +short <旧入口域名> A
 ```
 
 结果：
@@ -845,8 +845,8 @@ dig +short codex.lizubin.online A
 强制连接真实服务器 IP 后，TLS 仍在握手阶段被断开：
 
 ```bash
-curl -vI --connect-to codex.lizubin.online:443:39.102.86.235:443 \
-  https://codex.lizubin.online/health
+curl -vI --connect-to <旧入口域名>:443:39.102.86.235:443 \
+  https://<旧入口域名>/health
 ```
 
 结果：
@@ -861,7 +861,7 @@ LibreSSL SSL_connect: SSL_ERROR_SYSCALL
 
 ```bash
 curl -sS --connect-timeout 5 http://39.102.86.235/health \
-  -H 'Host: codex.lizubin.online' -D -
+  -H 'Host: <旧入口域名>' -D -
 ```
 
 结果摘要：
@@ -889,11 +889,11 @@ SOCKSProxy: 127.0.0.1:7890
 
 ### 立即可用的临时方案
 
-在 ClashX Meta / Mihomo 规则里把当前站点强制走代理节点，不要 DIRECT：
+在 ClashX Meta / Mihomo 规则里把旧入口链路强制走代理节点，不要 DIRECT：
 
 ```yaml
 rules:
-  - DOMAIN,codex.lizubin.online,PROXY
+  - DOMAIN,portal.lizubin.online,PROXY
   - DOMAIN-SUFFIX,lizubin.online,PROXY
   - IP-CIDR,39.102.86.235/32,PROXY,no-resolve
 ```
@@ -905,10 +905,10 @@ rules:
 验证命令：
 
 ```bash
-curl -vI --proxy http://127.0.0.1:7890 https://codex.lizubin.online/health
+curl -vI --proxy http://127.0.0.1:7890 https://portal.lizubin.online/health
 ```
 
-如果仍然握手失败，说明本机代理规则仍把 `codex.lizubin.online` 或 `39.102.86.235` 走了 DIRECT，需要继续调整规则或切到全局代理验证。
+如果仍然握手失败，说明本机代理规则仍把目标域名或 `39.102.86.235` 走了 DIRECT，需要继续调整规则或切到全局代理验证。
 
 ### 长期修复方案
 
@@ -926,7 +926,7 @@ curl -vI --proxy http://127.0.0.1:7890 https://codex.lizubin.online/health
 
 ### 新增确认
 
-这次在远端和本机同时复查后，继续确认问题不在 Sub2API 应用、Nginx `/responses` 路由、OpenAI 账号测试接口或 Mihomo 出站链路，而在本机到 `codex.lizubin.online` 的入口链路。
+这次在远端和本机同时复查后，继续确认问题不在 Sub2API 应用、Nginx `/responses` 路由、OpenAI 账号测试接口或 Mihomo 出站链路，而在本机到 `portal.lizubin.online` 的入口链路。
 
 服务器侧状态：
 
@@ -940,7 +940,7 @@ sub2api-redis    Up healthy
 远端服务器本机访问公网域名健康检查正常：
 
 ```bash
-ssh my2g 'curl -sS -D - --connect-timeout 8 --max-time 20 https://codex.lizubin.online/health'
+ssh my2g 'curl -sS -D - --connect-timeout 8 --max-time 20 https://portal.lizubin.online/health'
 ```
 
 结果：
@@ -961,19 +961,19 @@ HTTP/1.1 200 OK
 本机直连失败仍可复现：
 
 ```bash
-curl -sS -D - --connect-timeout 8 --max-time 20 https://codex.lizubin.online/health
+curl -sS -D - --connect-timeout 8 --max-time 20 https://portal.lizubin.online/health
 ```
 
 结果：
 
 ```text
-LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to codex.lizubin.online:443
+LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to portal.lizubin.online:443
 ```
 
-本机 DNS 仍解析到异常地址：
+当时本机 DNS 仍解析到异常地址：
 
 ```bash
-dig +short codex.lizubin.online A
+dig +short <旧入口域名> A
 ```
 
 结果：
@@ -985,8 +985,8 @@ dig +short codex.lizubin.online A
 即使强制连真实服务器 IP，HTTPS 也在 TLS ClientHello 后被断开：
 
 ```bash
-curl -vI --connect-to codex.lizubin.online:443:39.102.86.235:443 \
-  https://codex.lizubin.online/health
+curl -vI --connect-to <旧入口域名>:443:39.102.86.235:443 \
+  https://<旧入口域名>/health
 ```
 
 结果摘要：
@@ -1002,7 +1002,7 @@ HTTP 明文带 Host 访问真实 IP，会被阿里云备案拦截：
 ```bash
 curl -sS --connect-timeout 8 --max-time 20 -D - \
   http://39.102.86.235/health \
-  -H 'Host: codex.lizubin.online'
+  -H 'Host: portal.lizubin.online'
 ```
 
 结果摘要：
@@ -1036,10 +1036,10 @@ HTTP/2 401
 server: cloudflare
 ```
 
-但通过同一个代理访问 `codex.lizubin.online` 仍然 TLS 断开：
+但通过同一个代理访问 `portal.lizubin.online` 仍然 TLS 断开：
 
 ```bash
-curl -vI --proxy http://127.0.0.1:7890 https://codex.lizubin.online/health
+curl -vI --proxy http://127.0.0.1:7890 https://portal.lizubin.online/health
 ```
 
 结果：
@@ -1061,7 +1061,7 @@ restoreTunProxy: true
 该配置里已有 `ChatGPT` 策略组，并且覆盖了 `openai.com`、`chatgpt.com` 等域名；但没有覆盖当前 Sub2API 入口域名：
 
 ```text
-codex.lizubin.online
+portal.lizubin.online
 lizubin.online
 39.102.86.235
 ```
@@ -1070,7 +1070,7 @@ lizubin.online
 
 ```text
 api.openai.com -> 命中 ChatGPT 代理 -> 正常
-codex.lizubin.online -> 命中 GEOIP,CN/DIRECT 或污染解析 -> TLS/备案拦截失败
+portal.lizubin.online -> 命中 GEOIP,CN/DIRECT 或污染解析 -> TLS/备案拦截失败
 ```
 
 ### 当前结论
@@ -1085,7 +1085,7 @@ POST /api/v1/admin/accounts/1/test
 
 ```text
 本机/远端 curl
-  -> codex.lizubin.online
+  -> portal.lizubin.online
   -> Sub2API 管理接口
   -> account proxy_id=1
   -> Mihomo
@@ -1096,7 +1096,7 @@ Codex Desktop 基础请求失败的是另一条链路：
 
 ```text
 Codex Desktop
-  -> https://codex.lizubin.online/responses
+  -> https://portal.lizubin.online/responses
   -> 本机 DNS/Clash 规则/大陆入口
   -> 未进入 Nginx 或在 TLS 阶段断开
 ```
@@ -1109,7 +1109,7 @@ Codex Desktop
 
 ```yaml
 rules:
-  - DOMAIN,codex.lizubin.online,ChatGPT
+  - DOMAIN,portal.lizubin.online,ChatGPT
   - DOMAIN-SUFFIX,lizubin.online,ChatGPT
   - IP-CIDR,39.102.86.235/32,ChatGPT,no-resolve
 ```
@@ -1118,7 +1118,7 @@ rules:
 
 ```yaml
 rules:
-  - DOMAIN,codex.lizubin.online,节点选择
+  - DOMAIN,portal.lizubin.online,节点选择
   - DOMAIN-SUFFIX,lizubin.online,节点选择
   - IP-CIDR,39.102.86.235/32,节点选择,no-resolve
 ```
@@ -1128,7 +1128,7 @@ rules:
 验证标准：
 
 ```bash
-curl -vI --proxy http://127.0.0.1:7890 https://codex.lizubin.online/health
+curl -vI --proxy http://127.0.0.1:7890 https://portal.lizubin.online/health
 ```
 
 期望结果：
@@ -1163,7 +1163,7 @@ HTTP/1.1 200 OK
 
 ```text
 用户 Codex Desktop
-  -> https://codex.lizubin.online/responses
+  -> https://portal.lizubin.online/responses
   -> 阿里云大陆未备案域名入口
   -> TLS 握手阶段断开 / HTTP 备案拦截
   -> 请求没有进入 Nginx/Sub2API
@@ -1182,12 +1182,12 @@ Sub2API
 
 ### Ping 与 HTTP/HTTPS 判断
 
-`ping codex.lizubin.online` 成功不代表 Codex Desktop 可用。
+`ping <旧入口域名>` 成功不代表 Codex Desktop 可用。
 
 `ping` 只验证 ICMP 到 IP 可达：
 
 ```text
-codex.lizubin.online -> 39.102.86.235
+<旧入口域名> -> 39.102.86.235
 ICMP echo reply OK
 ```
 
@@ -1195,7 +1195,7 @@ Codex Desktop 实际需要的是：
 
 ```text
 TCP 443
-TLS SNI: codex.lizubin.online
+TLS SNI: portal.lizubin.online
 HTTP POST /responses
 Authorization: Bearer sk-...
 SSE stream
@@ -1204,7 +1204,7 @@ SSE stream
 本次 Windows 客户端已经确认：
 
 ```text
-curl.exe -vI https://codex.lizubin.online/health
+curl.exe -vI https://portal.lizubin.online/health
 schannel: failed to receive handshake, SSL/TLS connection failed
 ```
 
@@ -1316,7 +1316,7 @@ codex-hk.lizubin.online
 临时自测或内部用户可以要求代理规则强制走代理：
 
 ```yaml
-- DOMAIN,codex.lizubin.online,PROXY
+- DOMAIN,portal.lizubin.online,PROXY
 - DOMAIN-SUFFIX,lizubin.online,PROXY
 - IP-CIDR,39.102.86.235/32,PROXY,no-resolve
 ```
