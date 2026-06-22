@@ -33,6 +33,10 @@ type dashboardStatsRangeFetcher interface {
 	GetDashboardStatsWithRange(ctx context.Context, start, end time.Time) (*usagestats.DashboardStats, error)
 }
 
+type apiKeySpendingRankingRepository interface {
+	GetAPIKeySpendingRanking(ctx context.Context, filters usagestats.UsageLogFilters, limit int) (*usagestats.APIKeySpendingRankingResponse, error)
+}
+
 type dashboardStatsCacheEntry struct {
 	Stats     *usagestats.DashboardStats `json:"stats"`
 	UpdatedAt int64                      `json:"updated_at"`
@@ -361,6 +365,18 @@ func (s *DashboardService) GetUserSpendingRanking(ctx context.Context, startTime
 	ranking, err := s.usageRepo.GetUserSpendingRanking(ctx, startTime, endTime, limit)
 	if err != nil {
 		return nil, fmt.Errorf("get user spending ranking: %w", err)
+	}
+	return ranking, nil
+}
+
+func (s *DashboardService) GetAPIKeySpendingRanking(ctx context.Context, filters usagestats.UsageLogFilters, limit int) (*usagestats.APIKeySpendingRankingResponse, error) {
+	repo, ok := s.usageRepo.(apiKeySpendingRankingRepository)
+	if !ok {
+		return nil, fmt.Errorf("api key spending ranking is not supported by usage repository")
+	}
+	ranking, err := repo.GetAPIKeySpendingRanking(ctx, filters, limit)
+	if err != nil {
+		return nil, fmt.Errorf("get api key spending ranking: %w", err)
 	}
 	return ranking, nil
 }

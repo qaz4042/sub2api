@@ -476,6 +476,7 @@ type BatchUsersUsageRequest struct {
 }
 
 var dashboardUsersRankingCache = newSnapshotCache(5 * time.Minute)
+var dashboardAPIKeysRankingCache = newSnapshotCache(5 * time.Minute)
 var dashboardBatchUsersUsageCache = newSnapshotCache(30 * time.Second)
 var dashboardBatchAPIKeysUsageCache = newSnapshotCache(30 * time.Second)
 
@@ -527,6 +528,118 @@ func (h *DashboardHandler) GetUserSpendingRanking(c *gin.Context) {
 		"end_date":          endTime.Add(-24 * time.Hour).Format("2006-01-02"),
 	}
 	dashboardUsersRankingCache.Set(cacheKey, payload)
+	c.Header("X-Snapshot-Cache", "miss")
+	response.Success(c, payload)
+}
+
+// GetAPIKeySpendingRanking handles getting API key spending ranking data.
+// GET /api/v1/admin/dashboard/api-keys-ranking
+func (h *DashboardHandler) GetAPIKeySpendingRanking(c *gin.Context) {
+	startTime, endTime := parseTimeRange(c)
+	limit := parseRankingLimit(c.DefaultQuery("limit", "12"))
+
+	filters := usagestats.UsageLogFilters{
+		StartTime: &startTime,
+		EndTime:   &endTime,
+		Model:     c.Query("model"),
+	}
+
+	if v := strings.TrimSpace(c.Query("user_id")); v != "" {
+		if id, err := strconv.ParseInt(v, 10, 64); err == nil {
+			filters.UserID = id
+		}
+	}
+	if v := strings.TrimSpace(c.Query("api_key_id")); v != "" {
+		if id, err := strconv.ParseInt(v, 10, 64); err == nil {
+			filters.APIKeyID = id
+		}
+	}
+	if v := strings.TrimSpace(c.Query("account_id")); v != "" {
+		if id, err := strconv.ParseInt(v, 10, 64); err == nil {
+			filters.AccountID = id
+		}
+	}
+	if v := strings.TrimSpace(c.Query("group_id")); v != "" {
+		if id, err := strconv.ParseInt(v, 10, 64); err == nil {
+			filters.GroupID = id
+		}
+	}
+	if requestTypeStr := strings.TrimSpace(c.Query("request_type")); requestTypeStr != "" {
+		parsed, err := service.ParseUsageRequestType(requestTypeStr)
+		if err != nil {
+			response.BadRequest(c, err.Error())
+			return
+		}
+		value := int16(parsed)
+		filters.RequestType = &value
+	} else if streamStr := c.Query("stream"); streamStr != "" {
+		streamVal, err := strconv.ParseBool(streamStr)
+		if err != nil {
+			response.BadRequest(c, "Invalid stream value, use true or false")
+			return
+		}
+		filters.Stream = &streamVal
+	}
+	if billingTypeStr := c.Query("billing_type"); billingTypeStr != "" {
+		v, err := strconv.ParseInt(billingTypeStr, 10, 8)
+		if err != nil {
+			response.BadRequest(c, "Invalid billing_type")
+			return
+		}
+		bt := int8(v)
+		filters.BillingType = &bt
+	}
+	filters.BillingMode = strings.TrimSpace(c.Query("billing_mode"))
+
+	keyRaw, _ := json.Marshal(struct {
+		Limit       int    `json:"limit"`
+		UserID      int64  `json:"user_id"`
+		APIKeyID    int64  `json:"api_key_id"`
+		AccountID   int64  `json:"account_id"`
+		GroupID     int64  `json:"group_id"`
+		Model       string `json:"model"`
+		RequestType *int16 `json:"request_type"`
+		Stream      *bool  `json:"stream"`
+		BillingType *int8  `json:"billing_type"`
+		BillingMode string `json:"billing_mode"`
+		Start       string `json:"start"`
+		End         string `json:"end"`
+	}{
+		Limit:       limit,
+		UserID:      filters.UserID,
+		APIKeyID:    filters.APIKeyID,
+		AccountID:   filters.AccountID,
+		GroupID:     filters.GroupID,
+		Model:       filters.Model,
+		RequestType: filters.RequestType,
+		Stream:      filters.Stream,
+		BillingType: filters.BillingType,
+		BillingMode: filters.BillingMode,
+		Start:       startTime.UTC().Format(time.RFC3339),
+		End:         endTime.UTC().Format(time.RFC3339),
+	})
+	cacheKey := string(keyRaw)
+	if cached, ok := dashboardAPIKeysRankingCache.Get(cacheKey); ok {
+		c.Header("X-Snapshot-Cache", "hit")
+		response.Success(c, cached.Payload)
+		return
+	}
+
+	ranking, err := h.dashboardService.GetAPIKeySpendingRanking(c.Request.Context(), filters, limit)
+	if err != nil {
+		response.Error(c, 500, "Failed to get API key spending ranking")
+		return
+	}
+
+	payload := gin.H{
+		"ranking":           ranking.Ranking,
+		"total_actual_cost": ranking.TotalActualCost,
+		"total_requests":    ranking.TotalRequests,
+		"total_tokens":      ranking.TotalTokens,
+		"start_date":        startTime.Format("2006-01-02"),
+		"end_date":          endTime.Add(-24 * time.Hour).Format("2006-01-02"),
+	}
+	dashboardAPIKeysRankingCache.Set(cacheKey, payload)
 	c.Header("X-Snapshot-Cache", "miss")
 	response.Success(c, payload)
 }

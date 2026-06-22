@@ -162,6 +162,25 @@ type UserSpendingRankingResponse struct {
 	TotalTokens     int64                     `json:"total_tokens"`
 }
 
+// APIKeySpendingRankingItem represents an API key spending ranking row.
+type APIKeySpendingRankingItem struct {
+	APIKeyID   int64   `json:"api_key_id"`
+	KeyName    string  `json:"key_name"`
+	UserID     int64   `json:"user_id"`
+	Email      string  `json:"email"`
+	ActualCost float64 `json:"actual_cost"` // 实际扣除
+	Requests   int64   `json:"requests"`
+	Tokens     int64   `json:"tokens"`
+}
+
+// APIKeySpendingRankingResponse represents API key ranking rows plus totals for the query.
+type APIKeySpendingRankingResponse struct {
+	Ranking         []APIKeySpendingRankingItem `json:"ranking"`
+	TotalActualCost float64                     `json:"total_actual_cost"`
+	TotalRequests   int64                       `json:"total_requests"`
+	TotalTokens     int64                       `json:"total_tokens"`
+}
+
 // UserBreakdownItem represents per-user usage breakdown within a dimension (group, model, endpoint).
 type UserBreakdownItem struct {
 	UserID      int64   `json:"user_id"`

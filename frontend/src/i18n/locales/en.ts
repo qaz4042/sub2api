@@ -3189,6 +3189,8 @@ export default {
       setPrivacy: 'Set Privacy',
       subscriptionAbnormal: 'Abnormal',
       subscriptionExpires: 'Expires',
+      subscriptionExpired: 'Plan expired',
+      subscriptionRemainingDays: '{days} days remaining',
       // Capacity status tooltips
       capacity: {
         windowCost: {
@@ -4631,6 +4633,11 @@ export default {
       clickToViewBalance: 'Click to view balance history',
       failedToLoadUser: 'Failed to load user info',
       userDeletedBadge: 'Deleted',
+      apiKeyRanking: {
+        title: 'API Key Ranking',
+        subtitle: 'Actual spend in the current filter range',
+        rank: 'Rank'
+      },
       cleanup: {
         button: 'Cleanup',
         title: 'Cleanup Usage Records',

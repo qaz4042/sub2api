@@ -537,6 +537,44 @@ func TestUsageLogRepositoryGetUserSpendingRanking(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestUsageLogRepositoryGetAPIKeySpendingRanking(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	requestType := int16(service.RequestTypeWSV2)
+	billingType := int8(1)
+	filters := usagestats.UsageLogFilters{
+		UserID:      7,
+		StartTime:   &start,
+		EndTime:     &end,
+		RequestType: &requestType,
+		BillingType: &billingType,
+	}
+
+	rows := sqlmock.NewRows([]string{"api_key_id", "key_name", "user_id", "email", "actual_cost", "requests", "tokens", "total_actual_cost", "total_requests", "total_tokens"}).
+		AddRow(int64(9), "prod", int64(7), "rank@example.com", 12.5, int64(9), int64(900), 40.0, int64(30), int64(2600)).
+		AddRow(int64(8), "dev", int64(7), "rank@example.com", 4.25, int64(5), int64(300), 40.0, int64(30), int64(2600))
+
+	mock.ExpectQuery("WITH key_spend AS \\(").
+		WithArgs(int64(7), requestType, int16(billingType), start, end, 12).
+		WillReturnRows(rows)
+
+	got, err := repo.GetAPIKeySpendingRanking(context.Background(), filters, 12)
+	require.NoError(t, err)
+	require.Equal(t, &usagestats.APIKeySpendingRankingResponse{
+		Ranking: []usagestats.APIKeySpendingRankingItem{
+			{APIKeyID: 9, KeyName: "prod", UserID: 7, Email: "rank@example.com", ActualCost: 12.5, Requests: 9, Tokens: 900},
+			{APIKeyID: 8, KeyName: "dev", UserID: 7, Email: "rank@example.com", ActualCost: 4.25, Requests: 5, Tokens: 300},
+		},
+		TotalActualCost: 40.0,
+		TotalRequests:   30,
+		TotalTokens:     2600,
+	}, got)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestBuildRequestTypeFilterConditionLegacyFallback(t *testing.T) {
 	tests := []struct {
 		name      string
