@@ -33,25 +33,23 @@ func TestUserRegistrationAndLogin(t *testing.T) {
 		}
 		body, _ := json.Marshal(payload)
 
-		resp, err := doRequest(t, "POST", "/api/auth/register", body, "")
+		resp, err := doRequest(t, "POST", "/api/v1/auth/register", body, "")
 		if err != nil {
-			t.Skipf("注册接口不可用，跳过用户流程测试: %v", err)
-			return
+			t.Fatalf("注册接口不可用: %v", err)
 		}
 		defer resp.Body.Close()
 
 		respBody, _ := io.ReadAll(resp.Body)
 
-		// 注册可能返回 200（成功）或 400（邮箱已存在）或 403（注册已关闭）
+		// Registration is an optional environment capability. When enabled, all
+		// failures are fatal because the email is unique for this test run.
 		switch resp.StatusCode {
 		case 200:
 			t.Logf("✅ 用户注册成功: %s", testUserEmail)
-		case 400:
-			t.Logf("⚠️ 用户可能已存在: %s", string(respBody))
 		case 403:
 			t.Skipf("注册功能已关闭: %s", string(respBody))
 		default:
-			t.Logf("⚠️ 注册返回 HTTP %d: %s（继续尝试登录）", resp.StatusCode, string(respBody))
+			t.Fatalf("注册返回 HTTP %d: %s", resp.StatusCode, string(respBody))
 		}
 	})
 
@@ -64,7 +62,7 @@ func TestUserRegistrationAndLogin(t *testing.T) {
 		}
 		body, _ := json.Marshal(payload)
 
-		resp, err := doRequest(t, "POST", "/api/auth/login", body, "")
+		resp, err := doRequest(t, "POST", "/api/v1/auth/login", body, "")
 		if err != nil {
 			t.Fatalf("登录请求失败: %v", err)
 		}
@@ -73,8 +71,7 @@ func TestUserRegistrationAndLogin(t *testing.T) {
 		respBody, _ := io.ReadAll(resp.Body)
 
 		if resp.StatusCode != 200 {
-			t.Skipf("登录失败 HTTP %d: %s（可能需要先注册用户）", resp.StatusCode, string(respBody))
-			return
+			t.Fatalf("登录失败 HTTP %d: %s", resp.StatusCode, string(respBody))
 		}
 
 		var result map[string]any
@@ -92,8 +89,7 @@ func TestUserRegistrationAndLogin(t *testing.T) {
 		}
 
 		if accessToken == "" {
-			t.Skipf("未获取到 access_token，响应: %s", string(respBody))
-			return
+			t.Fatalf("未获取到 access_token，响应: %s", string(respBody))
 		}
 
 		// 验证 token 不为空且格式基本正确
@@ -105,13 +101,12 @@ func TestUserRegistrationAndLogin(t *testing.T) {
 	})
 
 	if accessToken == "" {
-		t.Skip("未获取到 JWT，跳过后续测试")
-		return
+		t.Fatal("未获取到 JWT")
 	}
 
 	// 步骤 3: 使用 JWT 获取当前用户信息
 	t.Run("获取当前用户信息", func(t *testing.T) {
-		resp, err := doRequest(t, "GET", "/api/user/me", nil, accessToken)
+		resp, err := doRequest(t, "GET", "/api/v1/auth/me", nil, accessToken)
 		if err != nil {
 			t.Fatalf("请求失败: %v", err)
 		}
@@ -131,8 +126,7 @@ func TestAPIKeyLifecycle(t *testing.T) {
 	// 先登录获取 JWT
 	accessToken := loginTestUser(t)
 	if accessToken == "" {
-		t.Skip("无法登录，跳过 API Key 生命周期测试")
-		return
+		t.Fatal("无法登录；请为严格 E2E 设置 ADMIN_EMAIL 和 ADMIN_PASSWORD")
 	}
 
 	var apiKey string
@@ -144,7 +138,7 @@ func TestAPIKeyLifecycle(t *testing.T) {
 		}
 		body, _ := json.Marshal(payload)
 
-		resp, err := doRequest(t, "POST", "/api/keys", body, accessToken)
+		resp, err := doRequest(t, "POST", "/api/v1/keys", body, accessToken)
 		if err != nil {
 			t.Fatalf("创建 API Key 请求失败: %v", err)
 		}
@@ -153,8 +147,7 @@ func TestAPIKeyLifecycle(t *testing.T) {
 		respBody, _ := io.ReadAll(resp.Body)
 
 		if resp.StatusCode != 200 {
-			t.Skipf("创建 API Key 失败 HTTP %d: %s", resp.StatusCode, string(respBody))
-			return
+			t.Fatalf("创建 API Key 失败 HTTP %d: %s", resp.StatusCode, string(respBody))
 		}
 
 		var result map[string]any
@@ -172,8 +165,7 @@ func TestAPIKeyLifecycle(t *testing.T) {
 		}
 
 		if apiKey == "" {
-			t.Skipf("未获取到 API Key，响应: %s", string(respBody))
-			return
+			t.Fatalf("未获取到 API Key，响应: %s", string(respBody))
 		}
 
 		// 验证 API Key 脱敏日志（只显示前 8 位）
@@ -185,8 +177,7 @@ func TestAPIKeyLifecycle(t *testing.T) {
 	})
 
 	if apiKey == "" {
-		t.Skip("未创建 API Key，跳过后续测试")
-		return
+		t.Fatal("未创建 API Key")
 	}
 
 	// 步骤 2: 使用 API Key 调用网关（需要 Claude 或 Gemini 可用）
@@ -200,22 +191,15 @@ func TestAPIKeyLifecycle(t *testing.T) {
 
 		respBody, _ := io.ReadAll(resp.Body)
 
-		// 可能返回 200（成功）或 402（余额不足）或 403（无可用账户）
-		switch {
-		case resp.StatusCode == 200:
-			t.Logf("✅ API Key 网关调用成功")
-		case resp.StatusCode == 402:
-			t.Logf("⚠️ 余额不足，但 API Key 认证通过")
-		case resp.StatusCode == 403:
-			t.Logf("⚠️ 无可用账户，但 API Key 认证通过")
-		default:
-			t.Logf("⚠️ 网关返回 HTTP %d: %s", resp.StatusCode, string(respBody))
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("网关返回 HTTP %d: %s", resp.StatusCode, string(respBody))
 		}
+		t.Logf("✅ API Key 网关调用成功")
 	})
 
 	// 步骤 3: 查询用量记录
 	t.Run("查询用量记录", func(t *testing.T) {
-		resp, err := doRequest(t, "GET", "/api/usage/dashboard", nil, accessToken)
+		resp, err := doRequest(t, "GET", "/api/v1/usage?page=1&page_size=10", nil, accessToken)
 		if err != nil {
 			t.Fatalf("用量查询请求失败: %v", err)
 		}
@@ -223,8 +207,7 @@ func TestAPIKeyLifecycle(t *testing.T) {
 
 		if resp.StatusCode != 200 {
 			body, _ := io.ReadAll(resp.Body)
-			t.Logf("⚠️ 用量查询返回 HTTP %d: %s", resp.StatusCode, string(body))
-			return
+			t.Fatalf("用量查询返回 HTTP %d: %s", resp.StatusCode, string(body))
 		}
 
 		t.Logf("✅ 用量查询成功")
@@ -279,7 +262,7 @@ func loginTestUser(t *testing.T) string {
 	}
 	body, _ := json.Marshal(payload)
 
-	resp, err := doRequest(t, "POST", "/api/auth/login", body, "")
+	resp, err := doRequest(t, "POST", "/api/v1/auth/login", body, "")
 	if err != nil {
 		return ""
 	}

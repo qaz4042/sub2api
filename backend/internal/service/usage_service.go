@@ -367,6 +367,16 @@ func (s *UsageService) GetBatchAPIKeyUsageStats(ctx context.Context, apiKeyIDs [
 	return stats, nil
 }
 
+// GetUserAPIKeySpendingRanking returns the global API key leaderboard together
+// with all ranking rows owned by the requesting user.
+func (s *UsageService) GetUserAPIKeySpendingRanking(ctx context.Context, userID int64, startTime, endTime time.Time, limit int) (*usagestats.UserAPIKeyRankingResponse, error) {
+	ranking, err := s.usageRepo.GetUserAPIKeySpendingRanking(ctx, startTime, endTime, userID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("get user api key spending ranking: %w", err)
+	}
+	return ranking, nil
+}
+
 // ListWithFilters lists usage logs with admin filters.
 func (s *UsageService) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters usagestats.UsageLogFilters) ([]UsageLog, *pagination.PaginationResult, error) {
 	logs, result, err := s.usageRepo.ListWithFilters(ctx, params, filters)

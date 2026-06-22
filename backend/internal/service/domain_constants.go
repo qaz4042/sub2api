@@ -363,6 +363,12 @@ const (
 	// sidebar entry is hidden. Defaults to false (opt-in feature).
 	SettingKeyAvailableChannelsEnabled = "available_channels_enabled"
 
+	// Platform gateway switches. OpenAI remains the always-on core platform;
+	// these opt-in switches control the other public gateway interfaces.
+	SettingKeyPlatformAnthropicEnabled   = "platform_anthropic_enabled"
+	SettingKeyPlatformGeminiEnabled      = "platform_gemini_enabled"
+	SettingKeyPlatformAntigravityEnabled = "platform_antigravity_enabled"
+
 	// =========================
 	// Overload Cooldown (529)
 	// =========================

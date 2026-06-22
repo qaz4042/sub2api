@@ -233,6 +233,9 @@ export interface PublicSettings {
   channel_monitor_enabled: boolean
   channel_monitor_default_interval_seconds: number
   available_channels_enabled: boolean
+  platform_anthropic_enabled: boolean
+  platform_gemini_enabled: boolean
+  platform_antigravity_enabled: boolean
   service_quota_enabled: boolean
   affiliate_enabled: boolean
   allow_user_view_error_requests?: boolean
@@ -1534,6 +1537,24 @@ export interface ApiKeySpendingRankingResponse {
   total_actual_cost: number
   total_requests: number
   total_tokens: number
+  start_date: string
+  end_date: string
+}
+
+export interface UserApiKeyRankingItem {
+  rank: number
+  api_key_id?: number
+  key_name?: string
+  is_mine: boolean
+  actual_cost: number
+  requests: number
+  tokens: number
+}
+
+export interface UserApiKeyRankingResponse {
+  ranking: UserApiKeyRankingItem[]
+  my_rankings: UserApiKeyRankingItem[]
+  total_keys: number
   start_date: string
   end_date: string
 }

@@ -4,9 +4,10 @@ import { nextTick } from 'vue'
 
 import UsageView from '../UsageView.vue'
 
-const { query, getStatsByDateRange, list, showError, showWarning, showSuccess, showInfo } = vi.hoisted(() => ({
+const { query, getStatsByDateRange, getApiKeyRanking, list, showError, showWarning, showSuccess, showInfo } = vi.hoisted(() => ({
   query: vi.fn(),
   getStatsByDateRange: vi.fn(),
+  getApiKeyRanking: vi.fn(),
   list: vi.fn(),
   showError: vi.fn(),
   showWarning: vi.fn(),
@@ -67,6 +68,7 @@ vi.mock('@/api', () => ({
   usageAPI: {
     query,
     getStatsByDateRange,
+    getApiKeyRanking,
   },
   keysAPI: {
     list,
@@ -108,6 +110,17 @@ describe('user UsageView tooltip', () => {
   beforeEach(() => {
     query.mockReset()
     getStatsByDateRange.mockReset()
+    getApiKeyRanking.mockReset()
+    getApiKeyRanking.mockResolvedValue({
+      ranking: [],
+      my_rankings: [],
+      total_keys: 0,
+      total_actual_cost: 0,
+      total_requests: 0,
+      total_tokens: 0,
+      start_date: '2026-06-17',
+      end_date: '2026-06-23',
+    })
     list.mockReset()
     showError.mockReset()
     showWarning.mockReset()

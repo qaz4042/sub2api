@@ -1,12 +1,17 @@
 <template>
   <div class="table-page-layout" :class="{ 'mobile-mode': isMobile }">
+    <!-- 可选：筛选器优先展示，适用于筛选条件会影响上方统计卡片的页面。 -->
+    <div v-if="filtersFirst && $slots.filters" class="layout-section-fixed">
+      <slot name="filters" />
+    </div>
+
     <!-- 固定区域：操作按钮 -->
     <div v-if="$slots.actions" class="layout-section-fixed">
       <slot name="actions" />
     </div>
 
     <!-- 固定区域：搜索和过滤器 -->
-    <div v-if="$slots.filters" class="layout-section-fixed">
+    <div v-if="!filtersFirst && $slots.filters" class="layout-section-fixed">
       <slot name="filters" />
     </div>
 
@@ -26,6 +31,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+
+withDefaults(defineProps<{
+  filtersFirst?: boolean
+}>(), {
+  filtersFirst: false,
+})
 
 const isMobile = ref(false)
 

@@ -11,6 +11,7 @@ import type {
   PaginatedResponse,
   TrendDataPoint,
   ModelStat,
+  UserApiKeyRankingResponse,
   UserErrorRequest,
   UserErrorRequestDetail,
   UserErrorListParams
@@ -257,6 +258,18 @@ export async function getDashboardModels(params?: {
 }
 
 /**
+ * Get the privacy-safe global API key leaderboard and the current user's ranks.
+ */
+export async function getApiKeyRanking(params?: {
+  start_date?: string
+  end_date?: string
+  limit?: number
+}): Promise<UserApiKeyRankingResponse> {
+  const { data } = await apiClient.get<UserApiKeyRankingResponse>('/usage/ranking', { params })
+  return data
+}
+
+/**
  * Get daily usage details for one API key owned by the current user.
  * @param apiKeyId - API key ID
  * @param days - Number of days to include (1-90)
@@ -334,6 +347,7 @@ export const usageAPI = {
   getDashboardStats,
   getDashboardTrend,
   getDashboardModels,
+  getApiKeyRanking,
   getMyApiKeyDailyUsage,
   getDashboardApiKeysUsage,
   // Error requests

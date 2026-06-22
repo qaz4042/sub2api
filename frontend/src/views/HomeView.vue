@@ -41,9 +41,13 @@
       <nav class="mx-auto flex max-w-6xl items-center justify-between">
         <!-- Logo -->
         <div class="flex items-center">
-          <div class="h-10 w-10 overflow-hidden rounded-xl shadow-md">
+          <router-link
+            to="/home"
+            class="h-10 w-10 overflow-hidden rounded-xl shadow-md transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-dark-900"
+            :aria-label="siteName"
+          >
             <img :src="siteLogo || '/logo.png'" alt="Logo" class="h-full w-full object-contain" />
-          </div>
+          </router-link>
         </div>
 
         <!-- Nav Actions -->
@@ -157,14 +161,14 @@
                     <span class="code-prompt">$</span>
                     <span class="code-cmd">curl</span>
                     <span class="code-flag">-X POST</span>
-                    <span class="code-url">/v1/messages</span>
+                    <span class="code-url">/v1/responses</span>
                   </div>
                   <div class="code-line line-2">
                     <span class="code-comment"># Routing to upstream...</span>
                   </div>
                   <div class="code-line line-3">
                     <span class="code-success">200 OK</span>
-                    <span class="code-response">{ "content": "Hello!" }</span>
+                    <span class="code-response">{ "output_text": "Hello!" }</span>
                   </div>
                   <div class="code-line line-4">
                     <span class="code-prompt">$</span>
@@ -295,6 +299,7 @@
         <div class="mb-16 flex flex-wrap items-center justify-center gap-4">
           <!-- Claude - Supported -->
           <div
+            v-if="platformAnthropicEnabled"
             class="flex items-center gap-2 rounded-xl border border-primary-200 bg-white/60 px-5 py-3 ring-1 ring-primary-500/20 backdrop-blur-sm dark:border-primary-800 dark:bg-dark-800/60"
           >
             <div
@@ -325,6 +330,7 @@
           </div>
           <!-- Gemini - Supported -->
           <div
+            v-if="platformGeminiEnabled"
             class="flex items-center gap-2 rounded-xl border border-primary-200 bg-white/60 px-5 py-3 ring-1 ring-primary-500/20 backdrop-blur-sm dark:border-primary-800 dark:bg-dark-800/60"
           >
             <div
@@ -340,6 +346,7 @@
           </div>
           <!-- Antigravity - Supported -->
           <div
+            v-if="platformAntigravityEnabled"
             class="flex items-center gap-2 rounded-xl border border-primary-200 bg-white/60 px-5 py-3 ring-1 ring-primary-500/20 backdrop-blur-sm dark:border-primary-800 dark:bg-dark-800/60"
           >
             <div
@@ -422,6 +429,9 @@ const siteLogo = computed(() => appStore.cachedPublicSettings?.site_logo || appS
 const siteSubtitle = computed(() => appStore.cachedPublicSettings?.site_subtitle || 'AI API Gateway Platform')
 const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
 const homeContent = computed(() => appStore.cachedPublicSettings?.home_content || '')
+const platformAnthropicEnabled = computed(() => appStore.cachedPublicSettings?.platform_anthropic_enabled === true)
+const platformGeminiEnabled = computed(() => appStore.cachedPublicSettings?.platform_gemini_enabled === true)
+const platformAntigravityEnabled = computed(() => appStore.cachedPublicSettings?.platform_antigravity_enabled === true)
 
 // Check if homeContent is a URL (for iframe display)
 const isHomeContentUrl = computed(() => {

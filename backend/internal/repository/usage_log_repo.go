@@ -3081,6 +3081,106 @@ func (r *usageLogRepository) GetAPIKeySpendingRanking(ctx context.Context, filte
 	return result, nil
 }
 
+// GetUserAPIKeySpendingRanking returns the global top API keys and every key
+// owned by userID. Ranking is deterministic so each key has one clear position.
+func (r *usageLogRepository) GetUserAPIKeySpendingRanking(
+	ctx context.Context,
+	startTime, endTime time.Time,
+	userID int64,
+	limit int,
+) (result *usagestats.UserAPIKeyRankingResponse, err error) {
+	if limit <= 0 {
+		limit = 10
+	}
+
+	query := `
+		WITH key_spend AS (
+			SELECT
+				ul.api_key_id,
+				COALESCE(k.name, '') AS key_name,
+				COALESCE(ul.user_id, 0) AS user_id,
+				COALESCE(SUM(ul.actual_cost), 0) AS actual_cost,
+				COUNT(*) AS requests,
+				COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens), 0) AS tokens
+			FROM usage_logs ul
+			LEFT JOIN api_keys k ON k.id = ul.api_key_id
+			WHERE ul.api_key_id > 0
+				AND ul.created_at >= $1
+				AND ul.created_at < $2
+			GROUP BY ul.api_key_id, k.name, ul.user_id
+		),
+		ranked AS (
+			SELECT
+				api_key_id,
+				key_name,
+				user_id,
+				actual_cost,
+				requests,
+				tokens,
+				ROW_NUMBER() OVER (ORDER BY actual_cost DESC, tokens DESC, api_key_id ASC) AS rank,
+				COUNT(*) OVER () AS total_keys
+			FROM key_spend
+		)
+		SELECT
+			api_key_id,
+			key_name,
+			user_id,
+			actual_cost,
+			requests,
+			tokens,
+			rank,
+			total_keys
+		FROM ranked
+		WHERE rank <= $3 OR user_id = $4
+		ORDER BY rank ASC
+	`
+
+	rows, err := r.sql.QueryContext(ctx, query, startTime, endTime, limit, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+			result = nil
+		}
+	}()
+
+	result = &usagestats.UserAPIKeyRankingResponse{
+		Ranking:    make([]usagestats.UserAPIKeyRankingItem, 0, limit),
+		MyRankings: make([]usagestats.UserAPIKeyRankingItem, 0),
+	}
+	for rows.Next() {
+		var row usagestats.UserAPIKeyRankingItem
+		var totalKeys int64
+		if err = rows.Scan(
+			&row.APIKeyID,
+			&row.KeyName,
+			&row.UserID,
+			&row.ActualCost,
+			&row.Requests,
+			&row.Tokens,
+			&row.Rank,
+			&totalKeys,
+		); err != nil {
+			return nil, err
+		}
+
+		row.IsMine = row.UserID == userID
+		if row.Rank <= int64(limit) {
+			result.Ranking = append(result.Ranking, row)
+		}
+		if row.IsMine {
+			result.MyRankings = append(result.MyRankings, row)
+		}
+		result.TotalKeys = totalKeys
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // BatchAPIKeyUsageStats represents usage stats for a single API key
 type BatchAPIKeyUsageStats = usagestats.BatchAPIKeyUsageStats
 
