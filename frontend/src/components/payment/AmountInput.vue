@@ -30,7 +30,7 @@
       </label>
       <div class="relative">
         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-500">
-          $
+          {{ currencySymbol }}
         </span>
         <input
           type="text"
@@ -48,16 +48,21 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { getPaymentCurrencySymbol } from './currency'
 
 const props = withDefaults(defineProps<{
   amounts?: number[]
   modelValue: number | null
   min?: number
   max?: number
+  currency?: string
+  locale?: string
 }>(), {
   amounts: () => [10, 20, 50, 100, 200, 500, 1000, 2000, 5000],
   min: 0,
   max: 0,
+  currency: 'CNY',
+  locale: undefined,
 })
 
 const emit = defineEmits<{
@@ -67,6 +72,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const customText = ref('')
+const currencySymbol = computed(() => getPaymentCurrencySymbol(props.currency, props.locale))
 
 // 0 = no limit
 const filteredAmounts = computed(() =>
