@@ -180,6 +180,7 @@ import type { AdminUser } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { isOnlinePaymentTopUp } from '@/utils/redeemHistory'
 
 const props = defineProps<{ show: boolean; user: AdminUser | null; hideActions?: boolean }>()
 const emit = defineEmits(['close', 'deposit', 'withdraw'])
@@ -294,7 +295,9 @@ const getValueColor = (item: BalanceHistoryItem) => {
 const getItemTitle = (item: BalanceHistoryItem) => {
   switch (item.type) {
     case 'balance':
-      return t('redeem.balanceAddedRedeem')
+      return isOnlinePaymentTopUp(item)
+        ? t('redeem.balanceAddedPayment')
+        : t('redeem.balanceAddedRedeem')
     case 'affiliate_balance':
       return t('redeem.balanceAddedAffiliate')
     case 'admin_balance':

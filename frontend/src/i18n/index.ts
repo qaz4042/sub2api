@@ -1,6 +1,6 @@
 import { createI18n } from 'vue-i18n'
 
-type LocaleCode = 'en' | 'zh'
+type LocaleCode = 'en' | 'zh-TW' | 'zh'
 
 type LocaleMessages = Record<string, any>
 
@@ -9,11 +9,12 @@ const DEFAULT_LOCALE: LocaleCode = 'en'
 
 const localeLoaders: Record<LocaleCode, () => Promise<{ default: LocaleMessages }>> = {
   en: () => import('./locales/en'),
+  'zh-TW': () => import('./locales/zh-TW'),
   zh: () => import('./locales/zh')
 }
 
 function isLocaleCode(value: string): value is LocaleCode {
-  return value === 'en' || value === 'zh'
+  return value === 'en' || value === 'zh-TW' || value === 'zh'
 }
 
 function getDefaultLocale(): LocaleCode {
@@ -23,6 +24,9 @@ function getDefaultLocale(): LocaleCode {
   }
 
   const browserLang = navigator.language.toLowerCase()
+  if (/^zh(?:-(?:tw|hk|mo|hant))/.test(browserLang)) {
+    return 'zh-TW'
+  }
   if (browserLang.startsWith('zh')) {
     return 'zh'
   }
@@ -85,7 +89,8 @@ export function getLocale(): LocaleCode {
 
 export const availableLocales = [
   { code: 'en', name: 'English', flag: '🇺🇸' },
-  { code: 'zh', name: '中文', flag: '🇨🇳' }
+  { code: 'zh-TW', name: '繁體中文', flag: '🇹🇼' },
+  { code: 'zh', name: '简体中文', flag: '🇨🇳' }
 ] as const
 
 export default i18n

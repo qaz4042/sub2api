@@ -1,6 +1,103 @@
 # my2g 二进制 + systemd 部署方案
 
-目标：把 Sub2API 应用从“Mac/Colima 构建 Docker 镜像并上传”改为“Mac 原生构建前端和 Linux Go 二进制，my2g 用 systemd 运行应用”。PostgreSQL、Redis、Mihomo 可以继续用 Docker Compose 保持现状。
+目标：先对当前 my2g 做可恢复、加密备份，重装为 Debian 13.5，再把 Sub2API 应用从“Mac/Colima 构建 Docker 镜像并上传”改为“Mac 原生构建前端和 Linux Go 二进制，my2g 用 systemd 运行应用”。PostgreSQL、Redis、Mihomo 继续使用 Docker Compose。
+
+## 最终决策（2026-06-22）
+
+本节是本方案的最终执行依据；与后文旧的原地切换步骤冲突时，以本节为准。
+
+- 不继续在 Alibaba Cloud Linux 3 上做二进制原地切换。
+- 先生成最终 PostgreSQL custom-format dump，并连同应用配置、Mihomo、Nginx、Cloudflare Tunnel 配置打包。
+- 备份包必须在本地加密；明文数据库和 `.env` 不上传对象存储。
+- 加密备份至少在 Mac 本地保留两份独立副本，记录 SHA-256，并在销毁系统盘前完成解密回读校验；七牛云异地副本为推荐项，但不是本次重装的硬门槛。
+- 服务器已通过云控制台重装为 Debian 13.5。
+- 重装后只恢复业务数据和必要配置，不恢复旧系统的软件包、RPM 仓库或系统目录。
+- PostgreSQL、Redis、Mihomo 使用 Docker Compose；Sub2API 使用 systemd 运行 Linux amd64 二进制。
+- 系统盘重装是不可逆操作。只有“最终 dump 校验、加密包解密校验、Mac 两份副本校验”全部通过，才允许在云控制台确认重装；若已上传七牛云，还要校验云端对象。
+
+本次重装前必须备份：
+
+```text
+/opt/sub2api/.env
+/opt/sub2api/data/
+/opt/sub2api/docker-compose.yml
+/opt/sub2api/compose.my2g.yml
+/opt/sub2api/compose.mihomo.yml
+/opt/sub2api/mihomo/
+/etc/cloudflared/config.yml
+/etc/systemd/system/cloudflared.service
+/etc/nginx/conf.d/sub2api.conf
+PostgreSQL 18 custom-format dump
+备份清单、文件权限、SHA-256
+```
+
+不把 PostgreSQL 数据目录作为主要恢复来源。`/opt/sub2api/postgres_data/` 只可作为额外冷备；正式恢复必须使用经 `pg_restore --list` 校验的逻辑 dump。
+
+## 实施记录（2026-06-22）
+
+- 最终停写备份标识：`20260622-212842-final`。
+- 旧应用容器在最终 dump 前已停止；dump 期间 PostgreSQL、Redis、Mihomo 保持健康。
+- PostgreSQL 使用 custom format 导出，并通过 `pg_restore --list` 校验。
+- 备份包使用 `AES-256-CBC + PBKDF2` 加密，PBKDF2 迭代次数为 `600000`。
+- 已从第二副本实际解密回读，外层归档包含 `postgres.dump`、`rootfs.tar.gz`、`rootfs-manifest.txt`、`metadata.txt` 和 `SHA256SUMS`。
+- 两份本地恢复材料路径：
+
+```text
+/Users/zubin/Documents/sub2api-recovery/20260622-212842-final/
+/Users/zubin/Downloads/sub2api-recovery-copy/20260622-212842-final/
+```
+
+- 两个目录都包含加密备份、SHA-256、恢复密钥和 Linux amd64 release；敏感文件权限为 `600`，release 权限为仅属主可执行。
+- release 二进制大小为 `92553378` bytes，SHA-256 为 `034c6db8c6656e46e80e043dbf756fa87479b1129ce1123cc7b0f00a636ceb4b`。
+- 七牛云上传因不是恢复硬门槛而跳过；当前两份副本位于同一台 Mac，不具备异地或独立磁盘容灾能力，恢复完成后仍建议补充异地加密副本。
+- 系统盘已重装为 Debian 13.5；旧系统不能再作为回滚来源。
+- SSH 新主机指纹已写入本机 `known_hosts`，专用公钥认证已于 2026-06-23 恢复。
+- Debian 13 基础环境、依赖容器、PostgreSQL 数据、systemd 应用、Nginx 和 Cloudflare Tunnel 均已恢复。
+- 当前 release 为 `20260622-212842-final`，Sub2API 版本为 `0.1.137`（commit `8c413b90`）。
+- PostgreSQL、Redis、Mihomo 均为 healthy；Sub2API、Nginx、Cloudflare Tunnel 均为 active。
+- 本机和公网 `/health`、公开设置 API、首页均已验证，公网首页标题为 `卡卡滨 Codex - AI API Gateway`。
+
+### SSH 重装后状态（已解决）
+
+`my2g` 本机配置保持不变：
+
+```sshconfig
+Host my2g
+  HostName 39.102.86.235
+  User root
+  Port 22
+  IdentityFile ~/.ssh/id_ed25519_39_102_86_235
+  IdentitiesOnly yes
+```
+
+重装后的主机指纹：
+
+```text
+ED25519 SHA256:fPQpllZ+BjyOkMGYyoHxAsT2Q/qhRf2CjPbHnoUC9ZM
+RSA     SHA256:1hmYngQ+9P6CHeP4AJVdTyBgNYL5mN/g3guozq+BAgQ
+ECDSA   SHA256:xM68k/dmqvp2rulaf0aogSRGxe++ROa3PZ8Qf9bqpoM
+```
+
+旧 `known_hosts` 已备份到：
+
+```text
+/Users/zubin/.ssh/known_hosts.before-my2g-debian-20260622-214016
+```
+
+重装后最初测试 `root`、`debian`、`admin` 均返回 `Permission denied (publickey,password)`。该问题已通过阿里云控制台恢复专用公钥解决，当前 `ssh my2g` 使用 `root` 和 `~/.ssh/id_ed25519_39_102_86_235` 正常登录。私钥和恢复密钥仍不得写入仓库、文档或聊天。
+
+### 恢复部署结果（2026-06-23）
+
+- Debian 软件：Docker `26.1.5`、Docker Compose `2.26.1`、PostgreSQL client `18.4`、Nginx `1.26.3`、cloudflared `2026.6.1`。
+- 新服务器无法连接 Docker Hub；PostgreSQL 18、Redis 8 和原定制 Mihomo 的 `linux/amd64` 镜像从 Mac 本地缓存打包上传并通过 `docker load` 恢复。
+- PostgreSQL final dump 已恢复，恢复后 `public` schema 有 74 张表。
+- 数据库中 1 条 `host=mihomo` 的代理记录已迁移为 `host=127.0.0.1`。
+- 依赖端口 `5432`、`6379`、`7890`、`7891` 和应用端口 `8080` 均只绑定 `127.0.0.1`。
+- Nginx 备份配置依赖的 `$connection_upgrade` 映射已在 `/etc/nginx/conf.d/00-websocket-map.conf` 补回，并通过 `nginx -t`。
+- Cloudflare Tunnel 配置和凭据已恢复，ingress 校验通过并成功注册多条 tunnel connection。
+- 已生成恢复后数据库备份 `/opt/sub2api/backups/postgres-20260623-post-restore.dump`，并通过 `pg_restore --list` 校验。
+- 本次部署产生的本机解密临时目录和服务器 `/root` 明文恢复暂存目录均已删除。
+- 原备份内层 `SHA256SUMS` 和 release `SHA256SUMS` 使用旧绝对路径，可移植性不足；本次已按文件名逐项计算实际 SHA-256 并验证通过，备份脚本和两份现有恢复材料的外层/release 校验清单已改为相对路径。加密包内部清单保持原样，恢复时需按文件名校验。
 
 ## 结论
 
@@ -11,7 +108,7 @@ Mac 本地:
   pnpm build
   CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags embed
 
-my2g:
+my2g（Debian 13.5）:
   systemd 运行 /opt/sub2api/current/sub2api
   Docker Compose 继续运行 postgres / redis / mihomo
   Nginx / Cloudflare Tunnel 继续回源到 127.0.0.1:8080
@@ -42,13 +139,17 @@ my2g:
 本方案按“小闭环”执行，每个闭环只改变一类状态，并且执行后立刻验证：
 
 1. 预检闭环：只检查当前服务、端口、工具和配置，不改状态。
-2. 备份闭环：先完成可校验的数据库和文件备份，再继续。
-3. 依赖暴露闭环：只把 Postgres/Redis/Mihomo 暴露到 `127.0.0.1`，验证宿主机可连。
-4. 配置迁移闭环：迁移旧 `/app/data` 和 `.env`，验证 `config.yaml`、`.installed`、密钥存在。
-5. 发布闭环：上传 release 并验证二进制、资源目录、版本输出。
-6. 切换闭环：先停止旧应用容器，再启动 systemd 应用。
-7. 验证闭环：先本机健康检查，再公网健康检查，再做关键业务探测。
-8. 回滚闭环：任何闭环失败，优先恢复到上一个已验证状态。
+2. 最终备份闭环：短暂停写后重新生成数据库 dump 和文件清单，校验 dump。
+3. 备份留存闭环：本地加密，Mac 至少保留两份独立副本，完成 SHA-256、解密和内容校验；可选再上传七牛云。
+4. 重装闭环：确认恢复材料完整后，重装 Debian 13.5；此闭环开始后旧系统不能作为回滚手段。
+5. 基础环境闭环：恢复 SSH，安装 Docker、PostgreSQL client、Redis tools、rsync、Nginx 和 cloudflared。
+6. 依赖恢复闭环：恢复 Compose 配置，启动 Postgres/Redis/Mihomo，再恢复数据库并验证。
+7. 配置迁移闭环：恢复 `.env` 和 data，转换 systemd 环境文件，验证密钥和运行配置。
+8. 发布闭环：上传 release 并验证二进制、资源目录、版本输出。
+9. 切换闭环：启动 systemd 应用，依赖容器保持不动。
+10. 验证闭环：先本机健康检查，再公网健康检查，再做关键业务探测。
+
+重装后的回滚边界：应用可通过 `releases/<tag>` 回滚；数据库可从最终 dump 重建；整机不能直接回到重装前状态。因此，经校验的最终加密备份和 Mac 第二副本是系统盘重装的硬门槛。
 
 ## 推荐目录
 
@@ -245,7 +346,9 @@ docker compose \
 
 如果宿主机已经占用端口，改成 `127.0.0.1:5433:5432`、`127.0.0.1:6380:6379`、`127.0.0.1:7892:7890`，同时修改 `sub2api.env` 和代理配置里的端口。
 
-## 首次切换步骤
+## 原地切换参考步骤（非本次最终主路径）
+
+以下步骤保留为不重装系统时的参考。本次已定稿采用“加密本地双副本 -> 重装 Debian 13.5 -> 恢复依赖和数据 -> systemd 发布”的主路径，不应直接从这里开始执行。
 
 按下面闭环顺序执行。每个闭环通过后再进入下一步；失败时先停下，不要继续叠加改动。
 
