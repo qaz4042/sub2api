@@ -31,3 +31,17 @@ export function formatPaymentAmount(amount: number, currency?: string | null, lo
     return `${normalized} ${(Number.isFinite(amount) ? amount : 0).toFixed(fractionDigits)}`
   }
 }
+
+export function getPaymentCurrencySymbol(currency?: string | null, locale?: string): string {
+  const normalized = normalizePaymentCurrency(currency)
+  try {
+    const symbol = new Intl.NumberFormat(locale || undefined, {
+      style: 'currency',
+      currency: normalized,
+      currencyDisplay: 'narrowSymbol',
+    }).formatToParts(0).find(part => part.type === 'currency')?.value
+    return symbol || normalized
+  } catch {
+    return normalized
+  }
+}
