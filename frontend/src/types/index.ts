@@ -233,12 +233,21 @@ export interface PublicSettings {
   channel_monitor_enabled: boolean
   channel_monitor_default_interval_seconds: number
   available_channels_enabled: boolean
-  platform_anthropic_enabled: boolean
-  platform_gemini_enabled: boolean
-  platform_antigravity_enabled: boolean
+  platform_configs: PlatformConfig[]
   service_quota_enabled: boolean
   affiliate_enabled: boolean
   allow_user_view_error_requests?: boolean
+}
+
+export interface PlatformConfig {
+  key: string
+  label: string
+  description: string
+  enabled: boolean
+  core: boolean
+  sort_order: number
+  created_at?: string
+  updated_at?: string
 }
 
 export interface AuthResponse {

@@ -33,6 +33,36 @@ func (s *platformAccessRepoStub) GetMultiple(_ context.Context, keys []string) (
 	return result, nil
 }
 
+type platformConfigRepoStub struct {
+	items []PlatformConfig
+}
+
+func (s *platformConfigRepoStub) List(context.Context) ([]PlatformConfig, error) {
+	return s.items, nil
+}
+
+func (s *platformConfigRepoStub) Get(_ context.Context, key string) (*PlatformConfig, error) {
+	for i := range s.items {
+		if s.items[i].Key == key {
+			item := s.items[i]
+			return &item, nil
+		}
+	}
+	return nil, ErrPlatformConfigNotFound
+}
+
+func (s *platformConfigRepoStub) Create(context.Context, PlatformConfigInput) (*PlatformConfig, error) {
+	return nil, nil
+}
+
+func (s *platformConfigRepoStub) Update(context.Context, string, PlatformConfigUpdate) (*PlatformConfig, error) {
+	return nil, nil
+}
+
+func (s *platformConfigRepoStub) Delete(context.Context, string) error {
+	return nil
+}
+
 func TestSettingServicePlatformAccessDefaultsToOpenAIOnly(t *testing.T) {
 	svc := NewSettingService(&platformAccessRepoStub{values: map[string]string{}}, nil)
 	ctx := context.Background()
@@ -44,11 +74,13 @@ func TestSettingServicePlatformAccessDefaultsToOpenAIOnly(t *testing.T) {
 }
 
 func TestSettingServicePlatformAccessHonorsEnabledSwitches(t *testing.T) {
-	svc := NewSettingService(&platformAccessRepoStub{values: map[string]string{
-		SettingKeyPlatformAnthropicEnabled:   "true",
-		SettingKeyPlatformGeminiEnabled:      "true",
-		SettingKeyPlatformAntigravityEnabled: "true",
-	}}, nil)
+	svc := NewSettingService(&platformAccessRepoStub{values: map[string]string{}}, nil)
+	svc.SetPlatformConfigRepository(&platformConfigRepoStub{items: []PlatformConfig{
+		{Key: PlatformOpenAI, Enabled: true, Core: true},
+		{Key: PlatformAnthropic, Enabled: true},
+		{Key: PlatformGemini, Enabled: true},
+		{Key: PlatformAntigravity, Enabled: true},
+	}})
 	ctx := context.Background()
 
 	require.True(t, svc.IsPlatformEnabled(ctx, PlatformAnthropic))

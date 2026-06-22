@@ -299,10 +299,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		ChannelMonitorEnabled:                settings.ChannelMonitorEnabled,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 
-		AvailableChannelsEnabled:   settings.AvailableChannelsEnabled,
-		PlatformAnthropicEnabled:   settings.PlatformAnthropicEnabled,
-		PlatformGeminiEnabled:      settings.PlatformGeminiEnabled,
-		PlatformAntigravityEnabled: settings.PlatformAntigravityEnabled,
+		AvailableChannelsEnabled: settings.AvailableChannelsEnabled,
+		PlatformConfigs:          settings.PlatformConfigs,
 
 		AffiliateEnabled: settings.AffiliateEnabled,
 
@@ -650,11 +648,6 @@ type UpdateSettingsRequest struct {
 
 	// Available Channels feature switch (user-facing)
 	AvailableChannelsEnabled *bool `json:"available_channels_enabled"`
-
-	// Public gateway platform switches (OpenAI is always enabled)
-	PlatformAnthropicEnabled   *bool `json:"platform_anthropic_enabled"`
-	PlatformGeminiEnabled      *bool `json:"platform_gemini_enabled"`
-	PlatformAntigravityEnabled *bool `json:"platform_antigravity_enabled"`
 
 	// Affiliate (邀请返利) feature switch
 	AffiliateEnabled *bool `json:"affiliate_enabled"`
@@ -1801,24 +1794,6 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.AvailableChannelsEnabled
 		}(),
-		PlatformAnthropicEnabled: func() bool {
-			if req.PlatformAnthropicEnabled != nil {
-				return *req.PlatformAnthropicEnabled
-			}
-			return previousSettings.PlatformAnthropicEnabled
-		}(),
-		PlatformGeminiEnabled: func() bool {
-			if req.PlatformGeminiEnabled != nil {
-				return *req.PlatformGeminiEnabled
-			}
-			return previousSettings.PlatformGeminiEnabled
-		}(),
-		PlatformAntigravityEnabled: func() bool {
-			if req.PlatformAntigravityEnabled != nil {
-				return *req.PlatformAntigravityEnabled
-			}
-			return previousSettings.PlatformAntigravityEnabled
-		}(),
 		AffiliateEnabled: func() bool {
 			if req.AffiliateEnabled != nil {
 				return *req.AffiliateEnabled
@@ -2163,10 +2138,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ChannelMonitorEnabled:                updatedSettings.ChannelMonitorEnabled,
 		ChannelMonitorDefaultIntervalSeconds: updatedSettings.ChannelMonitorDefaultIntervalSeconds,
 
-		AvailableChannelsEnabled:   updatedSettings.AvailableChannelsEnabled,
-		PlatformAnthropicEnabled:   updatedSettings.PlatformAnthropicEnabled,
-		PlatformGeminiEnabled:      updatedSettings.PlatformGeminiEnabled,
-		PlatformAntigravityEnabled: updatedSettings.PlatformAntigravityEnabled,
+		AvailableChannelsEnabled: updatedSettings.AvailableChannelsEnabled,
+		PlatformConfigs:          updatedSettings.PlatformConfigs,
 
 		AffiliateEnabled: updatedSettings.AffiliateEnabled,
 
@@ -2656,15 +2629,6 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.AvailableChannelsEnabled != after.AvailableChannelsEnabled {
 		changed = append(changed, "available_channels_enabled")
-	}
-	if before.PlatformAnthropicEnabled != after.PlatformAnthropicEnabled {
-		changed = append(changed, "platform_anthropic_enabled")
-	}
-	if before.PlatformGeminiEnabled != after.PlatformGeminiEnabled {
-		changed = append(changed, "platform_gemini_enabled")
-	}
-	if before.PlatformAntigravityEnabled != after.PlatformAntigravityEnabled {
-		changed = append(changed, "platform_antigravity_enabled")
 	}
 	if before.AffiliateEnabled != after.AffiliateEnabled {
 		changed = append(changed, "affiliate_enabled")

@@ -10,6 +10,7 @@ import type {
   LoginAgreementDocument,
   NotifyEmailEntry,
 } from "@/types";
+import type { PlatformConfig } from "./platforms";
 
 export interface DefaultSubscriptionSetting {
   group_id: number;
@@ -615,10 +616,8 @@ export interface SystemSettings {
   // Available Channels feature switch
   available_channels_enabled: boolean;
 
-  // Public gateway platform switches (OpenAI is always enabled)
-  platform_anthropic_enabled: boolean;
-  platform_gemini_enabled: boolean;
-  platform_antigravity_enabled: boolean;
+  // Public gateway platform registry
+  platform_configs: PlatformConfig[];
 
   // Affiliate (邀请返利) feature switch
   affiliate_enabled: boolean;
@@ -860,11 +859,6 @@ export interface UpdateSettingsRequest {
 
   // Available Channels feature switch
   available_channels_enabled?: boolean;
-
-  // Public gateway platform switches (OpenAI is always enabled)
-  platform_anthropic_enabled?: boolean;
-  platform_gemini_enabled?: boolean;
-  platform_antigravity_enabled?: boolean;
 
   // Affiliate (邀请返利) feature switch
   affiliate_enabled?: boolean;

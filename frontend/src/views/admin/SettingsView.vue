@@ -5424,50 +5424,81 @@
               {{ t('admin.settings.features.platformAccess.description') }}
             </p>
           </div>
-          <div class="divide-y divide-gray-100 px-6 dark:divide-dark-700">
-            <div class="flex items-center justify-between py-5">
-              <div>
-                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {{ t('admin.settings.features.platformAccess.openai') }}
-                </label>
-                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  {{ t('admin.settings.features.platformAccess.openaiHint') }}
-                </p>
-              </div>
-              <Toggle :model-value="true" disabled />
+          <div class="space-y-4 p-6">
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-dark-700">
+                <thead>
+                  <tr class="text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    <th class="px-3 py-2">{{ localText("平台", "Platform") }}</th>
+                    <th class="px-3 py-2">{{ localText("名称", "Label") }}</th>
+                    <th class="px-3 py-2">{{ localText("说明", "Description") }}</th>
+                    <th class="px-3 py-2">{{ localText("排序", "Order") }}</th>
+                    <th class="px-3 py-2">{{ localText("启用", "Enabled") }}</th>
+                    <th class="px-3 py-2 text-right">{{ localText("操作", "Actions") }}</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
+                  <tr v-for="platform in platformConfigs" :key="platform.key">
+                    <td class="px-3 py-3">
+                      <div class="font-mono text-xs text-gray-900 dark:text-white">{{ platform.key }}</div>
+                      <div v-if="platform.core" class="mt-1 text-[11px] text-primary-600 dark:text-primary-400">
+                        {{ localText("核心平台", "Core") }}
+                      </div>
+                    </td>
+                    <td class="px-3 py-3">
+                      <input
+                        v-model="platform.label"
+                        class="input h-9 min-w-[160px]"
+                        :disabled="platformSavingKey === platform.key"
+                        @blur="savePlatformConfig(platform)"
+                      />
+                    </td>
+                    <td class="px-3 py-3">
+                      <input
+                        v-model="platform.description"
+                        class="input h-9 min-w-[280px]"
+                        :disabled="platformSavingKey === platform.key"
+                        @blur="savePlatformConfig(platform)"
+                      />
+                    </td>
+                    <td class="px-3 py-3">
+                      <input
+                        v-model.number="platform.sort_order"
+                        type="number"
+                        class="input h-9 w-24"
+                        :disabled="platformSavingKey === platform.key"
+                        @blur="savePlatformConfig(platform)"
+                      />
+                    </td>
+                    <td class="px-3 py-3">
+                      <Toggle
+                        :model-value="platform.enabled"
+                        :disabled="platform.core || platformSavingKey === platform.key"
+                        @update:model-value="togglePlatformConfig(platform, $event)"
+                      />
+                    </td>
+                    <td class="px-3 py-3 text-right">
+                      <button
+                        class="btn btn-sm btn-outline text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        :disabled="platform.core || platformSavingKey === platform.key"
+                        @click="deletePlatformConfig(platform)"
+                      >
+                        {{ t("common.delete") }}
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-            <div class="flex items-center justify-between py-5">
-              <div>
-                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {{ t('admin.settings.features.platformAccess.anthropic') }}
-                </label>
-                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  {{ t('admin.settings.features.platformAccess.disabledHint') }}
-                </p>
-              </div>
-              <Toggle v-model="form.platform_anthropic_enabled" />
-            </div>
-            <div class="flex items-center justify-between py-5">
-              <div>
-                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {{ t('admin.settings.features.platformAccess.gemini') }}
-                </label>
-                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  {{ t('admin.settings.features.platformAccess.disabledHint') }}
-                </p>
-              </div>
-              <Toggle v-model="form.platform_gemini_enabled" />
-            </div>
-            <div class="flex items-center justify-between py-5">
-              <div>
-                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {{ t('admin.settings.features.platformAccess.antigravity') }}
-                </label>
-                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  {{ t('admin.settings.features.platformAccess.disabledHint') }}
-                </p>
-              </div>
-              <Toggle v-model="form.platform_antigravity_enabled" />
+
+            <div class="grid gap-3 border-t border-gray-100 pt-4 dark:border-dark-700 md:grid-cols-[160px_1fr_1fr_100px_auto]">
+              <input v-model="newPlatform.key" class="input h-9" placeholder="platform_key" />
+              <input v-model="newPlatform.label" class="input h-9" :placeholder="localText('平台名称', 'Label')" />
+              <input v-model="newPlatform.description" class="input h-9" :placeholder="localText('说明', 'Description')" />
+              <input v-model.number="newPlatform.sort_order" type="number" class="input h-9" placeholder="50" />
+              <button class="btn btn-primary h-9" :disabled="platformSavingKey === '__new__'" @click="createPlatformConfig">
+                {{ t("common.add") }}
+              </button>
             </div>
           </div>
         </div>
@@ -7009,6 +7040,7 @@
 import { ref, reactive, computed, onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { adminAPI } from "@/api";
+import type { PlatformConfig } from "@/api/admin";
 import {
   appendAuthSourceDefaultsToUpdateRequest,
   buildAuthSourceDefaultsState,
@@ -7675,6 +7707,7 @@ type SettingsForm = Omit<
   | "wechat_connect_open_enabled"
   | "wechat_connect_mp_enabled"
   | "wechat_connect_mobile_enabled"
+  | "platform_configs"
 > & {
   smtp_password: string;
   turnstile_secret_key: string;
@@ -7907,14 +7940,19 @@ const form = reactive<SettingsForm>({
   channel_monitor_default_interval_seconds: 60,
   // Available Channels feature switch
   available_channels_enabled: false,
-  // Public gateway platform switches (OpenAI is always enabled)
-  platform_anthropic_enabled: false,
-  platform_gemini_enabled: false,
-  platform_antigravity_enabled: false,
   // Affiliate (邀请返利) feature switch
   affiliate_enabled: false,
   // Allow user view error requests
   allow_user_view_error_requests: false,
+});
+
+const platformConfigs = ref<PlatformConfig[]>([]);
+const platformSavingKey = ref("");
+const newPlatform = reactive({
+  key: "",
+  label: "",
+  description: "",
+  sort_order: 50,
 });
 
 const authSourceDefaults = reactive<AuthSourceDefaultsState>(
@@ -8504,6 +8542,93 @@ function parseTablePageSizeOptionsInput(raw: string): number[] | null {
   return deduped;
 }
 
+async function refreshPlatformConfigs(): Promise<void> {
+  platformConfigs.value = await adminAPI.platforms.list();
+}
+
+async function savePlatformConfig(platform: PlatformConfig): Promise<void> {
+  if (!platform.key || (platform.core && !platform.enabled)) return;
+  const label = platform.label.trim();
+  if (!label) {
+    appStore.showError(localText("平台名称不能为空", "Platform label is required"));
+    await refreshPlatformConfigs();
+    return;
+  }
+
+  platformSavingKey.value = platform.key;
+  try {
+    const updated = await adminAPI.platforms.update(platform.key, {
+      label,
+      description: platform.description?.trim() || "",
+      enabled: platform.core ? true : platform.enabled,
+      sort_order: Number(platform.sort_order) || 0,
+    });
+    const index = platformConfigs.value.findIndex((item) => item.key === updated.key);
+    if (index >= 0) platformConfigs.value[index] = updated;
+    await appStore.fetchPublicSettings(true);
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, localText("保存平台失败", "Failed to save platform")));
+    await refreshPlatformConfigs();
+  } finally {
+    platformSavingKey.value = "";
+  }
+}
+
+async function togglePlatformConfig(platform: PlatformConfig, enabled: boolean): Promise<void> {
+  platform.enabled = enabled;
+  await savePlatformConfig(platform);
+}
+
+async function createPlatformConfig(): Promise<void> {
+  const key = newPlatform.key.trim().toLowerCase();
+  const label = newPlatform.label.trim();
+  if (!key || !label) {
+    appStore.showError(localText("平台 key 和名称不能为空", "Platform key and label are required"));
+    return;
+  }
+
+  platformSavingKey.value = "__new__";
+  try {
+    await adminAPI.platforms.create({
+      key,
+      label,
+      description: newPlatform.description.trim(),
+      enabled: false,
+      sort_order: Number(newPlatform.sort_order) || 0,
+    });
+    newPlatform.key = "";
+    newPlatform.label = "";
+    newPlatform.description = "";
+    newPlatform.sort_order = 50;
+    await refreshPlatformConfigs();
+    await appStore.fetchPublicSettings(true);
+    appStore.showSuccess(localText("平台已添加", "Platform added"));
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, localText("添加平台失败", "Failed to add platform")));
+  } finally {
+    platformSavingKey.value = "";
+  }
+}
+
+async function deletePlatformConfig(platform: PlatformConfig): Promise<void> {
+  if (platform.core) return;
+  if (!window.confirm(localText(`确认删除平台 ${platform.label}？`, `Delete platform ${platform.label}?`))) {
+    return;
+  }
+
+  platformSavingKey.value = platform.key;
+  try {
+    await adminAPI.platforms.delete(platform.key);
+    platformConfigs.value = platformConfigs.value.filter((item) => item.key !== platform.key);
+    await appStore.fetchPublicSettings(true);
+    appStore.showSuccess(localText("平台已删除", "Platform deleted"));
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, localText("删除平台失败", "Failed to delete platform")));
+  } finally {
+    platformSavingKey.value = "";
+  }
+}
+
 async function loadSettings() {
   loading.value = true;
   loadFailed.value = false;
@@ -8517,6 +8642,9 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
+    platformConfigs.value = Array.isArray(settings.platform_configs)
+      ? settings.platform_configs.map((item) => ({ ...item }))
+      : [];
     if (!form.claude_oauth_system_prompt_blocks?.trim()) {
       form.claude_oauth_system_prompt_blocks =
         defaultClaudeOAuthSystemPromptBlocks;
@@ -9078,10 +9206,6 @@ async function saveSettings() {
         Number(form.channel_monitor_default_interval_seconds) || 60,
       // Available Channels feature switch
       available_channels_enabled: form.available_channels_enabled,
-      // Public gateway platform switches
-      platform_anthropic_enabled: form.platform_anthropic_enabled,
-      platform_gemini_enabled: form.platform_gemini_enabled,
-      platform_antigravity_enabled: form.platform_antigravity_enabled,
       // Affiliate (邀请返利) feature switch
       affiliate_enabled: form.affiliate_enabled,
       allow_user_view_error_requests: form.allow_user_view_error_requests,

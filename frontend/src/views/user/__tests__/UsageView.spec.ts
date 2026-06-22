@@ -229,6 +229,56 @@ describe('user UsageView tooltip', () => {
     expect(text).toContain('$30.0000 / 1M tokens')
   })
 
+  it('stops the API key ranking spinner when the request never settles', async () => {
+    vi.useFakeTimers()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    query.mockResolvedValue({
+      items: [],
+      total: 0,
+      pages: 0,
+    })
+    getStatsByDateRange.mockResolvedValue({
+      total_requests: 0,
+      total_tokens: 0,
+      total_cost: 0,
+      avg_duration_ms: 0,
+    })
+    getApiKeyRanking.mockReturnValue(new Promise(() => {}))
+    list.mockResolvedValue({ items: [] })
+
+    const wrapper = mount(UsageView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          TablePageLayout: TablePageLayoutStub,
+          Pagination: true,
+          EmptyState: true,
+          Select: true,
+          DateRangePicker: true,
+          DataTable: DataTableStub,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    try {
+      await nextTick()
+      const setupState = (wrapper.vm as any).$?.setupState
+      expect(setupState.apiKeyRankingLoading).toBe(true)
+
+      await vi.advanceTimersByTimeAsync(15_000)
+      await flushPromises()
+
+      expect(setupState.apiKeyRankingLoading).toBe(false)
+      expect(setupState.apiKeyRankingError).toBe(true)
+    } finally {
+      wrapper.unmount()
+      consoleError.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
   it('exports csv with input and output unit price columns', async () => {
     const exportedLogs = [
       {

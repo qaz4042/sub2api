@@ -1,4 +1,4 @@
-.PHONY: build build-backend build-frontend test test-backend test-frontend test-frontend-critical secret-scan deploy-my2g deploy-my2g-docker
+.PHONY: build build-backend build-frontend test test-backend test-frontend test-frontend-critical check-entrypoints secret-scan deploy-my2g deploy-my2g-docker
 
 FRONTEND_CRITICAL_VITEST := \
 	src/views/auth/__tests__/LinuxDoCallbackView.spec.ts \
@@ -32,6 +32,9 @@ test-frontend:
 
 test-frontend-critical:
 	@pnpm --dir frontend exec vitest run $(FRONTEND_CRITICAL_VITEST)
+
+check-entrypoints:
+	@python3 tools/check_entrypoints.py
 
 secret-scan:
 	@python3 tools/secret_scan.py

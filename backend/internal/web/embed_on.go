@@ -99,6 +99,11 @@ func (s *FrontendServer) Middleware() gin.HandlerFunc {
 
 		// For index.html or SPA routes, serve with injected settings
 		if cleanPath == "index.html" || !s.fileExists(cleanPath) {
+			if isStaticAssetRequest(cleanPath) {
+				c.String(http.StatusNotFound, "Static asset not found")
+				c.Abort()
+				return
+			}
 			s.serveIndexHTML(c)
 			return
 		}
@@ -108,6 +113,7 @@ func (s *FrontendServer) Middleware() gin.HandlerFunc {
 			return
 		}
 
+		setStaticAssetCacheHeaders(c, cleanPath)
 		// Serve static files normally
 		s.fileServer.ServeHTTP(c.Writer, c.Request)
 		c.Abort()
@@ -272,7 +278,14 @@ func ServeEmbeddedFrontend() gin.HandlerFunc {
 			if tryServeOverrideFile(c, overrideDir, cleanPath) {
 				return
 			}
+			setStaticAssetCacheHeaders(c, cleanPath)
 			fileServer.ServeHTTP(c.Writer, c.Request)
+			c.Abort()
+			return
+		}
+
+		if isStaticAssetRequest(cleanPath) {
+			c.String(http.StatusNotFound, "Static asset not found")
 			c.Abort()
 			return
 		}
@@ -308,6 +321,20 @@ func shouldBypassEmbeddedFrontend(path string) bool {
 		trimmed == "/responses" ||
 		strings.HasPrefix(trimmed, "/responses/") ||
 		strings.HasPrefix(trimmed, "/images/")
+}
+
+func isStaticAssetRequest(cleanPath string) bool {
+	cleanPath = strings.TrimSpace(strings.TrimPrefix(cleanPath, "/"))
+	if cleanPath == "" || cleanPath == "index.html" {
+		return false
+	}
+	return strings.HasPrefix(cleanPath, "assets/") || filepath.Ext(cleanPath) != ""
+}
+
+func setStaticAssetCacheHeaders(c *gin.Context, cleanPath string) {
+	if strings.HasPrefix(strings.TrimPrefix(cleanPath, "/"), "assets/") {
+		c.Header("Cache-Control", "public, max-age=31536000, immutable")
+	}
 }
 
 func serveIndexHTML(c *gin.Context, fsys fs.FS) {

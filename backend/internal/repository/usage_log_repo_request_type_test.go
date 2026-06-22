@@ -581,16 +581,23 @@ func TestUsageLogRepositoryGetUserAPIKeySpendingRankingIncludesOwnKeyOutsideTop(
 
 	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	end := start.AddDate(0, 0, 7)
-	rows := sqlmock.NewRows([]string{
+	globalRows := sqlmock.NewRows([]string{
 		"api_key_id", "key_name", "user_id", "actual_cost", "requests", "tokens",
 		"rank", "total_keys",
 	}).
-		AddRow(int64(1), "leader", int64(9), 50.0, int64(100), int64(5000), int64(1), int64(30)).
+		AddRow(int64(1), "leader", int64(9), 50.0, int64(100), int64(5000), int64(1), int64(30))
+	mineRows := sqlmock.NewRows([]string{
+		"api_key_id", "key_name", "user_id", "actual_cost", "requests", "tokens",
+		"rank", "total_keys",
+	}).
 		AddRow(int64(7), "my-key", int64(42), 2.5, int64(10), int64(500), int64(18), int64(30))
 
 	mock.ExpectQuery("WITH key_spend AS \\(").
-		WithArgs(start, end, 10, int64(42)).
-		WillReturnRows(rows)
+		WithArgs(start, end, 10).
+		WillReturnRows(globalRows)
+	mock.ExpectQuery("WITH key_spend AS \\(").
+		WithArgs(start, end, int64(42)).
+		WillReturnRows(mineRows)
 
 	got, err := repo.GetUserAPIKeySpendingRanking(context.Background(), start, end, 42, 10)
 	require.NoError(t, err)
@@ -601,6 +608,58 @@ func TestUsageLogRepositoryGetUserAPIKeySpendingRankingIncludesOwnKeyOutsideTop(
 	require.Equal(t, int64(18), got.MyRankings[0].Rank)
 	require.Equal(t, "my-key", got.MyRankings[0].KeyName)
 	require.True(t, got.MyRankings[0].IsMine)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUsageLogRepositoryGetUserAPIKeySpendingRankingCachesGlobalAndIsolatesMine(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 0, 7)
+	columns := []string{
+		"api_key_id", "key_name", "user_id", "actual_cost", "requests", "tokens",
+		"rank", "total_keys",
+	}
+	globalRows := sqlmock.NewRows(columns).
+		AddRow(int64(11), "top-owned-by-42", int64(42), 20.0, int64(20), int64(2000), int64(1), int64(3)).
+		AddRow(int64(9), "leader", int64(9), 15.0, int64(15), int64(1500), int64(2), int64(3))
+	mine42Rows := sqlmock.NewRows(columns).
+		AddRow(int64(11), "top-owned-by-42", int64(42), 20.0, int64(20), int64(2000), int64(1), int64(3))
+	mine77Rows := sqlmock.NewRows(columns).
+		AddRow(int64(77), "owned-by-77", int64(77), 3.0, int64(3), int64(300), int64(3), int64(3))
+
+	// The global query should be shared across both users for the same range and limit.
+	mock.ExpectQuery("WITH key_spend AS \\(").
+		WithArgs(start, end, 10).
+		WillReturnRows(globalRows)
+	mock.ExpectQuery("WITH key_spend AS \\(").
+		WithArgs(start, end, int64(42)).
+		WillReturnRows(mine42Rows)
+	mock.ExpectQuery("WITH key_spend AS \\(").
+		WithArgs(start, end, int64(77)).
+		WillReturnRows(mine77Rows)
+
+	got42, err := repo.GetUserAPIKeySpendingRanking(context.Background(), start, end, 42, 10)
+	require.NoError(t, err)
+	require.Len(t, got42.Ranking, 2)
+	require.True(t, got42.Ranking[0].IsMine)
+	require.Len(t, got42.MyRankings, 1)
+	require.Equal(t, "top-owned-by-42", got42.MyRankings[0].KeyName)
+
+	got42.Ranking[0].KeyName = "mutated response must not poison cache"
+	got42Again, err := repo.GetUserAPIKeySpendingRanking(context.Background(), start, end, 42, 10)
+	require.NoError(t, err)
+	require.Equal(t, "top-owned-by-42", got42Again.Ranking[0].KeyName)
+	require.True(t, got42Again.Ranking[0].IsMine)
+
+	got77, err := repo.GetUserAPIKeySpendingRanking(context.Background(), start, end, 77, 10)
+	require.NoError(t, err)
+	require.Len(t, got77.Ranking, 2)
+	require.False(t, got77.Ranking[0].IsMine, "cached global row must be marked per requesting user")
+	require.Len(t, got77.MyRankings, 1)
+	require.Equal(t, "owned-by-77", got77.MyRankings[0].KeyName)
+
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

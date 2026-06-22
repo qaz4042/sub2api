@@ -19,7 +19,7 @@ function print_help() {
   -h, --help 显示帮助
 
 示例:
-  sudo ./install-datamanagementd.sh --binary ./datamanagement/datamanagementd
+  sudo ./install-datamanagementd.sh --binary /path/to/datamanagementd
 EOF
 }
 

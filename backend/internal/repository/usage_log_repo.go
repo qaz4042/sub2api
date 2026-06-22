@@ -28,6 +28,7 @@ import (
 	"github.com/lib/pq"
 	gocache "github.com/patrickmn/go-cache"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 )
 
 const usageLogSelectColumns = "id, user_id, api_key_id, account_id, request_id, model, requested_model, upstream_model, group_id, subscription_id, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens, image_output_tokens, image_output_cost, input_cost, output_cost, cache_creation_cost, cache_read_cost, total_cost, actual_cost, rate_multiplier, account_rate_multiplier, billing_type, request_type, stream, openai_ws_mode, duration_ms, first_token_ms, user_agent, ip_address, image_count, image_size, image_input_size, image_output_size, image_size_source, image_size_breakdown, service_tier, reasoning_effort, inbound_endpoint, upstream_endpoint, cache_ttl_overridden, channel_id, model_mapping_chain, billing_tier, billing_mode, account_stats_cost, created_at"
@@ -182,6 +183,10 @@ type usageLogRepository struct {
 	bestEffortBatchOnce sync.Once
 	bestEffortBatchCh   chan usageLogBestEffortRequest
 	bestEffortRecent    *gocache.Cache
+
+	apiKeyRankingCacheOnce sync.Once
+	apiKeyRankingCache     *gocache.Cache
+	apiKeyRankingFlight    singleflight.Group
 }
 
 const (
@@ -194,6 +199,9 @@ const (
 	usageLogBestEffortBatchWindow   = 20 * time.Millisecond
 	usageLogBestEffortBatchQueueCap = 32768
 	usageLogBestEffortRecentTTL     = 30 * time.Second
+
+	userAPIKeyRankingCacheTTL     = 1 * time.Minute
+	userAPIKeyRankingCacheCleanup = 5 * time.Minute
 )
 
 type usageLogCreateRequest struct {
@@ -3093,6 +3101,124 @@ func (r *usageLogRepository) GetUserAPIKeySpendingRanking(
 		limit = 10
 	}
 
+	global, err := r.getCachedUserAPIKeyRankingGlobal(ctx, startTime, endTime, limit)
+	if err != nil {
+		return nil, err
+	}
+	mine, err := r.getCachedUserAPIKeyRankingMine(ctx, startTime, endTime, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	totalKeys := global.TotalKeys
+	if mine.TotalKeys > totalKeys {
+		totalKeys = mine.TotalKeys
+	}
+	ranking := cloneUserAPIKeyRankingItems(global.Ranking)
+	for i := range ranking {
+		ranking[i].IsMine = ranking[i].UserID == userID
+	}
+	return &usagestats.UserAPIKeyRankingResponse{
+		Ranking:    ranking,
+		MyRankings: cloneUserAPIKeyRankingItems(mine.MyRankings),
+		TotalKeys:  totalKeys,
+	}, nil
+}
+
+func (r *usageLogRepository) getCachedUserAPIKeyRankingGlobal(ctx context.Context, startTime, endTime time.Time, limit int) (*usagestats.UserAPIKeyRankingResponse, error) {
+	key := fmt.Sprintf("api_key_ranking:global:%d:%d:%d", startTime.UnixNano(), endTime.UnixNano(), limit)
+	if cached, ok := r.getUserAPIKeyRankingCache().Get(key); ok {
+		if ranking, ok := cached.(*usagestats.UserAPIKeyRankingResponse); ok {
+			return cloneUserAPIKeyRankingResponse(ranking), nil
+		}
+	}
+
+	value, err, _ := r.apiKeyRankingFlight.Do(key, func() (any, error) {
+		if cached, ok := r.getUserAPIKeyRankingCache().Get(key); ok {
+			if ranking, ok := cached.(*usagestats.UserAPIKeyRankingResponse); ok {
+				return cloneUserAPIKeyRankingResponse(ranking), nil
+			}
+		}
+		ranking, err := r.queryUserAPIKeyRankingGlobal(ctx, startTime, endTime, limit)
+		if err != nil {
+			return nil, err
+		}
+		r.getUserAPIKeyRankingCache().Set(key, cloneUserAPIKeyRankingResponse(ranking), userAPIKeyRankingCacheTTL)
+		return ranking, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	ranking, ok := value.(*usagestats.UserAPIKeyRankingResponse)
+	if !ok {
+		return nil, fmt.Errorf("unexpected cached api key global ranking type %T", value)
+	}
+	return cloneUserAPIKeyRankingResponse(ranking), nil
+}
+
+func (r *usageLogRepository) getCachedUserAPIKeyRankingMine(ctx context.Context, startTime, endTime time.Time, userID int64) (*usagestats.UserAPIKeyRankingResponse, error) {
+	key := fmt.Sprintf("api_key_ranking:mine:%d:%d:%d", userID, startTime.UnixNano(), endTime.UnixNano())
+	if cached, ok := r.getUserAPIKeyRankingCache().Get(key); ok {
+		if ranking, ok := cached.(*usagestats.UserAPIKeyRankingResponse); ok {
+			return cloneUserAPIKeyRankingResponse(ranking), nil
+		}
+	}
+
+	value, err, _ := r.apiKeyRankingFlight.Do(key, func() (any, error) {
+		if cached, ok := r.getUserAPIKeyRankingCache().Get(key); ok {
+			if ranking, ok := cached.(*usagestats.UserAPIKeyRankingResponse); ok {
+				return cloneUserAPIKeyRankingResponse(ranking), nil
+			}
+		}
+		ranking, err := r.queryUserAPIKeyRankingMine(ctx, startTime, endTime, userID)
+		if err != nil {
+			return nil, err
+		}
+		r.getUserAPIKeyRankingCache().Set(key, cloneUserAPIKeyRankingResponse(ranking), userAPIKeyRankingCacheTTL)
+		return ranking, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	ranking, ok := value.(*usagestats.UserAPIKeyRankingResponse)
+	if !ok {
+		return nil, fmt.Errorf("unexpected cached api key mine ranking type %T", value)
+	}
+	return cloneUserAPIKeyRankingResponse(ranking), nil
+}
+
+func (r *usageLogRepository) getUserAPIKeyRankingCache() *gocache.Cache {
+	r.apiKeyRankingCacheOnce.Do(func() {
+		r.apiKeyRankingCache = gocache.New(userAPIKeyRankingCacheTTL, userAPIKeyRankingCacheCleanup)
+	})
+	return r.apiKeyRankingCache
+}
+
+func cloneUserAPIKeyRankingResponse(in *usagestats.UserAPIKeyRankingResponse) *usagestats.UserAPIKeyRankingResponse {
+	if in == nil {
+		return &usagestats.UserAPIKeyRankingResponse{}
+	}
+	return &usagestats.UserAPIKeyRankingResponse{
+		Ranking:    cloneUserAPIKeyRankingItems(in.Ranking),
+		MyRankings: cloneUserAPIKeyRankingItems(in.MyRankings),
+		TotalKeys:  in.TotalKeys,
+	}
+}
+
+func cloneUserAPIKeyRankingItems(in []usagestats.UserAPIKeyRankingItem) []usagestats.UserAPIKeyRankingItem {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]usagestats.UserAPIKeyRankingItem, len(in))
+	copy(out, in)
+	return out
+}
+
+func (r *usageLogRepository) queryUserAPIKeyRankingGlobal(
+	ctx context.Context,
+	startTime, endTime time.Time,
+	limit int,
+) (result *usagestats.UserAPIKeyRankingResponse, err error) {
 	query := `
 		WITH key_spend AS (
 			SELECT
@@ -3131,11 +3257,11 @@ func (r *usageLogRepository) GetUserAPIKeySpendingRanking(
 			rank,
 			total_keys
 		FROM ranked
-		WHERE rank <= $3 OR user_id = $4
+		WHERE rank <= $3
 		ORDER BY rank ASC
 	`
 
-	rows, err := r.sql.QueryContext(ctx, query, startTime, endTime, limit, userID)
+	rows, err := r.sql.QueryContext(ctx, query, startTime, endTime, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -3147,7 +3273,92 @@ func (r *usageLogRepository) GetUserAPIKeySpendingRanking(
 	}()
 
 	result = &usagestats.UserAPIKeyRankingResponse{
-		Ranking:    make([]usagestats.UserAPIKeyRankingItem, 0, limit),
+		Ranking: make([]usagestats.UserAPIKeyRankingItem, 0, limit),
+	}
+	for rows.Next() {
+		var row usagestats.UserAPIKeyRankingItem
+		var totalKeys int64
+		if err = rows.Scan(
+			&row.APIKeyID,
+			&row.KeyName,
+			&row.UserID,
+			&row.ActualCost,
+			&row.Requests,
+			&row.Tokens,
+			&row.Rank,
+			&totalKeys,
+		); err != nil {
+			return nil, err
+		}
+
+		result.Ranking = append(result.Ranking, row)
+		result.TotalKeys = totalKeys
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (r *usageLogRepository) queryUserAPIKeyRankingMine(
+	ctx context.Context,
+	startTime, endTime time.Time,
+	userID int64,
+) (result *usagestats.UserAPIKeyRankingResponse, err error) {
+	query := `
+		WITH key_spend AS (
+			SELECT
+				ul.api_key_id,
+				COALESCE(k.name, '') AS key_name,
+				COALESCE(ul.user_id, 0) AS user_id,
+				COALESCE(SUM(ul.actual_cost), 0) AS actual_cost,
+				COUNT(*) AS requests,
+				COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens), 0) AS tokens
+			FROM usage_logs ul
+			LEFT JOIN api_keys k ON k.id = ul.api_key_id
+			WHERE ul.api_key_id > 0
+				AND ul.created_at >= $1
+				AND ul.created_at < $2
+			GROUP BY ul.api_key_id, k.name, ul.user_id
+		),
+		ranked AS (
+			SELECT
+				api_key_id,
+				key_name,
+				user_id,
+				actual_cost,
+				requests,
+				tokens,
+				ROW_NUMBER() OVER (ORDER BY actual_cost DESC, tokens DESC, api_key_id ASC) AS rank,
+				COUNT(*) OVER () AS total_keys
+			FROM key_spend
+		)
+		SELECT
+			api_key_id,
+			key_name,
+			user_id,
+			actual_cost,
+			requests,
+			tokens,
+			rank,
+			total_keys
+		FROM ranked
+		WHERE user_id = $3
+		ORDER BY rank ASC
+	`
+
+	rows, err := r.sql.QueryContext(ctx, query, startTime, endTime, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+			result = nil
+		}
+	}()
+
+	result = &usagestats.UserAPIKeyRankingResponse{
 		MyRankings: make([]usagestats.UserAPIKeyRankingItem, 0),
 	}
 	for rows.Next() {
@@ -3166,13 +3377,8 @@ func (r *usageLogRepository) GetUserAPIKeySpendingRanking(
 			return nil, err
 		}
 
-		row.IsMine = row.UserID == userID
-		if row.Rank <= int64(limit) {
-			result.Ranking = append(result.Ranking, row)
-		}
-		if row.IsMine {
-			result.MyRankings = append(result.MyRankings, row)
-		}
+		row.IsMine = true
+		result.MyRankings = append(result.MyRankings, row)
 		result.TotalKeys = totalKeys
 	}
 	if err = rows.Err(); err != nil {

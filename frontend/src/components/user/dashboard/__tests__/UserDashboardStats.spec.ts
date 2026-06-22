@@ -82,9 +82,12 @@ const baseSettings: PublicSettings = {
   channel_monitor_enabled: true,
   channel_monitor_default_interval_seconds: 60,
   available_channels_enabled: false,
-  platform_anthropic_enabled: false,
-  platform_gemini_enabled: false,
-  platform_antigravity_enabled: false,
+  platform_configs: [
+    { key: 'openai', label: 'OpenAI', description: '', enabled: true, core: true, sort_order: 10 },
+    { key: 'anthropic', label: 'Anthropic / Claude', description: '', enabled: false, core: false, sort_order: 20 },
+    { key: 'gemini', label: 'Gemini', description: '', enabled: false, core: false, sort_order: 30 },
+    { key: 'antigravity', label: 'Antigravity', description: '', enabled: false, core: false, sort_order: 40 },
+  ],
   service_quota_enabled: false,
   affiliate_enabled: false,
 }
@@ -192,7 +195,11 @@ describe('UserDashboardStats 平台拆分', () => {
   })
 
   it('平台开关打开后展示对应平台', () => {
-    const wrapper = mountStats({ platform_gemini_enabled: true })
+    const wrapper = mountStats({
+      platform_configs: baseSettings.platform_configs.map((item) =>
+        item.key === 'gemini' ? { ...item, enabled: true } : item
+      ),
+    })
 
     expect(wrapper.text()).toContain('OpenAI')
     expect(wrapper.text()).toContain('Gemini')

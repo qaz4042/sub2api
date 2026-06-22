@@ -10,7 +10,7 @@
 
 ## 2. 获取二进制并运行
 
-当前仓库不包含 `datamanagementd` 源码，不能从本仓库执行 `go build`。请从单独交付的构建产物中取得与服务器架构匹配的二进制，并安装到 `/opt/sub2api/datamanagementd`。
+当前仓库不包含 `datamanagementd` 源码，也不提供本地源码构建入口。请从单独交付的构建产物中取得与服务器架构匹配的二进制，并安装到 `/opt/sub2api/datamanagementd`。
 
 ```bash
 install -m 0755 /path/to/datamanagementd /opt/sub2api/datamanagementd
