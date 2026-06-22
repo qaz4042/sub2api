@@ -114,6 +114,19 @@ type GitHubAsset struct {
 
 // CheckUpdate checks for available updates
 func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInfo, error) {
+	// Versions rooted at 0.0.0 with a suffix identify custom/development builds
+	// that do not have a meaningful baseline in the upstream release stream.
+	// Comparing them as 0.0.0 would permanently advertise every upstream release
+	// as an applicable in-place update, which is unsafe for forked deployments.
+	if isUnversionedBuild(s.currentVersion) {
+		return &UpdateInfo{
+			CurrentVersion: s.currentVersion,
+			LatestVersion:  s.currentVersion,
+			HasUpdate:      false,
+			BuildType:      s.buildType,
+		}, nil
+	}
+
 	// Try cache first
 	if !force {
 		if cached, err := s.getFromCache(ctx); err == nil && cached != nil {
@@ -543,4 +556,9 @@ func parseVersion(v string) [3]int {
 		}
 	}
 	return result
+}
+
+func isUnversionedBuild(v string) bool {
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+	return strings.HasPrefix(v, "0.0.0-") || strings.HasPrefix(v, "0.0.0+")
 }

@@ -322,6 +322,7 @@ ssh my2g 'sudo useradd --system --home /opt/sub2api --shell /usr/sbin/nologin su
 
 - `id sub2api` 存在。
 - `/opt/sub2api/shared/data` 属主为 `sub2api:sub2api`。
+- 如果后续需要应用进程写本地备份或临时导出文件，提前把对应目录单独授权给 `sub2api`；否则 `/opt/sub2api/backups` 只作为人工 root 备份目录使用。
 - `pg_dump`、`psql` 和 `redis-cli` 可执行。
 - `pg_dump` 主版本与 `sub2api-postgres` 容器主版本一致；如果 apt 源没有对应的 `postgresql-client-<major>`，先配置 PostgreSQL 官方 apt 源或等价安装源，不要带着旧版 `pg_dump` 继续切换。
 
@@ -417,10 +418,11 @@ ssh my2g 'sudo bash -lc '"'"'
 - `DATABASE_PASSWORD`、`JWT_SECRET`、`TOTP_ENCRYPTION_KEY` 仍是旧值，不为空。
 - 生产环境已用到的 OAuth secret、支付、Webhook、网关调度等变量没有丢。
 - `/opt/sub2api/sub2api.env` 权限为 `root:root 600`。
+- `sub2api.env` 只能依赖 systemd `EnvironmentFile` 支持的简单 `KEY=value` 语义；不要保留 Docker Compose 专用的 `${VAR:-default}`、`${VAR:?required}` 展开写法。
 
 ### 闭环 5：暴露依赖到宿主机回环地址
 
-创建 `compose.binary-deps.yml`，让 Postgres/Redis/Mihomo 绑定到 `127.0.0.1`，再重建依赖容器：
+创建 `compose.binary-deps.yml`，让 Postgres/Redis/Mihomo 绑定到 `127.0.0.1`。先渲染 Compose 配置，确认 Postgres、Redis 的 volume 名称和挂载路径没有变化：
 
 ```bash
 ssh my2g 'cd /opt/sub2api && \
@@ -439,7 +441,13 @@ services:
       - "127.0.0.1:7890:7890"
       - "127.0.0.1:7891:7891"
 EOF
-  sudo docker compose -f docker-compose.yml -f compose.my2g.yml -f compose.mihomo.yml -f compose.binary-deps.yml config >/dev/null && \
+  sudo docker compose -f docker-compose.yml -f compose.my2g.yml -f compose.mihomo.yml -f compose.binary-deps.yml config | sed -n "/services:/,/networks:/p"'
+```
+
+确认依赖容器的持久化挂载不变后，再重建依赖容器：
+
+```bash
+ssh my2g 'cd /opt/sub2api && \
   sudo docker compose -f docker-compose.yml -f compose.my2g.yml -f compose.mihomo.yml -f compose.binary-deps.yml up -d postgres redis mihomo'
 ```
 
@@ -462,6 +470,7 @@ ssh my2g 'sudo bash -lc '"'"'
 - `psql` 返回 `1`。
 - `redis-cli ping` 返回 `PONG`。
 - Mihomo 代理请求能连通，HTTP 状态码不是本地连接错误。
+- 如果本闭环失败，先移走 `compose.binary-deps.yml`，再用原 Compose 文件恢复依赖容器并复测旧应用，不要继续进入 systemd 切换闭环。
 
 ### 闭环 6：构建并上传 release
 
@@ -516,7 +525,12 @@ ssh my2g 'cd /opt/sub2api && \
 确认 8080 空出来后启动 systemd 应用：
 
 ```bash
-ssh my2g 'ss -lntp | grep ":8080\\b" || true && \
+ssh my2g 'if [ "$(sudo docker inspect -f "{{.State.Running}}" sub2api 2>/dev/null || true)" = "true" ]; then \
+    echo "sub2api container is still running"; exit 1; \
+  fi && \
+  if ss -lntp | grep ":8080\\b"; then \
+    echo "port 8080 is still occupied"; exit 1; \
+  fi && \
   sudo systemctl enable sub2api && \
   sudo systemctl restart sub2api'
 ```
@@ -589,11 +603,22 @@ ssh my2g 'sudo systemctl stop sub2api || true && \
   sudo docker compose -f docker-compose.yml -f compose.my2g.yml -f compose.mihomo.yml up -d --no-deps sub2api'
 ```
 
+如果失败发生在“依赖暴露闭环”，优先恢复依赖容器到旧 Compose 形态：
+
+```bash
+ssh my2g 'cd /opt/sub2api && \
+  sudo mv compose.binary-deps.yml "backups/compose.binary-deps.failed.$(date +%Y%m%d-%H%M%S).yml" 2>/dev/null || true && \
+  sudo docker compose -f docker-compose.yml -f compose.my2g.yml -f compose.mihomo.yml up -d postgres redis mihomo && \
+  sudo docker compose -f docker-compose.yml -f compose.my2g.yml -f compose.mihomo.yml up -d --no-deps sub2api && \
+  curl -fsS http://127.0.0.1:8080/health'
+```
+
 ## 风险与边界
 
 - 这个方案不再把应用封装成 Docker 镜像，镜像级别的可追踪性会降低；用 `releases/<tag>` 和 `current` 软链接补足版本追踪和回滚。
 - 系统依赖更少，但 systemd 服务文件、环境变量和目录权限必须维护好。
 - Postgres/Redis 只应绑定 `127.0.0.1`，不要绑定 `0.0.0.0`。
+- 首次暴露 Postgres/Redis/Mihomo 到宿主机是一次依赖层变更，必须单独验证和单独回滚；不要和应用进程切换合并执行。
 - `DATA_DIR` 必须固定到 `/opt/sub2api/shared/data`，否则配置文件和 `.installed` 可能落到 release 目录，升级时容易丢状态。
 - `resources/` 需要随二进制一起发布，因为模型价格等运行期 fallback 数据会从 `./resources` 读取。
 
