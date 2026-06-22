@@ -2,12 +2,118 @@
 
 部署目标：Sub2API 在 `my2g` 服务器完成部署，并通过 Cloudflare Tunnel 对外提供 HTTPS 访问。
 
+## 当前恢复状态（2026-06-23）
+
+本节是当前状态；下文“历史状态”记录重装前的 Docker 部署，不代表现在线上状态。
+
+- 实例：`i-2ze9vw2u36lpds8csd0f`。
+- 地域：阿里云华北 2（北京）。
+- 公网 IP：`39.102.86.235`。
+- 系统盘已从 Alibaba Cloud Linux 3 重装为 Debian 13（trixie），架构为 amd64。
+- SSH 专用公钥认证已恢复，`ssh my2g` 正常。
+- Sub2API 已切换为 systemd 运行 Linux amd64 静态二进制，release 为 `20260622-212842-final`。
+- 当前 Sub2API 版本为 `0.1.137`，commit 为 `8c413b90`；服务状态 `active/running`，成功启动后 `NRestarts=0`。
+- PostgreSQL 18、Redis 8、Mihomo 继续由 Docker Compose 运行，三个容器均为 `healthy`。
+- PostgreSQL final dump 已恢复，`public` schema 共 74 张表；恢复后额外生成并校验了 `/opt/sub2api/backups/postgres-20260623-post-restore.dump`。
+- Nginx 与 Cloudflare Tunnel 均为 `active`；cloudflared 版本为 `2026.6.1`，Tunnel 已成功建立连接。
+- `8080`、`5432`、`6379`、`7890`、`7891` 均只绑定 `127.0.0.1`，没有暴露公网。
+- 本机 `/health`、Nginx 回源、公网 `/health`、公开设置 API 和公网首页均已验证通过。
+- 当前公网首页返回 HTTP 200，标题为 `卡卡滨 Codex - AI API Gateway`。
+- 恢复窗口已经结束，公网服务已恢复。
+
+### 最终恢复材料
+
+最终备份标识：`20260622-212842-final`。
+
+主副本：
+
+```text
+/Users/zubin/Documents/sub2api-recovery/20260622-212842-final/
+```
+
+第二副本：
+
+```text
+/Users/zubin/Downloads/sub2api-recovery-copy/20260622-212842-final/
+```
+
+每份包含：
+
+- 加密后的重装备份包及 SHA-256。
+- 单独的本地恢复密钥，权限 `600`。
+- Linux amd64 静态链接 Sub2API release。
+- release 资源目录和 SHA-256。
+
+备份已经完成以下验证：
+
+- PostgreSQL custom-format dump 非空。
+- `pg_restore --list` 通过。
+- 远端明文包与 Mac 下载副本 SHA-256 一致。
+- 加密包实际解密回读成功。
+- 第二副本与主副本的加密包、密钥和 release SHA-256 一致。
+- 解密后的归档包含 `postgres.dump`、`rootfs.tar.gz`、清单、元数据和内部校验文件。
+
+敏感数据没有写入 Git。两份副本目前仍位于同一台 Mac，恢复完成后应补充异地加密副本。
+
+### SSH 状态
+
+本机别名仍为 `my2g`，使用：
+
+```text
+HostName 39.102.86.235
+User root
+IdentityFile ~/.ssh/id_ed25519_39_102_86_235
+```
+
+Debian 重装后的 ED25519 指纹：
+
+```text
+SHA256:fPQpllZ+BjyOkMGYyoHxAsT2Q/qhRf2CjPbHnoUC9ZM
+```
+
+旧 `known_hosts` 备份：
+
+```text
+/Users/zubin/.ssh/known_hosts.before-my2g-debian-20260622-214016
+```
+
+重装后曾出现的错误：
+
+```text
+Permission denied (publickey,password).
+```
+
+该错误已通过阿里云控制台恢复专用公钥解决，不再是当前阻塞项。
+
+### 当前运行结构
+
+```text
+systemd:
+  sub2api.service -> /opt/sub2api/current/sub2api
+  current -> /opt/sub2api/releases/20260622-212842-final
+
+Docker Compose:
+  sub2api-postgres -> 127.0.0.1:5432
+  sub2api-redis    -> 127.0.0.1:6379
+  sub2api-mihomo   -> 127.0.0.1:7890/7891
+
+入口:
+  Cloudflare Tunnel -> 127.0.0.1:8080
+  Nginx :80         -> 127.0.0.1:8080（备用入口）
+```
+
+服务器无法直接连接 Docker Hub。本次依赖镜像使用 Mac 中已有的 `linux/amd64` 缓存打包上传，服务器已加载：
+
+- `postgres:18-alpine`
+- `redis:8-alpine`
+- `sub2api-mihomo:v1.19.27-my2g`
+
 ## 访问地址
 
 - 主页：<https://portal.lizubin.online/>
 - 健康检查：<https://portal.lizubin.online/health>
 
-## 当前状态
+## 历史状态（Debian 重装前）
 
 - HTTPS 已通过 Cloudflare Tunnel 接入完成。
 - Nginx 当前保留 `portal.lizubin.online` 的 80 端口反代配置，不再绑定废弃入口的 443 证书。
@@ -19,7 +125,7 @@
   - `sub2api-postgres`：healthy
   - `sub2api-redis`：healthy
 
-## 服务器关键路径
+## 重装前服务器关键路径（历史）
 
 - 部署目录：`/opt/sub2api/`
 - Compose 主配置：`/opt/sub2api/docker-compose.yml`
@@ -29,7 +135,7 @@
 - Nginx 站点配置：`/etc/nginx/conf.d/sub2api.conf`
 - Cloudflare Tunnel 配置：`/etc/cloudflared/config.yml`
 
-## 密钥查看
+## 重装前密钥查看方式（历史）
 
 密钥没有写入本文档。需要查看时登录服务器读取：
 
@@ -40,13 +146,13 @@ ssh my2g 'sudo grep "^ADMIN_PASSWORD=" /opt/sub2api/.env'
 
 注意：`/opt/sub2api/.env` 权限已设置为 `root:root 600`，不要提交到 Git，也不要公开粘贴。
 
-## 证书与入口
+## 重装前证书与入口（历史）
 
 - 公网 HTTPS 证书由 Cloudflare 侧托管。
 - `portal.lizubin.online` 通过 Cloudflare Tunnel 回源到服务器本机 `127.0.0.1:8080`。
 - 服务器上的历史 Let's Encrypt 证书材料不参与当前 `portal.lizubin.online` 入口。
 
-## 对外端口
+## 重装前对外端口（历史）
 
 服务器公网只需要开放：
 
@@ -55,7 +161,7 @@ ssh my2g 'sudo grep "^ADMIN_PASSWORD=" /opt/sub2api/.env'
 
 PostgreSQL、Redis、应用 8080 端口不直接暴露公网。
 
-## 镜像与部署方式
+## 重装前镜像与部署方式（历史）
 
 由于远端 Docker Hub 拉取不稳定，本次采用本地构建并传输镜像到服务器：
 
@@ -79,7 +185,7 @@ make deploy-my2g
 TAG=0.0.0-my2g.20260622.2 make deploy-my2g
 ```
 
-## 2026-06-22 部署执行结论
+## 2026-06-22 重装前部署执行结论（历史）
 
 当前从 Mac 执行 `make deploy-my2g` 慢，主要原因不是 Makefile 本身，而是脚本内部在本地 Docker/Colima 中执行：
 

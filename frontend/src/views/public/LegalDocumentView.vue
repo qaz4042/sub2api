@@ -130,7 +130,7 @@ const currentDocument = computed<LoginAgreementDocument | null>(() => {
     return {
       id: 'admin-compliance',
       title: t('adminCompliance.title'),
-      content_md: getLocale() === 'zh' ? zhAdminCompliance : enAdminCompliance
+      content_md: getLocale().startsWith('zh') ? zhAdminCompliance : enAdminCompliance
     }
   }
   const id = documentId.value

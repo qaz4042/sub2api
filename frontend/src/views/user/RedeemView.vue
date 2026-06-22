@@ -351,6 +351,7 @@ import { redeemAPI, authAPI, type RedeemHistoryItem } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTime } from '@/utils/format'
+import { isOnlinePaymentTopUp } from '@/utils/redeemHistory'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -392,7 +393,9 @@ const isAdminAdjustment = (type: string) => {
 
 const getHistoryItemTitle = (item: RedeemHistoryItem) => {
   if (item.type === 'balance') {
-    return t('redeem.balanceAddedRedeem')
+    return isOnlinePaymentTopUp(item)
+      ? t('redeem.balanceAddedPayment')
+      : t('redeem.balanceAddedRedeem')
   } else if (item.type === 'admin_balance') {
     return item.value >= 0 ? t('redeem.balanceAddedAdmin') : t('redeem.balanceDeductedAdmin')
   } else if (item.type === 'concurrency') {
