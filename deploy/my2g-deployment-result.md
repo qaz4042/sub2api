@@ -65,6 +65,20 @@ PostgreSQL、Redis、应用 8080 端口不直接暴露公网。
 
 镜像在服务器上通过 `compose.my2g.yml` 固定为本地 image ID，避免运行时再次拉取外网镜像。
 
+后续从当前 Mac 更新应用时，可在仓库根目录执行：
+
+```bash
+make deploy-my2g
+```
+
+该命令会构建 `linux/amd64` 前后端一体镜像、上传到 `my2g`、备份 Compose 配置、只重建 Sub2API 应用容器，并在健康检查失败时自动恢复上一镜像。PostgreSQL、Redis 和 Mihomo 不会随应用更新重启。
+
+如需指定镜像版本：
+
+```bash
+TAG=0.0.0-my2g.20260622.2 make deploy-my2g
+```
+
 ## 备注
 
 - DNS 和 HTTPS 已满足当前访问要求。
