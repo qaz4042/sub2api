@@ -429,9 +429,12 @@ const siteLogo = computed(() => appStore.cachedPublicSettings?.site_logo || appS
 const siteSubtitle = computed(() => appStore.cachedPublicSettings?.site_subtitle || 'AI API Gateway Platform')
 const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
 const homeContent = computed(() => appStore.cachedPublicSettings?.home_content || '')
-const platformAnthropicEnabled = computed(() => appStore.cachedPublicSettings?.platform_anthropic_enabled === true)
-const platformGeminiEnabled = computed(() => appStore.cachedPublicSettings?.platform_gemini_enabled === true)
-const platformAntigravityEnabled = computed(() => appStore.cachedPublicSettings?.platform_antigravity_enabled === true)
+const enabledPlatforms = computed(() => new Set((appStore.cachedPublicSettings?.platform_configs ?? [])
+  .filter((platform) => platform.enabled)
+  .map((platform) => platform.key)))
+const platformAnthropicEnabled = computed(() => enabledPlatforms.value.has('anthropic'))
+const platformGeminiEnabled = computed(() => enabledPlatforms.value.has('gemini'))
+const platformAntigravityEnabled = computed(() => enabledPlatforms.value.has('antigravity'))
 
 // Check if homeContent is a URL (for iframe display)
 const isHomeContentUrl = computed(() => {

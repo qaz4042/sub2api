@@ -59,6 +59,9 @@ func RegisterAdminRoutes(
 		// 系统设置
 		registerSettingsRoutes(admin, h)
 
+		// 平台配置
+		registerPlatformConfigRoutes(admin, h)
+
 		// 数据管理
 		registerDataManagementRoutes(admin, h)
 
@@ -103,6 +106,16 @@ func RegisterAdminRoutes(
 
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
+	}
+}
+
+func registerPlatformConfigRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	platforms := admin.Group("/platforms")
+	{
+		platforms.GET("", h.Admin.PlatformConfig.List)
+		platforms.POST("", h.Admin.PlatformConfig.Create)
+		platforms.PUT("/:key", h.Admin.PlatformConfig.Update)
+		platforms.DELETE("/:key", h.Admin.PlatformConfig.Delete)
 	}
 }
 

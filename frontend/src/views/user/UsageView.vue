@@ -730,6 +730,7 @@ const apiKeyRanking = ref<UserApiKeyRankingResponse>({
 let apiKeyRankingRequest = 0
 let apiKeyRankingLoadedRange = ''
 let apiKeyRankingLoadingRange = ''
+const API_KEY_RANKING_TIMEOUT_MS = 15_000
 
 const apiKeyOptions = computed(() => {
   return [
@@ -929,12 +930,21 @@ const loadApiKeyRanking = async (force = false) => {
   apiKeyRankingLoadingRange = rangeKey
   apiKeyRankingLoading.value = true
   apiKeyRankingError.value = false
+  let timeoutID: ReturnType<typeof setTimeout> | undefined
   try {
-    const response = await usageAPI.getApiKeyRanking({
-      start_date: filters.value.start_date || startDate.value,
-      end_date: filters.value.end_date || endDate.value,
-      limit: 10,
-    })
+    const response = await Promise.race([
+      usageAPI.getApiKeyRanking({
+        start_date: filters.value.start_date || startDate.value,
+        end_date: filters.value.end_date || endDate.value,
+        limit: 10,
+      }),
+      new Promise<never>((_, reject) => {
+        timeoutID = setTimeout(
+          () => reject(new Error('API key ranking request timed out')),
+          API_KEY_RANKING_TIMEOUT_MS
+        )
+      }),
+    ])
     if (request === apiKeyRankingRequest) {
       apiKeyRanking.value = response
       apiKeyRankingLoadedRange = rangeKey
@@ -951,6 +961,9 @@ const loadApiKeyRanking = async (force = false) => {
       end_date: '',
     }
   } finally {
+    if (timeoutID !== undefined) {
+      clearTimeout(timeoutID)
+    }
     if (request === apiKeyRankingRequest) {
       apiKeyRankingLoading.value = false
       apiKeyRankingLoadingRange = ''

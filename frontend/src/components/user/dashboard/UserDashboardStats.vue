@@ -288,13 +288,10 @@ const platformLabel = (p: string) => PLATFORM_LABELS[p] ?? p
 
 const enabledPlatforms = computed(() => {
   const settings = appStore.cachedPublicSettings
-  const platforms = new Set<string>(['openai'])
-
-  if (settings?.platform_anthropic_enabled === true) platforms.add('anthropic')
-  if (settings?.platform_gemini_enabled === true) platforms.add('gemini')
-  if (settings?.platform_antigravity_enabled === true) platforms.add('antigravity')
-
-  return platforms
+  if (Array.isArray(settings?.platform_configs)) {
+    return new Set(settings.platform_configs.filter((platform) => platform.enabled).map((platform) => platform.key))
+  }
+  return new Set<string>(['openai'])
 })
 
 const isPlatformEnabled = (platform: string): boolean => enabledPlatforms.value.has(platform)

@@ -62,6 +62,9 @@ docs/      部署、运维、运行模式、支付与合规相关文档
 
 ## 文档索引
 
+- 站点运营思路：[docs/站点运营思路.md](docs/站点运营思路.md)
+- 费用公告：[docs/费用公告.md](docs/费用公告.md)
+- 使用指南：[docs/使用指南.md](docs/使用指南.md)
 - 部署说明：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 - 运维提示：[docs/OPERATIONS.md](docs/OPERATIONS.md)
 - 运行模式与兼容：[docs/MODES.md](docs/MODES.md)

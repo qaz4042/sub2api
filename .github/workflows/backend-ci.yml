@@ -8,8 +8,18 @@ permissions:
   contents: read
 
 jobs:
+  entrypoints:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate repository entrypoints
+        run: make check-entrypoints
+      - name: Run secret scan entrypoint
+        run: make secret-scan
+
   test:
     runs-on: ubuntu-latest
+    needs: entrypoints
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
@@ -30,6 +40,7 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    needs: entrypoints
     steps:
       - uses: actions/checkout@v6
       - name: Setup pnpm
@@ -50,6 +61,7 @@ jobs:
 
   golangci-lint:
     runs-on: ubuntu-latest
+    needs: entrypoints
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6

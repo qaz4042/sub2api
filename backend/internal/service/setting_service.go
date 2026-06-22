@@ -169,10 +169,8 @@ type cachedCyberSessionBlockRuntime struct {
 }
 
 type cachedPlatformAccessSettings struct {
-	anthropic   bool
-	gemini      bool
-	antigravity bool
-	expiresAt   int64
+	enabled   map[string]bool
+	expiresAt int64
 }
 
 const platformAccessSettingsCacheTTL = 60 * time.Second
@@ -199,6 +197,7 @@ type WebSearchManagerBuilder func(cfg *WebSearchEmulationConfig, proxyURLs map[i
 // SettingService 系统设置服务
 type SettingService struct {
 	settingRepo                 SettingRepository
+	platformConfigRepo          PlatformConfigRepository
 	defaultSubGroupReader       DefaultSubscriptionGroupReader
 	proxyRepo                   ProxyRepository // for resolving websearch provider proxy URLs
 	cfg                         *config.Config
@@ -685,6 +684,10 @@ func (s *SettingService) SetProxyRepository(repo ProxyRepository) {
 	s.proxyRepo = repo
 }
 
+func (s *SettingService) SetPlatformConfigRepository(repo PlatformConfigRepository) {
+	s.platformConfigRepo = repo
+}
+
 func (s *SettingService) LoadAPIKeyACLTrustForwardedIPSetting(ctx context.Context) error {
 	if s == nil || s.cfg == nil || s.settingRepo == nil {
 		return nil
@@ -709,7 +712,20 @@ func (s *SettingService) GetAllSettings(ctx context.Context) (*SystemSettings, e
 		return nil, fmt.Errorf("get all settings: %w", err)
 	}
 
-	return s.parseSettings(settings), nil
+	parsed := s.parseSettings(settings)
+	parsed.PlatformConfigs, _ = s.ListPlatformConfigs(ctx)
+	return parsed, nil
+}
+
+func (s *SettingService) ListPlatformConfigs(ctx context.Context) ([]PlatformConfig, error) {
+	if s == nil || s.platformConfigRepo == nil {
+		return DefaultPlatformConfigs(), nil
+	}
+	items, err := s.platformConfigRepo.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 // GetFrontendURL 获取前端基础URL（数据库优先，fallback 到配置文件）
@@ -844,9 +860,6 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyChannelMonitorEnabled,
 		SettingKeyChannelMonitorDefaultIntervalSeconds,
 		SettingKeyAvailableChannelsEnabled,
-		SettingKeyPlatformAnthropicEnabled,
-		SettingKeyPlatformGeminiEnabled,
-		SettingKeyPlatformAntigravityEnabled,
 		SettingKeyAffiliateEnabled,
 		SettingKeyRiskControlEnabled,
 		SettingKeyAllowUserViewErrorRequests,
@@ -907,7 +920,11 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		balanceLowNotifyThreshold = v
 	}
 
-	return &PublicSettings{
+	platformConfigs, err := s.ListPlatformConfigs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list platform configs: %w", err)
+	}
+	publicSettings := &PublicSettings{
 		RegistrationEnabled:              settings[SettingKeyRegistrationEnabled] == "true",
 		EmailVerifyEnabled:               emailVerifyEnabled,
 		ForceEmailOnThirdPartySignup:     settings[SettingKeyForceEmailOnThirdPartySignup] == "true",
@@ -959,16 +976,15 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 
 		AvailableChannelsEnabled: settings[SettingKeyAvailableChannelsEnabled] == "true",
 
-		PlatformAnthropicEnabled:   settings[SettingKeyPlatformAnthropicEnabled] == "true",
-		PlatformGeminiEnabled:      settings[SettingKeyPlatformGeminiEnabled] == "true",
-		PlatformAntigravityEnabled: settings[SettingKeyPlatformAntigravityEnabled] == "true",
+		PlatformConfigs: platformConfigs,
 
 		AffiliateEnabled: settings[SettingKeyAffiliateEnabled] == "true",
 
 		RiskControlEnabled: settings[SettingKeyRiskControlEnabled] == "true",
 
 		AllowUserViewErrorRequests: settings[SettingKeyAllowUserViewErrorRequests] == "true",
-	}, nil
+	}
+	return publicSettings, nil
 }
 
 // channelMonitorIntervalMin / channelMonitorIntervalMax bound the default interval
@@ -1214,23 +1230,20 @@ func (s *SettingService) SetVersion(version string) {
 }
 
 // IsPlatformEnabled resolves the runtime gateway switch for a platform.
-// OpenAI is the core interface and is always available. Other platforms are
-// opt-in and fail closed when their setting is missing or cannot be loaded.
+// Platform access is backed by platform_configs. Missing or unknown platforms
+// fail closed; core platforms are seeded enabled in the table.
 func (s *SettingService) IsPlatformEnabled(ctx context.Context, platform string) bool {
-	if platform == PlatformOpenAI {
-		return true
-	}
+	platform = normalizePlatformKey(platform)
 	settings := s.getPlatformAccessSettingsCached(ctx)
-	switch platform {
-	case PlatformAnthropic:
-		return settings.anthropic
-	case PlatformGemini:
-		return settings.gemini
-	case PlatformAntigravity:
-		return settings.antigravity
-	default:
-		return false
-	}
+	return settings.enabled[platform]
+}
+
+func (s *SettingService) InvalidatePlatformAccessCache() {
+	s.platformAccessSettingsSF.Forget("platform_access_settings")
+	s.platformAccessSettingsCache.Store(&cachedPlatformAccessSettings{
+		enabled:   map[string]bool{},
+		expiresAt: 0,
+	})
 }
 
 func (s *SettingService) getPlatformAccessSettingsCached(ctx context.Context) cachedPlatformAccessSettings {
@@ -1243,19 +1256,16 @@ func (s *SettingService) getPlatformAccessSettingsCached(ctx context.Context) ca
 		if cached, ok := s.platformAccessSettingsCache.Load().(*cachedPlatformAccessSettings); ok && cached != nil && time.Now().UnixNano() < cached.expiresAt {
 			return *cached, nil
 		}
-		values, err := s.settingRepo.GetMultiple(ctx, []string{
-			SettingKeyPlatformAnthropicEnabled,
-			SettingKeyPlatformGeminiEnabled,
-			SettingKeyPlatformAntigravityEnabled,
-		})
+		configs, err := s.ListPlatformConfigs(ctx)
+		loaded := cachedPlatformAccessSettings{
+			enabled:   make(map[string]bool, len(configs)),
+			expiresAt: time.Now().Add(platformAccessSettingsCacheTTL).UnixNano(),
+		}
 		if err != nil {
 			return cachedPlatformAccessSettings{}, err
 		}
-		loaded := cachedPlatformAccessSettings{
-			anthropic:   values[SettingKeyPlatformAnthropicEnabled] == "true",
-			gemini:      values[SettingKeyPlatformGeminiEnabled] == "true",
-			antigravity: values[SettingKeyPlatformAntigravityEnabled] == "true",
-			expiresAt:   time.Now().Add(platformAccessSettingsCacheTTL).UnixNano(),
+		for _, cfg := range configs {
+			loaded.enabled[cfg.Key] = cfg.Enabled
 		}
 		s.platformAccessSettingsCache.Store(&loaded)
 		return loaded, nil
@@ -1266,7 +1276,12 @@ func (s *SettingService) getPlatformAccessSettingsCached(ctx context.Context) ca
 	if cached, ok := s.platformAccessSettingsCache.Load().(*cachedPlatformAccessSettings); ok && cached != nil {
 		return *cached
 	}
-	return cachedPlatformAccessSettings{}
+	defaults := DefaultPlatformConfigs()
+	enabled := make(map[string]bool, len(defaults))
+	for _, cfg := range defaults {
+		enabled[cfg.Key] = cfg.Enabled
+	}
+	return cachedPlatformAccessSettings{enabled: enabled}
 }
 
 // PublicSettingsInjectionPayload is the JSON shape embedded into HTML as
@@ -1332,15 +1347,13 @@ type PublicSettingsInjectionPayload struct {
 	// Feature flags — MUST match the opt-in/opt-out registry in
 	// frontend/src/utils/featureFlags.ts. Missing a field here is the bug
 	// that hid the "可用渠道" menu on page refresh.
-	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
-	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
-	AvailableChannelsEnabled             bool `json:"available_channels_enabled"`
-	PlatformAnthropicEnabled             bool `json:"platform_anthropic_enabled"`
-	PlatformGeminiEnabled                bool `json:"platform_gemini_enabled"`
-	PlatformAntigravityEnabled           bool `json:"platform_antigravity_enabled"`
-	AffiliateEnabled                     bool `json:"affiliate_enabled"`
-	RiskControlEnabled                   bool `json:"risk_control_enabled"`
-	AllowUserViewErrorRequests           bool `json:"allow_user_view_error_requests"`
+	ChannelMonitorEnabled                bool             `json:"channel_monitor_enabled"`
+	ChannelMonitorDefaultIntervalSeconds int              `json:"channel_monitor_default_interval_seconds"`
+	AvailableChannelsEnabled             bool             `json:"available_channels_enabled"`
+	PlatformConfigs                      []PlatformConfig `json:"platform_configs"`
+	AffiliateEnabled                     bool             `json:"affiliate_enabled"`
+	RiskControlEnabled                   bool             `json:"risk_control_enabled"`
+	AllowUserViewErrorRequests           bool             `json:"allow_user_view_error_requests"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -1401,9 +1414,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		ChannelMonitorEnabled:                settings.ChannelMonitorEnabled,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 		AvailableChannelsEnabled:             settings.AvailableChannelsEnabled,
-		PlatformAnthropicEnabled:             settings.PlatformAnthropicEnabled,
-		PlatformGeminiEnabled:                settings.PlatformGeminiEnabled,
-		PlatformAntigravityEnabled:           settings.PlatformAntigravityEnabled,
+		PlatformConfigs:                      settings.PlatformConfigs,
 		AffiliateEnabled:                     settings.AffiliateEnabled,
 		RiskControlEnabled:                   settings.RiskControlEnabled,
 		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,
@@ -1715,6 +1726,7 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 
 	err = s.settingRepo.SetMultiple(ctx, updates)
 	if err == nil {
+		settings.PlatformConfigs, _ = s.ListPlatformConfigs(ctx)
 		s.refreshCachedSettings(settings)
 	}
 	return err
@@ -1759,6 +1771,7 @@ func (s *SettingService) UpdateSettingsWithAuthSourceDefaults(ctx context.Contex
 
 	err = s.settingRepo.SetMultiple(ctx, updates)
 	if err == nil {
+		settings.PlatformConfigs, _ = s.ListPlatformConfigs(ctx)
 		s.refreshCachedSettings(settings)
 	}
 	return err
@@ -2043,11 +2056,6 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	// Available channels feature switch
 	updates[SettingKeyAvailableChannelsEnabled] = strconv.FormatBool(settings.AvailableChannelsEnabled)
 
-	// Public gateway platform switches (OpenAI is the always-on core platform).
-	updates[SettingKeyPlatformAnthropicEnabled] = strconv.FormatBool(settings.PlatformAnthropicEnabled)
-	updates[SettingKeyPlatformGeminiEnabled] = strconv.FormatBool(settings.PlatformGeminiEnabled)
-	updates[SettingKeyPlatformAntigravityEnabled] = strconv.FormatBool(settings.PlatformAntigravityEnabled)
-
 	// Affiliate (邀请返利) feature switch
 	updates[SettingKeyAffiliateEnabled] = strconv.FormatBool(settings.AffiliateEnabled)
 
@@ -2192,11 +2200,20 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 		return
 	}
 	s.platformAccessSettingsSF.Forget("platform_access_settings")
+	enabled := make(map[string]bool, len(settings.PlatformConfigs))
+	for _, cfg := range settings.PlatformConfigs {
+		enabled[cfg.Key] = cfg.Enabled
+	}
+	if len(enabled) == 0 {
+		defaults := DefaultPlatformConfigs()
+		enabled = make(map[string]bool, len(defaults))
+		for _, cfg := range defaults {
+			enabled[cfg.Key] = cfg.Enabled
+		}
+	}
 	s.platformAccessSettingsCache.Store(&cachedPlatformAccessSettings{
-		anthropic:   settings.PlatformAnthropicEnabled,
-		gemini:      settings.PlatformGeminiEnabled,
-		antigravity: settings.PlatformAntigravityEnabled,
-		expiresAt:   time.Now().Add(platformAccessSettingsCacheTTL).UnixNano(),
+		enabled:   enabled,
+		expiresAt: time.Now().Add(platformAccessSettingsCacheTTL).UnixNano(),
 	})
 
 	// 先使 inflight singleflight 失效，再刷新缓存，缩小旧值覆盖新值的竞态窗口
@@ -3025,12 +3042,6 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		// Available channels feature (default disabled; opt-in)
 		SettingKeyAvailableChannelsEnabled: "false",
 
-		// Non-OpenAI gateway platforms are opt-in. This keeps fresh and upgraded
-		// installations in OpenAI-only mode until an administrator enables them.
-		SettingKeyPlatformAnthropicEnabled:   "false",
-		SettingKeyPlatformGeminiEnabled:      "false",
-		SettingKeyPlatformAntigravityEnabled: "false",
-
 		// Affiliate (邀请返利) feature (default disabled; opt-in)
 		SettingKeyAffiliateEnabled: "false",
 
@@ -3543,11 +3554,6 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 
 	// Available channels feature (default: disabled; strict true)
 	result.AvailableChannelsEnabled = settings[SettingKeyAvailableChannelsEnabled] == "true"
-
-	// Public gateway platforms (default: OpenAI-only; strict true).
-	result.PlatformAnthropicEnabled = settings[SettingKeyPlatformAnthropicEnabled] == "true"
-	result.PlatformGeminiEnabled = settings[SettingKeyPlatformGeminiEnabled] == "true"
-	result.PlatformAntigravityEnabled = settings[SettingKeyPlatformAntigravityEnabled] == "true"
 
 	// Affiliate (邀请返利) feature (default: disabled; strict true)
 	result.AffiliateEnabled = settings[SettingKeyAffiliateEnabled] == "true"
