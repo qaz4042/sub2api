@@ -3227,6 +3227,8 @@ export default {
       setPrivacy: '设置隐私',
       subscriptionAbnormal: '异常',
       subscriptionExpires: '到期',
+      subscriptionExpired: '套餐已到期',
+      subscriptionRemainingDays: '套餐剩余 {days} 天',
       // 容量状态提示
       capacity: {
         windowCost: {
@@ -4784,6 +4786,11 @@ export default {
       clickToViewBalance: '点击查看充值记录',
       failedToLoadUser: '加载用户信息失败',
       userDeletedBadge: '已删除',
+      apiKeyRanking: {
+        title: 'API Key 排行',
+        subtitle: '按当前筛选范围统计实际扣费',
+        rank: '排名'
+      },
       cleanup: {
         button: '清理',
         title: '清理使用记录',

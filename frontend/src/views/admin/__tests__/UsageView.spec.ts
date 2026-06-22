@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import UsageView from '../UsageView.vue'
 
-const { list, getStats, getSnapshotV2, getById, getModelStats, listErrorLogs } = vi.hoisted(() => {
+const { list, getStats, getSnapshotV2, getById, getModelStats, getApiKeySpendingRanking, listErrorLogs } = vi.hoisted(() => {
   vi.stubGlobal('localStorage', {
     getItem: vi.fn(() => null),
     setItem: vi.fn(),
@@ -16,6 +16,7 @@ const { list, getStats, getSnapshotV2, getById, getModelStats, listErrorLogs } =
     getSnapshotV2: vi.fn(),
     getById: vi.fn(),
     getModelStats: vi.fn(),
+    getApiKeySpendingRanking: vi.fn(),
     listErrorLogs: vi.fn(),
   }
 })
@@ -43,6 +44,7 @@ vi.mock('@/api/admin', () => ({
     dashboard: {
       getSnapshotV2,
       getModelStats,
+      getApiKeySpendingRanking,
     },
     users: {
       getById,
@@ -124,6 +126,7 @@ describe('admin UsageView distribution metric toggles', () => {
     getSnapshotV2.mockReset()
     getById.mockReset()
     getModelStats.mockReset()
+    getApiKeySpendingRanking.mockReset()
 
     list.mockResolvedValue({
       items: [],
@@ -146,6 +149,7 @@ describe('admin UsageView distribution metric toggles', () => {
       groups: [],
     })
     getModelStats.mockResolvedValue({ models: [] })
+    getApiKeySpendingRanking.mockResolvedValue({ ranking: [], total_actual_cost: 0, total_requests: 0, total_tokens: 0 })
   })
 
   afterEach(() => {
@@ -246,6 +250,7 @@ describe('admin UsageView handleUserClick', () => {
     getStats.mockReset()
     getSnapshotV2.mockReset()
     getById.mockReset()
+    getApiKeySpendingRanking.mockReset()
 
     list.mockResolvedValue({ items: [], total: 0, pages: 0 })
     getStats.mockResolvedValue({
@@ -253,6 +258,7 @@ describe('admin UsageView handleUserClick', () => {
       total_cache_tokens: 0, total_tokens: 0, total_cost: 0, total_actual_cost: 0, average_duration_ms: 0,
     })
     getSnapshotV2.mockResolvedValue({ trend: [], models: [], groups: [] })
+    getApiKeySpendingRanking.mockResolvedValue({ ranking: [], total_actual_cost: 0, total_requests: 0, total_tokens: 0 })
   })
 
   afterEach(() => {
@@ -302,6 +308,7 @@ describe('admin UsageView errors tab filter forwarding', () => {
     getStats.mockReset()
     getSnapshotV2.mockReset()
     getModelStats.mockReset()
+    getApiKeySpendingRanking.mockReset()
     listErrorLogs.mockReset()
 
     list.mockResolvedValue({ items: [], total: 0, pages: 0 })
@@ -311,6 +318,7 @@ describe('admin UsageView errors tab filter forwarding', () => {
     })
     getSnapshotV2.mockResolvedValue({ trend: [], models: [], groups: [] })
     getModelStats.mockResolvedValue({ models: [] })
+    getApiKeySpendingRanking.mockResolvedValue({ ranking: [], total_actual_cost: 0, total_requests: 0, total_tokens: 0 })
     listErrorLogs.mockResolvedValue({ items: [], total: 0, pages: 0 })
   })
 

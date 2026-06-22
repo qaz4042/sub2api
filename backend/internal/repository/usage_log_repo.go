@@ -2249,6 +2249,10 @@ type UserUsageTrendPoint = usagestats.UserUsageTrendPoint
 type UserSpendingRankingItem = usagestats.UserSpendingRankingItem
 type UserSpendingRankingResponse = usagestats.UserSpendingRankingResponse
 
+// APIKeySpendingRankingItem represents an API key spending ranking row.
+type APIKeySpendingRankingItem = usagestats.APIKeySpendingRankingItem
+type APIKeySpendingRankingResponse = usagestats.APIKeySpendingRankingResponse
+
 // APIKeyUsageTrendPoint represents API key usage trend data point
 type APIKeyUsageTrendPoint = usagestats.APIKeyUsageTrendPoint
 
@@ -2951,6 +2955,129 @@ func (r *usageLogRepository) GetBatchUserUsageStats(ctx context.Context, userIDs
 		return nil, err
 	}
 
+	return result, nil
+}
+
+// GetAPIKeySpendingRanking returns API key spending ranking aggregated within filters.
+func (r *usageLogRepository) GetAPIKeySpendingRanking(ctx context.Context, filters UsageLogFilters, limit int) (result *APIKeySpendingRankingResponse, err error) {
+	if limit <= 0 {
+		limit = 12
+	}
+
+	conditions := []string{}
+	args := []any{}
+	if filters.UserID > 0 {
+		conditions = append(conditions, fmt.Sprintf("ul.user_id = $%d", len(args)+1))
+		args = append(args, filters.UserID)
+	}
+	if filters.APIKeyID > 0 {
+		conditions = append(conditions, fmt.Sprintf("ul.api_key_id = $%d", len(args)+1))
+		args = append(args, filters.APIKeyID)
+	}
+	if filters.AccountID > 0 {
+		conditions = append(conditions, fmt.Sprintf("ul.account_id = $%d", len(args)+1))
+		args = append(args, filters.AccountID)
+	}
+	if filters.GroupID > 0 {
+		conditions = append(conditions, fmt.Sprintf("ul.group_id = $%d", len(args)+1))
+		args = append(args, filters.GroupID)
+	}
+	conditions, args = appendRawUsageLogModelWhereCondition(conditions, args, filters.Model)
+	conditions, args = appendRequestTypeOrStreamWhereCondition(conditions, args, filters.RequestType, filters.Stream)
+	if filters.BillingType != nil {
+		conditions = append(conditions, fmt.Sprintf("ul.billing_type = $%d", len(args)+1))
+		args = append(args, int16(*filters.BillingType))
+	}
+	conditions, args = appendUsageLogBillingModeWhereCondition(conditions, args, filters.BillingMode)
+	if filters.StartTime != nil {
+		conditions = append(conditions, fmt.Sprintf("ul.created_at >= $%d", len(args)+1))
+		args = append(args, *filters.StartTime)
+	}
+	if filters.EndTime != nil {
+		conditions = append(conditions, fmt.Sprintf("ul.created_at < $%d", len(args)+1))
+		args = append(args, *filters.EndTime)
+	}
+	whereClause := buildWhere(conditions)
+
+	limitArg := len(args) + 1
+	query := fmt.Sprintf(`
+		WITH key_spend AS (
+			SELECT
+				ul.api_key_id,
+				COALESCE(k.name, '') as key_name,
+				COALESCE(ul.user_id, 0) as user_id,
+				COALESCE(u.email, '') as email,
+				COALESCE(SUM(ul.actual_cost), 0) as actual_cost,
+				COUNT(*) as requests,
+				COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens), 0) as tokens
+			FROM usage_logs ul
+			LEFT JOIN api_keys k ON k.id = ul.api_key_id
+			LEFT JOIN users u ON u.id = ul.user_id
+			%s
+			GROUP BY ul.api_key_id, k.name, ul.user_id, u.email
+		),
+		ranked AS (
+			SELECT
+				api_key_id,
+				key_name,
+				user_id,
+				email,
+				actual_cost,
+				requests,
+				tokens,
+				COALESCE(SUM(actual_cost) OVER (), 0) as total_actual_cost,
+				COALESCE(SUM(requests) OVER (), 0) as total_requests,
+				COALESCE(SUM(tokens) OVER (), 0) as total_tokens
+			FROM key_spend
+			ORDER BY actual_cost DESC, tokens DESC, api_key_id ASC
+			LIMIT $%d
+		)
+		SELECT
+			api_key_id,
+			key_name,
+			user_id,
+			email,
+			actual_cost,
+			requests,
+			tokens,
+			total_actual_cost,
+			total_requests,
+			total_tokens
+		FROM ranked
+		ORDER BY actual_cost DESC, tokens DESC, api_key_id ASC
+	`, whereClause, limitArg)
+	args = append(args, limit)
+
+	rows, err := r.sql.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+			result = nil
+		}
+	}()
+
+	result = &APIKeySpendingRankingResponse{
+		Ranking: make([]APIKeySpendingRankingItem, 0),
+	}
+	for rows.Next() {
+		var row APIKeySpendingRankingItem
+		var totalActualCost float64
+		var totalRequests int64
+		var totalTokens int64
+		if err = rows.Scan(&row.APIKeyID, &row.KeyName, &row.UserID, &row.Email, &row.ActualCost, &row.Requests, &row.Tokens, &totalActualCost, &totalRequests, &totalTokens); err != nil {
+			return nil, err
+		}
+		result.Ranking = append(result.Ranking, row)
+		result.TotalActualCost = totalActualCost
+		result.TotalRequests = totalRequests
+		result.TotalTokens = totalTokens
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 

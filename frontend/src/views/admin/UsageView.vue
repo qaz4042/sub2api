@@ -62,6 +62,13 @@
             :filters="breakdownFilters"
           />
           <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
+          <ApiKeyRankingCard
+            :items="apiKeyRankingItems"
+            :loading="apiKeyRankingLoading"
+            :total-actual-cost="apiKeyRankingTotalActualCost"
+            :total-tokens="apiKeyRankingTotalTokens"
+            @key-click="handleApiKeyRankingClick"
+          />
         </div>
       </div>
       <UsageFilters v-model="filters" :start-date="startDate" :end-date="endDate" :exporting="exporting" :model-options="modelNameOptions" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
@@ -162,6 +169,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'; import Pagination fro
 import UsageStatsCards from '@/components/admin/usage/UsageStatsCards.vue'; import UsageFilters from '@/components/admin/usage/UsageFilters.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'; import UsageExportProgress from '@/components/admin/usage/UsageExportProgress.vue'
 import UsageCleanupDialog from '@/components/admin/usage/UsageCleanupDialog.vue'
+import ApiKeyRankingCard from '@/components/admin/usage/ApiKeyRankingCard.vue'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
 import OpsErrorLogTable from '@/views/admin/ops/components/OpsErrorLogTable.vue'
 import OpsErrorDetailModal from '@/views/admin/ops/components/OpsErrorDetailModal.vue'
@@ -170,7 +178,7 @@ import type { OpsErrorLog } from '@/api/admin/ops'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'; import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'; import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'
-import type { AdminUsageLog, TrendDataPoint, ModelStat, GroupStat, EndpointStat, AdminUser } from '@/types'; import type { AdminUsageStatsResponse, AdminUsageQueryParams } from '@/api/admin/usage'
+import type { AdminUsageLog, TrendDataPoint, ModelStat, GroupStat, EndpointStat, AdminUser, ApiKeySpendingRankingItem } from '@/types'; import type { AdminUsageStatsResponse, AdminUsageQueryParams } from '@/api/admin/usage'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -194,10 +202,15 @@ const inboundEndpointStats = ref<EndpointStat[]>([])
 const upstreamEndpointStats = ref<EndpointStat[]>([])
 const endpointPathStats = ref<EndpointStat[]>([])
 const endpointStatsLoading = ref(false)
+const apiKeyRankingItems = ref<ApiKeySpendingRankingItem[]>([])
+const apiKeyRankingLoading = ref(false)
+const apiKeyRankingTotalActualCost = ref(0)
+const apiKeyRankingTotalTokens = ref(0)
 let abortController: AbortController | null = null; let exportAbortController: AbortController | null = null
 let chartReqSeq = 0
 let statsReqSeq = 0
 let modelStatsReqSeq = 0
+let apiKeyRankingReqSeq = 0
 const exportProgress = reactive({ show: false, progress: 0, current: 0, total: 0, estimatedTime: '' })
 const cleanupDialogVisible = ref(false)
 // Balance history modal state
@@ -448,6 +461,40 @@ const loadChartData = async () => {
     groupStats.value = snapshot.groups || []
   } catch (error) { console.error('Failed to load chart data:', error) } finally { if (seq === chartReqSeq) chartsLoading.value = false }
 }
+const loadApiKeyRanking = async () => {
+  const seq = ++apiKeyRankingReqSeq
+  apiKeyRankingLoading.value = true
+  try {
+    const requestType = filters.value.request_type
+    const legacyStream = requestType ? requestTypeToLegacyStream(requestType) : filters.value.stream
+    const response = await adminAPI.dashboard.getApiKeySpendingRanking({
+      start_date: filters.value.start_date || startDate.value,
+      end_date: filters.value.end_date || endDate.value,
+      user_id: filters.value.user_id,
+      model: filters.value.model,
+      api_key_id: filters.value.api_key_id,
+      account_id: filters.value.account_id,
+      group_id: filters.value.group_id,
+      request_type: requestType,
+      stream: legacyStream === null ? undefined : legacyStream,
+      billing_type: filters.value.billing_type,
+      billing_mode: filters.value.billing_mode,
+      limit: 12
+    })
+    if (seq !== apiKeyRankingReqSeq) return
+    apiKeyRankingItems.value = response.ranking || []
+    apiKeyRankingTotalActualCost.value = response.total_actual_cost || 0
+    apiKeyRankingTotalTokens.value = response.total_tokens || 0
+  } catch (error) {
+    if (seq !== apiKeyRankingReqSeq) return
+    console.error('Failed to load API key ranking:', error)
+    apiKeyRankingItems.value = []
+    apiKeyRankingTotalActualCost.value = 0
+    apiKeyRankingTotalTokens.value = 0
+  } finally {
+    if (seq === apiKeyRankingReqSeq) apiKeyRankingLoading.value = false
+  }
+}
 const applyFilters = () => {
   pagination.page = 1
   invalidateModelStatsCache()
@@ -455,6 +502,7 @@ const applyFilters = () => {
   loadStats()
   loadModelStats(modelDistributionSource.value, true)
   loadChartData()
+  loadApiKeyRanking()
   errPage.value = 1
   if (activeTab.value === 'errors') {
     loadAdminErrors()
@@ -468,6 +516,7 @@ const refreshData = () => {
   loadStats(true)
   loadModelStats(modelDistributionSource.value, true)
   loadChartData()
+  loadApiKeyRanking()
   if (activeTab.value === 'errors') loadAdminErrors()
 }
 const resetFilters = () => {
@@ -488,6 +537,13 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
 }
 const cancelExport = () => exportAbortController?.abort()
 const openCleanupDialog = () => { cleanupDialogVisible.value = true }
+const handleApiKeyRankingClick = (item: ApiKeySpendingRankingItem) => {
+  filters.value = {
+    ...filters.value,
+    api_key_id: item.api_key_id,
+  }
+  applyFilters()
+}
 const getRequestTypeLabel = (log: AdminUsageLog): string => {
   const requestType = resolveUsageRequestType(log)
   if (requestType === 'cyber') return t('usage.cyber')
@@ -683,6 +739,7 @@ onMounted(() => {
   loadModelStats(modelDistributionSource.value, true)
   window.setTimeout(() => {
     void loadChartData()
+    void loadApiKeyRanking()
   }, 120)
   loadSavedColumns()
   document.addEventListener('click', handleColumnClickOutside)

@@ -47,8 +47,13 @@
       </span>
     </div>
     <!-- Row 3: Subscription expiration (non-free paid accounts only) -->
-    <div v-if="expiresLabel" class="text-[10px] leading-tight text-gray-400 dark:text-gray-500 pl-0.5" :title="subscriptionExpiresAt">
-      {{ expiresLabel }}
+    <div
+      v-if="subscriptionExpiry"
+      class="flex flex-wrap items-center gap-x-1 pl-0.5 text-[10px] font-medium leading-tight"
+      :title="subscriptionExpiry.title"
+    >
+      <span class="text-gray-500 dark:text-gray-400">{{ subscriptionExpiry.dateLabel }}</span>
+      <span :class="subscriptionExpiry.statusClass">{{ subscriptionExpiry.statusLabel }}</span>
     </div>
   </div>
 </template>
@@ -149,19 +154,39 @@ const planBadgeClass = computed(() => {
   return typeClass.value
 })
 
-// Subscription expiration label (non-free only)
-const expiresLabel = computed(() => {
-  if (!props.subscriptionExpiresAt || !props.planType) return ''
-  if (props.planType.toLowerCase() === 'free') return ''
-  try {
-    const d = new Date(props.subscriptionExpiresAt)
-    if (isNaN(d.getTime())) return ''
-    const yyyy = d.getFullYear()
-    const mm = String(d.getMonth() + 1).padStart(2, '0')
-    const dd = String(d.getDate()).padStart(2, '0')
-    return `${t('admin.accounts.subscriptionExpires')} ${yyyy}-${mm}-${dd}`
-  } catch {
-    return ''
+// Subscription expiration status (non-free only)
+const subscriptionExpiry = computed(() => {
+  if (!props.subscriptionExpiresAt || !props.planType) return null
+  if (props.planType.toLowerCase() === 'free') return null
+
+  const expiresAt = new Date(props.subscriptionExpiresAt)
+  if (Number.isNaN(expiresAt.getTime())) return null
+
+  const yyyy = expiresAt.getFullYear()
+  const mm = String(expiresAt.getMonth() + 1).padStart(2, '0')
+  const dd = String(expiresAt.getDate()).padStart(2, '0')
+  const dateLabel = `${yyyy}-${mm}-${dd}`
+  const remainingMs = expiresAt.getTime() - Date.now()
+
+  if (remainingMs <= 0) {
+    return {
+      dateLabel: `${t('admin.accounts.subscriptionExpires')} ${dateLabel}`,
+      statusLabel: t('admin.accounts.subscriptionExpired'),
+      statusClass: 'text-red-600 dark:text-red-400',
+      title: props.subscriptionExpiresAt
+    }
+  }
+
+  const remainingDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000))
+  return {
+    dateLabel: `${t('admin.accounts.subscriptionExpires')} ${dateLabel}`,
+    statusLabel: t('admin.accounts.subscriptionRemainingDays', { days: remainingDays }),
+    statusClass: remainingDays <= 3
+      ? 'text-red-600 dark:text-red-400'
+      : remainingDays <= 7
+        ? 'text-amber-600 dark:text-amber-400'
+        : 'text-gray-500 dark:text-gray-400',
+    title: props.subscriptionExpiresAt
   }
 })
 

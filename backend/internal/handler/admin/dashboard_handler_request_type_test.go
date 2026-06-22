@@ -22,6 +22,10 @@ type dashboardUsageRepoCapture struct {
 	rankingLimit     int
 	ranking          []usagestats.UserSpendingRankingItem
 	rankingTotal     float64
+	keyRankingLimit  int
+	keyRankingFilter usagestats.UsageLogFilters
+	keyRanking       []usagestats.APIKeySpendingRankingItem
+	keyRankingTotal  float64
 }
 
 func (s *dashboardUsageRepoCapture) GetUsageTrendWithFilters(
@@ -66,6 +70,21 @@ func (s *dashboardUsageRepoCapture) GetUserSpendingRanking(
 	}, nil
 }
 
+func (s *dashboardUsageRepoCapture) GetAPIKeySpendingRanking(
+	ctx context.Context,
+	filters usagestats.UsageLogFilters,
+	limit int,
+) (*usagestats.APIKeySpendingRankingResponse, error) {
+	s.keyRankingLimit = limit
+	s.keyRankingFilter = filters
+	return &usagestats.APIKeySpendingRankingResponse{
+		Ranking:         s.keyRanking,
+		TotalActualCost: s.keyRankingTotal,
+		TotalRequests:   22,
+		TotalTokens:     5678,
+	}, nil
+}
+
 func newDashboardRequestTypeTestRouter(repo *dashboardUsageRepoCapture) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	dashboardSvc := service.NewDashboardService(repo, nil, nil, nil)
@@ -74,6 +93,7 @@ func newDashboardRequestTypeTestRouter(repo *dashboardUsageRepoCapture) *gin.Eng
 	router.GET("/admin/dashboard/trend", handler.GetUsageTrend)
 	router.GET("/admin/dashboard/models", handler.GetModelStats)
 	router.GET("/admin/dashboard/users-ranking", handler.GetUserSpendingRanking)
+	router.GET("/admin/dashboard/api-keys-ranking", handler.GetAPIKeySpendingRanking)
 	return router
 }
 
@@ -193,6 +213,42 @@ func TestDashboardUsersRankingLimitAndCache(t *testing.T) {
 	require.Equal(t, "miss", rec.Header().Get("X-Snapshot-Cache"))
 
 	req2 := httptest.NewRequest(http.MethodGet, "/admin/dashboard/users-ranking?limit=100&start_date=2025-01-01&end_date=2025-01-02", nil)
+	rec2 := httptest.NewRecorder()
+	router.ServeHTTP(rec2, req2)
+
+	require.Equal(t, http.StatusOK, rec2.Code)
+	require.Equal(t, "hit", rec2.Header().Get("X-Snapshot-Cache"))
+}
+
+func TestDashboardAPIKeysRankingLimitFiltersAndCache(t *testing.T) {
+	dashboardAPIKeysRankingCache = newSnapshotCache(5 * time.Minute)
+	repo := &dashboardUsageRepoCapture{
+		keyRanking: []usagestats.APIKeySpendingRankingItem{
+			{APIKeyID: 9, KeyName: "prod", UserID: 7, Email: "rank@example.com", ActualCost: 10.5, Requests: 3, Tokens: 300},
+		},
+		keyRankingTotal: 66.6,
+	}
+	router := newDashboardRequestTypeTestRouter(repo)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/dashboard/api-keys-ranking?limit=100&start_date=2025-01-01&end_date=2025-01-02&user_id=7&api_key_id=9&request_type=ws_v2&stream=bad&billing_type=1", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, 50, repo.keyRankingLimit)
+	require.Equal(t, int64(7), repo.keyRankingFilter.UserID)
+	require.Equal(t, int64(9), repo.keyRankingFilter.APIKeyID)
+	require.NotNil(t, repo.keyRankingFilter.RequestType)
+	require.Equal(t, int16(service.RequestTypeWSV2), *repo.keyRankingFilter.RequestType)
+	require.Nil(t, repo.keyRankingFilter.Stream)
+	require.NotNil(t, repo.keyRankingFilter.BillingType)
+	require.Equal(t, int8(1), *repo.keyRankingFilter.BillingType)
+	require.Contains(t, rec.Body.String(), "\"total_actual_cost\":66.6")
+	require.Contains(t, rec.Body.String(), "\"total_requests\":22")
+	require.Contains(t, rec.Body.String(), "\"total_tokens\":5678")
+	require.Equal(t, "miss", rec.Header().Get("X-Snapshot-Cache"))
+
+	req2 := httptest.NewRequest(http.MethodGet, "/admin/dashboard/api-keys-ranking?limit=100&start_date=2025-01-01&end_date=2025-01-02&user_id=7&api_key_id=9&request_type=ws_v2&stream=bad&billing_type=1", nil)
 	rec2 := httptest.NewRecorder()
 	router.ServeHTTP(rec2, req2)
 
