@@ -152,6 +152,7 @@ SELECT
 
 如需启用管理后台“数据管理”功能，请额外部署宿主机 `datamanagementd`：
 
+- 当前仓库不包含 `datamanagementd` 源码，需使用单独交付的二进制
 - 主进程固定探测 `/tmp/sub2api-datamanagement.sock`
 - Docker 场景下需把宿主机 Socket 挂载到容器内同路径
 - 详细步骤见：`deploy/DATAMANAGEMENTD_CN.md`

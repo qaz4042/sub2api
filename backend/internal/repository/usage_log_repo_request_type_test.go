@@ -575,6 +575,35 @@ func TestUsageLogRepositoryGetAPIKeySpendingRanking(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestUsageLogRepositoryGetUserAPIKeySpendingRankingIncludesOwnKeyOutsideTop(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 0, 7)
+	rows := sqlmock.NewRows([]string{
+		"api_key_id", "key_name", "user_id", "actual_cost", "requests", "tokens",
+		"rank", "total_keys",
+	}).
+		AddRow(int64(1), "leader", int64(9), 50.0, int64(100), int64(5000), int64(1), int64(30)).
+		AddRow(int64(7), "my-key", int64(42), 2.5, int64(10), int64(500), int64(18), int64(30))
+
+	mock.ExpectQuery("WITH key_spend AS \\(").
+		WithArgs(start, end, 10, int64(42)).
+		WillReturnRows(rows)
+
+	got, err := repo.GetUserAPIKeySpendingRanking(context.Background(), start, end, 42, 10)
+	require.NoError(t, err)
+	require.Equal(t, int64(30), got.TotalKeys)
+	require.Len(t, got.Ranking, 1)
+	require.False(t, got.Ranking[0].IsMine)
+	require.Len(t, got.MyRankings, 1)
+	require.Equal(t, int64(18), got.MyRankings[0].Rank)
+	require.Equal(t, "my-key", got.MyRankings[0].KeyName)
+	require.True(t, got.MyRankings[0].IsMine)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestBuildRequestTypeFilterConditionLegacyFallback(t *testing.T) {
 	tests := []struct {
 		name      string

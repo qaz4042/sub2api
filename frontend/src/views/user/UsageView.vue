@@ -1,8 +1,9 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <TablePageLayout filters-first>
       <template #actions>
-        <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div class="space-y-4">
+          <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <!-- Total Requests -->
           <div class="card p-4">
           <div class="flex items-center gap-3">
@@ -98,6 +99,17 @@
             </div>
           </div>
         </div>
+          </div>
+
+          <UserApiKeyRankingCard
+            :ranking="apiKeyRanking.ranking"
+            :my-rankings="apiKeyRanking.my_rankings"
+            :total-keys="apiKeyRanking.total_keys"
+            :loading="apiKeyRankingLoading"
+            :error="apiKeyRankingError"
+            @key-click="handleRankingKeyClick"
+            @retry="retryApiKeyRanking"
+          />
         </div>
       </template>
 
@@ -513,7 +525,7 @@
               <span class="font-medium text-pink-300">${{ tooltipData.image_output_cost.toFixed(6) }}</span>
             </div>
             <!-- Token billing: show unit prices per 1M tokens -->
-            <template v-if="!tooltipData?.billing_mode || tooltipData.billing_mode === BILLING_MODE_TOKEN">
+            <template v-if="getDisplayBillingMode(tooltipData) !== BILLING_MODE_IMAGE">
               <div v-if="tooltipData && tooltipData.input_tokens > 0" class="flex items-center justify-between gap-4">
                 <span class="text-gray-400">{{ t('usage.inputTokenPrice') }}</span>
                 <span class="font-medium text-sky-300">{{ formatTokenPricePerMillion(tooltipData.input_cost, tooltipData.input_tokens) }} {{ t('usage.perMillionTokens') }}</span>
@@ -620,7 +632,16 @@ import Select from '@/components/common/Select.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Icon from '@/components/icons/Icon.vue'
 import UserErrorRequestsTable from '@/components/user/UserErrorRequestsTable.vue'
-import type { UsageLog, ApiKey, UsageQueryParams, UsageStatsResponse, UserErrorRequest } from '@/types'
+import UserApiKeyRankingCard from '@/components/user/UserApiKeyRankingCard.vue'
+import type {
+  UsageLog,
+  ApiKey,
+  UsageQueryParams,
+  UsageStatsResponse,
+  UserErrorRequest,
+  UserApiKeyRankingItem,
+  UserApiKeyRankingResponse,
+} from '@/types'
 import type { Column } from '@/components/common/types'
 import { formatDateTime, formatReasoningEffort } from '@/utils/format'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -629,7 +650,7 @@ import { formatTokenPricePerMillion } from '@/utils/usagePricing'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
 import { resolveUsageRequestType } from '@/utils/usageRequestType'
 import {
-  BILLING_MODE_TOKEN,
+  BILLING_MODE_IMAGE,
   getBillingModeBadgeClass,
   getBillingModeLabel,
   isImageUsage,
@@ -697,6 +718,18 @@ const usageLogs = ref<UsageLog[]>([])
 const apiKeys = ref<ApiKey[]>([])
 const loading = ref(false)
 const exporting = ref(false)
+const apiKeyRankingLoading = ref(false)
+const apiKeyRankingError = ref(false)
+const apiKeyRanking = ref<UserApiKeyRankingResponse>({
+  ranking: [],
+  my_rankings: [],
+  total_keys: 0,
+  start_date: '',
+  end_date: '',
+})
+let apiKeyRankingRequest = 0
+let apiKeyRankingLoadedRange = ''
+let apiKeyRankingLoadingRange = ''
 
 const apiKeyOptions = computed(() => {
   return [
@@ -886,10 +919,58 @@ const loadUsageStats = async () => {
   }
 }
 
+const loadApiKeyRanking = async (force = false) => {
+  const rangeKey = `${filters.value.start_date || startDate.value}|${filters.value.end_date || endDate.value}`
+  if (!force && (rangeKey === apiKeyRankingLoadedRange || rangeKey === apiKeyRankingLoadingRange)) {
+    return
+  }
+
+  const request = ++apiKeyRankingRequest
+  apiKeyRankingLoadingRange = rangeKey
+  apiKeyRankingLoading.value = true
+  apiKeyRankingError.value = false
+  try {
+    const response = await usageAPI.getApiKeyRanking({
+      start_date: filters.value.start_date || startDate.value,
+      end_date: filters.value.end_date || endDate.value,
+      limit: 10,
+    })
+    if (request === apiKeyRankingRequest) {
+      apiKeyRanking.value = response
+      apiKeyRankingLoadedRange = rangeKey
+    }
+  } catch (error) {
+    if (request !== apiKeyRankingRequest) return
+    console.error('Failed to load API key ranking:', error)
+    apiKeyRankingError.value = true
+    apiKeyRanking.value = {
+      ranking: [],
+      my_rankings: [],
+      total_keys: 0,
+      start_date: '',
+      end_date: '',
+    }
+  } finally {
+    if (request === apiKeyRankingRequest) {
+      apiKeyRankingLoading.value = false
+      apiKeyRankingLoadingRange = ''
+    }
+  }
+}
+
+const retryApiKeyRanking = () => loadApiKeyRanking(true)
+
+const handleRankingKeyClick = (item: UserApiKeyRankingItem) => {
+  if (!item.api_key_id) return
+  filters.value.api_key_id = item.api_key_id
+  applyFilters()
+}
+
 const applyFilters = () => {
   pagination.page = 1
   loadUsageLogs()
   loadUsageStats()
+  loadApiKeyRanking()
 }
 
 const resetFilters = () => {
@@ -909,6 +990,7 @@ const resetFilters = () => {
   pagination.page = 1
   loadUsageLogs()
   loadUsageStats()
+  loadApiKeyRanking()
 }
 
 const handlePageChange = (page: number) => {
@@ -1119,5 +1201,6 @@ onMounted(() => {
   loadApiKeys()
   loadUsageLogs()
   loadUsageStats()
+  loadApiKeyRanking()
 })
 </script>

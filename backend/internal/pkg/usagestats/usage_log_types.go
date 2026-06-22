@@ -181,6 +181,27 @@ type APIKeySpendingRankingResponse struct {
 	TotalTokens     int64                       `json:"total_tokens"`
 }
 
+// UserAPIKeyRankingItem represents a global API key rank that is safe to expose
+// after non-owned key identity fields have been redacted by the handler.
+type UserAPIKeyRankingItem struct {
+	Rank       int64   `json:"rank"`
+	APIKeyID   int64   `json:"api_key_id,omitempty"`
+	KeyName    string  `json:"key_name,omitempty"`
+	UserID     int64   `json:"-"`
+	IsMine     bool    `json:"is_mine"`
+	ActualCost float64 `json:"actual_cost"`
+	Requests   int64   `json:"requests"`
+	Tokens     int64   `json:"tokens"`
+}
+
+// UserAPIKeyRankingResponse contains the public leaderboard plus every ranking
+// row owned by the requesting user, including rows outside the leaderboard.
+type UserAPIKeyRankingResponse struct {
+	Ranking    []UserAPIKeyRankingItem `json:"ranking"`
+	MyRankings []UserAPIKeyRankingItem `json:"my_rankings"`
+	TotalKeys  int64                   `json:"total_keys"`
+}
+
 // UserBreakdownItem represents per-user usage breakdown within a dimension (group, model, endpoint).
 type UserBreakdownItem struct {
 	UserID      int64   `json:"user_id"`

@@ -5418,6 +5418,63 @@
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.settings.features.platformAccess.title') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.features.platformAccess.description') }}
+            </p>
+          </div>
+          <div class="divide-y divide-gray-100 px-6 dark:divide-dark-700">
+            <div class="flex items-center justify-between py-5">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.platformAccess.openai') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.platformAccess.openaiHint') }}
+                </p>
+              </div>
+              <Toggle :model-value="true" disabled />
+            </div>
+            <div class="flex items-center justify-between py-5">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.platformAccess.anthropic') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.platformAccess.disabledHint') }}
+                </p>
+              </div>
+              <Toggle v-model="form.platform_anthropic_enabled" />
+            </div>
+            <div class="flex items-center justify-between py-5">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.platformAccess.gemini') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.platformAccess.disabledHint') }}
+                </p>
+              </div>
+              <Toggle v-model="form.platform_gemini_enabled" />
+            </div>
+            <div class="flex items-center justify-between py-5">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.platformAccess.antigravity') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.platformAccess.disabledHint') }}
+                </p>
+              </div>
+              <Toggle v-model="form.platform_antigravity_enabled" />
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.channelMonitor.title') }}
             </h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -7850,6 +7907,10 @@ const form = reactive<SettingsForm>({
   channel_monitor_default_interval_seconds: 60,
   // Available Channels feature switch
   available_channels_enabled: false,
+  // Public gateway platform switches (OpenAI is always enabled)
+  platform_anthropic_enabled: false,
+  platform_gemini_enabled: false,
+  platform_antigravity_enabled: false,
   // Affiliate (邀请返利) feature switch
   affiliate_enabled: false,
   // Allow user view error requests
@@ -9017,6 +9078,10 @@ async function saveSettings() {
         Number(form.channel_monitor_default_interval_seconds) || 60,
       // Available Channels feature switch
       available_channels_enabled: form.available_channels_enabled,
+      // Public gateway platform switches
+      platform_anthropic_enabled: form.platform_anthropic_enabled,
+      platform_gemini_enabled: form.platform_gemini_enabled,
+      platform_antigravity_enabled: form.platform_antigravity_enabled,
       // Affiliate (邀请返利) feature switch
       affiliate_enabled: form.affiliate_enabled,
       allow_user_view_error_requests: form.allow_user_view_error_requests,

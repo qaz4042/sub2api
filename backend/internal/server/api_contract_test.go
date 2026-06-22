@@ -886,6 +886,9 @@ func TestAPIContracts(t *testing.T) {
 					"channel_monitor_enabled": true,
 					"channel_monitor_default_interval_seconds": 60,
 					"available_channels_enabled": false,
+					"platform_anthropic_enabled": false,
+					"platform_gemini_enabled": false,
+					"platform_antigravity_enabled": false,
 					"risk_control_enabled": false,
 					"cyber_session_block_enabled": false,
 					"cyber_session_block_ttl_seconds": 3600,
@@ -1127,6 +1130,9 @@ func TestAPIContracts(t *testing.T) {
 					"channel_monitor_enabled": true,
 					"channel_monitor_default_interval_seconds": 60,
 					"available_channels_enabled": false,
+					"platform_anthropic_enabled": false,
+					"platform_gemini_enabled": false,
+					"platform_antigravity_enabled": false,
 					"risk_control_enabled": false,
 					"cyber_session_block_enabled": false,
 					"cyber_session_block_ttl_seconds": 3600,
@@ -2392,6 +2398,10 @@ func (r *stubUsageLogRepo) GetUserUsageTrend(ctx context.Context, startTime, end
 
 func (r *stubUsageLogRepo) GetUserSpendingRanking(ctx context.Context, startTime, endTime time.Time, limit int) (*usagestats.UserSpendingRankingResponse, error) {
 	return nil, errors.New("not implemented")
+}
+
+func (r *stubUsageLogRepo) GetUserAPIKeySpendingRanking(ctx context.Context, startTime, endTime time.Time, userID int64, limit int) (*usagestats.UserAPIKeyRankingResponse, error) {
+	return &usagestats.UserAPIKeyRankingResponse{}, nil
 }
 
 func (r *stubUsageLogRepo) GetUserStatsAggregated(ctx context.Context, userID int64, startTime, endTime time.Time) (*usagestats.UsageStats, error) {

@@ -179,6 +179,11 @@ type SystemSettings struct {
 	// Available Channels feature (user-facing aggregate view)
 	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
 
+	// Public gateway platform switches (OpenAI is always enabled).
+	PlatformAnthropicEnabled   bool `json:"platform_anthropic_enabled"`
+	PlatformGeminiEnabled      bool `json:"platform_gemini_enabled"`
+	PlatformAntigravityEnabled bool `json:"platform_antigravity_enabled"`
+
 	// Claude Code version check
 	MinClaudeCodeVersion string
 	MaxClaudeCodeVersion string
@@ -295,6 +300,10 @@ type PublicSettings struct {
 
 	// Available Channels feature (user-facing aggregate view)
 	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
+
+	PlatformAnthropicEnabled   bool `json:"platform_anthropic_enabled"`
+	PlatformGeminiEnabled      bool `json:"platform_gemini_enabled"`
+	PlatformAntigravityEnabled bool `json:"platform_antigravity_enabled"`
 
 	// Affiliate (邀请返利) feature toggle
 	AffiliateEnabled bool `json:"affiliate_enabled"`

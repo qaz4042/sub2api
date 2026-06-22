@@ -422,7 +422,35 @@ func parseUserTimeRange(c *gin.Context) (time.Time, time.Time) {
 const (
 	defaultAPIKeyDailyUsageDays = 30
 	maxAPIKeyDailyUsageDays     = 90
+	maxUserAPIKeyRankingDays    = 90
 )
+
+func parseUserAPIKeyRankingTimeRange(c *gin.Context) (time.Time, time.Time, bool) {
+	userTZ := c.Query("timezone")
+	now := timezone.NowInUserLocation(userTZ)
+	startTime := timezone.StartOfDayInUserLocation(now.AddDate(0, 0, -6), userTZ)
+	endTime := timezone.StartOfDayInUserLocation(now.AddDate(0, 0, 1), userTZ)
+
+	if raw := strings.TrimSpace(c.Query("start_date")); raw != "" {
+		parsed, err := timezone.ParseInUserLocation("2006-01-02", raw, userTZ)
+		if err != nil {
+			return time.Time{}, time.Time{}, false
+		}
+		startTime = parsed
+	}
+	if raw := strings.TrimSpace(c.Query("end_date")); raw != "" {
+		parsed, err := timezone.ParseInUserLocation("2006-01-02", raw, userTZ)
+		if err != nil {
+			return time.Time{}, time.Time{}, false
+		}
+		endTime = parsed.AddDate(0, 0, 1)
+	}
+
+	if !endTime.After(startTime) || endTime.After(startTime.AddDate(0, 0, maxUserAPIKeyRankingDays)) {
+		return time.Time{}, time.Time{}, false
+	}
+	return startTime, endTime, true
+}
 
 func parseAPIKeyDailyUsageDays(raw string) (int, bool) {
 	if strings.TrimSpace(raw) == "" {
@@ -508,6 +536,83 @@ func (h *UsageHandler) DashboardModels(c *gin.Context) {
 		"start_date": startTime.Format("2006-01-02"),
 		"end_date":   endTime.Add(-24 * time.Hour).Format("2006-01-02"),
 	})
+}
+
+// APIKeyRanking returns a privacy-safe global API key leaderboard plus every
+// rank owned by the current user.
+// GET /api/v1/usage/ranking
+func (h *UsageHandler) APIKeyRanking(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	limit := 10
+	if raw := strings.TrimSpace(c.Query("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 50 {
+			response.BadRequest(c, "Invalid limit, allowed range is 1-50")
+			return
+		}
+		limit = parsed
+	}
+
+	startTime, endTime, validRange := parseUserAPIKeyRankingTimeRange(c)
+	if !validRange {
+		response.BadRequest(c, "Invalid date range, use YYYY-MM-DD with at most 90 days")
+		return
+	}
+	ranking, err := h.usageService.GetUserAPIKeySpendingRanking(
+		c.Request.Context(),
+		subject.UserID,
+		startTime,
+		endTime,
+		limit,
+	)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	// Never expose another user's key ID or key name.
+	publicRanking := make([]usagestats.UserAPIKeyRankingItem, len(ranking.Ranking))
+	copy(publicRanking, ranking.Ranking)
+	for i := range publicRanking {
+		if !publicRanking[i].IsMine {
+			publicRanking[i].APIKeyID = 0
+			publicRanking[i].KeyName = maskAPIKeyName(publicRanking[i].KeyName)
+		}
+	}
+
+	// The payload is user-specific. Allow a short browser cache without letting
+	// shared proxies retain one user's owned-key details.
+	c.Header("Cache-Control", "private, max-age=30")
+	response.Success(c, gin.H{
+		"ranking":     publicRanking,
+		"my_rankings": ranking.MyRankings,
+		"total_keys":  ranking.TotalKeys,
+		"start_date":  startTime.Format("2006-01-02"),
+		"end_date":    endTime.AddDate(0, 0, -1).Format("2006-01-02"),
+	})
+}
+
+func maskAPIKeyName(name string) string {
+	runes := []rune(strings.TrimSpace(name))
+	switch len(runes) {
+	case 0:
+		return ""
+	case 1:
+		return "*"
+	case 2:
+		return string(runes[0]) + "*"
+	default:
+		maskLength := len(runes) - 2
+		if maskLength > 6 {
+			maskLength = 6
+		}
+		return string(runes[0]) + strings.Repeat("*", maskLength) + string(runes[len(runes)-1])
+	}
 }
 
 // BatchAPIKeysUsageRequest represents the request for batch API keys usage

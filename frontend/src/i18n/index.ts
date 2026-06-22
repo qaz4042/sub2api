@@ -89,7 +89,7 @@ export function getLocale(): LocaleCode {
 
 export const availableLocales = [
   { code: 'en', name: 'English', flag: '🇺🇸' },
-  { code: 'zh-TW', name: '繁體中文', flag: '🇹🇼' },
+  { code: 'zh-TW', name: '繁體中文', flag: '🇨🇳' },
   { code: 'zh', name: '简体中文', flag: '🇨🇳' }
 ] as const
 

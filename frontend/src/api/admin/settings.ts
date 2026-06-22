@@ -615,6 +615,11 @@ export interface SystemSettings {
   // Available Channels feature switch
   available_channels_enabled: boolean;
 
+  // Public gateway platform switches (OpenAI is always enabled)
+  platform_anthropic_enabled: boolean;
+  platform_gemini_enabled: boolean;
+  platform_antigravity_enabled: boolean;
+
   // Affiliate (邀请返利) feature switch
   affiliate_enabled: boolean;
 
@@ -855,6 +860,11 @@ export interface UpdateSettingsRequest {
 
   // Available Channels feature switch
   available_channels_enabled?: boolean;
+
+  // Public gateway platform switches (OpenAI is always enabled)
+  platform_anthropic_enabled?: boolean;
+  platform_gemini_enabled?: boolean;
+  platform_antigravity_enabled?: boolean;
 
   // Affiliate (邀请返利) feature switch
   affiliate_enabled?: boolean;
