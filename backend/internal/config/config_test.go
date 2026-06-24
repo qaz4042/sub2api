@@ -30,6 +30,27 @@ func TestLoadForBootstrapAllowsMissingJWTSecret(t *testing.T) {
 	}
 }
 
+func TestLoadGoogleOAuthAllowedRedirectOriginsFromEnv(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("GOOGLE_OAUTH_ALLOWED_REDIRECT_ORIGINS", "https://codex.lizubin.online,https://portal.lizubin.online")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"https://codex.lizubin.online",
+		"https://portal.lizubin.online",
+	}, cfg.GoogleOAuth.AllowedRedirectOrigins)
+}
+
+func TestValidateAbsoluteHTTPOrigin(t *testing.T) {
+	for _, origin := range []string{"https://example.com", "https://example.com:8443", "http://localhost:8080/"} {
+		require.NoError(t, ValidateAbsoluteHTTPOrigin(origin), origin)
+	}
+	for _, origin := range []string{"", "/relative", "https://example.com/callback", "https://example.com?q=1", "https://user@example.com"} {
+		require.Error(t, ValidateAbsoluteHTTPOrigin(origin), origin)
+	}
+}
+
 func TestNormalizeRunMode(t *testing.T) {
 	tests := []struct {
 		input    string

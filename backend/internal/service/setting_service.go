@@ -1541,6 +1541,9 @@ func mergeEmailOAuthBaseConfig(base, override config.EmailOAuthProviderConfig) c
 	if strings.TrimSpace(override.RedirectURL) != "" {
 		base.RedirectURL = strings.TrimSpace(override.RedirectURL)
 	}
+	if len(override.AllowedRedirectOrigins) > 0 {
+		base.AllowedRedirectOrigins = append([]string(nil), override.AllowedRedirectOrigins...)
+	}
 	if strings.TrimSpace(override.FrontendRedirectURL) != "" {
 		base.FrontendRedirectURL = strings.TrimSpace(override.FrontendRedirectURL)
 	}

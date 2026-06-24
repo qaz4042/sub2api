@@ -1,5 +1,20 @@
 # Cloudflare Tunnel 域名访问故障修复（2026-06-21）
 
+## 当前状态（2026-06-24）
+
+`portal.lizubin.online` 沿用原 Tunnel 和 DNS 路由，但 connector 已从 `my2g`
+迁移到 `my4g`，直接回源 `http://127.0.0.1:8080`。`my2g` 上的
+`cloudflared.service` 已停止并禁用，不再参与运行链路。
+
+当前配置模板：
+
+```text
+deploy/cloudflared.my4g.yml
+deploy/cloudflared.my4g.service
+```
+
+以下内容保留为 2026-06-21 首次部署和故障排查记录。
+
 ## 结论
 
 `https://portal.lizubin.online/` 是为解决原域名连接被链路重置而新增的备用访问入口。

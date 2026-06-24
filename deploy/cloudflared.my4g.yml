@@ -1,0 +1,10 @@
+tunnel: ec15e23d-52ed-42f4-893a-76034ac46696
+credentials-file: /root/.cloudflared/ec15e23d-52ed-42f4-893a-76034ac46696.json
+protocol: http2
+
+ingress:
+  - hostname: portal.lizubin.online
+    service: http://127.0.0.1:8080
+    originRequest:
+      httpHostHeader: portal.lizubin.online
+  - service: http_status:404

@@ -82,6 +82,73 @@ func TestEmailOAuthCallbackRequiresPendingRegistrationWhenInvitationEnabled(t *t
 	require.NotEmpty(t, findSetCookieValue(recorder.Result().Cookies(), oauthPendingBrowserCookieName))
 }
 
+func TestEmailOAuthConfigForRequestSelectsSameOriginCallback(t *testing.T) {
+	tests := []struct {
+		name    string
+		host    string
+		proto   string
+		origins []string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:    "canonical domain",
+			host:    "codex.lizubin.online",
+			proto:   "https",
+			origins: []string{"https://codex.lizubin.online", "https://portal.lizubin.online"},
+			want:    "https://codex.lizubin.online/api/v1/auth/oauth/google/callback",
+		},
+		{
+			name:    "secondary domain",
+			host:    "portal.lizubin.online",
+			proto:   "https",
+			origins: []string{"https://codex.lizubin.online", "https://portal.lizubin.online"},
+			want:    "https://portal.lizubin.online/api/v1/auth/oauth/google/callback",
+		},
+		{
+			name:    "untrusted host",
+			host:    "evil.example",
+			proto:   "https",
+			origins: []string{"https://codex.lizubin.online", "https://portal.lizubin.online"},
+			wantErr: true,
+		},
+		{
+			name:    "wrong scheme",
+			host:    "portal.lizubin.online",
+			proto:   "http",
+			origins: []string{"https://codex.lizubin.online", "https://portal.lizubin.online"},
+			wantErr: true,
+		},
+		{
+			name:  "backward compatible without allowlist",
+			host:  "legacy.example",
+			proto: "https",
+			want:  "https://codex.lizubin.online/api/v1/auth/oauth/google/callback",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/oauth/google/start", nil)
+			c.Request.Host = tt.host
+			c.Request.Header.Set("X-Forwarded-Proto", tt.proto)
+
+			cfg, err := emailOAuthConfigForRequest(c, config.EmailOAuthProviderConfig{
+				RedirectURL:            "https://codex.lizubin.online/api/v1/auth/oauth/google/callback",
+				AllowedRedirectOrigins: tt.origins,
+			})
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, cfg.RedirectURL)
+		})
+	}
+}
+
 func TestEmailOAuthCallbackExistingEmailLogsInWhenInvitationEnabled(t *testing.T) {
 	handler, client := newOAuthPendingFlowTestHandler(t, true)
 	ctx := context.Background()
