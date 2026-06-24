@@ -8,6 +8,7 @@ REMOTE_DIR="${REMOTE_DIR:-/opt/sub2api}"
 PUBLIC_HEALTH_URL="${PUBLIC_HEALTH_URL:-https://portal.lizubin.online/health}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-60}"
 REQUIRE_CLEAN="${REQUIRE_CLEAN:-0}"
+BUILD_FRONTEND="${BUILD_FRONTEND:-1}"
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S %z')" "$*"
@@ -52,6 +53,10 @@ if [[ ! "${HEALTH_TIMEOUT}" =~ ^[1-9][0-9]*$ ]]; then
   echo "HEALTH_TIMEOUT 必须是正整数: ${HEALTH_TIMEOUT}" >&2
   exit 1
 fi
+if [[ "${BUILD_FRONTEND}" != "0" && "${BUILD_FRONTEND}" != "1" ]]; then
+  echo "BUILD_FRONTEND 只能是 0 或 1。" >&2
+  exit 1
+fi
 
 BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 REMOTE_RELEASE="${REMOTE_DIR}/releases/${TAG}"
@@ -93,10 +98,16 @@ fi
 REMOTE_PREFLIGHT
 step_done "[1/6] 远端环境检查"
 
-step_start "[2/6] 构建前端"
-pnpm --dir "${ROOT_DIR}/frontend" install --frozen-lockfile
-pnpm --dir "${ROOT_DIR}/frontend" run build
-step_done "[2/6] 前端构建"
+if [[ "${BUILD_FRONTEND}" == "1" ]]; then
+  step_start "[2/6] 构建前端"
+  pnpm --dir "${ROOT_DIR}/frontend" install --frozen-lockfile
+  pnpm --dir "${ROOT_DIR}/frontend" run build
+  step_done "[2/6] 前端构建"
+else
+  step_start "[2/6] 跳过前端构建"
+  test -f "${ROOT_DIR}/backend/internal/web/dist/index.html"
+  step_done "[2/6] 复用现有前端 dist"
+fi
 
 step_start "[3/6] 构建 linux/amd64 后端二进制（已嵌入前端）"
 (
