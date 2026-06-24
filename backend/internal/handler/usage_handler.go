@@ -574,6 +574,15 @@ func (h *UsageHandler) APIKeyRanking(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	if ranking == nil {
+		ranking = &usagestats.UserAPIKeyRankingResponse{}
+	}
+	if ranking.Ranking == nil {
+		ranking.Ranking = []usagestats.UserAPIKeyRankingItem{}
+	}
+	if ranking.MyRankings == nil {
+		ranking.MyRankings = []usagestats.UserAPIKeyRankingItem{}
+	}
 
 	// Never expose another user's key ID or key name.
 	publicRanking := make([]usagestats.UserAPIKeyRankingItem, len(ranking.Ranking))

@@ -3207,7 +3207,7 @@ func cloneUserAPIKeyRankingResponse(in *usagestats.UserAPIKeyRankingResponse) *u
 
 func cloneUserAPIKeyRankingItems(in []usagestats.UserAPIKeyRankingItem) []usagestats.UserAPIKeyRankingItem {
 	if len(in) == 0 {
-		return nil
+		return []usagestats.UserAPIKeyRankingItem{}
 	}
 	out := make([]usagestats.UserAPIKeyRankingItem, len(in))
 	copy(out, in)

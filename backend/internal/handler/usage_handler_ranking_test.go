@@ -86,6 +86,27 @@ func TestAPIKeyRankingRedactsOtherUsersAndReturnsOwnRank(t *testing.T) {
 	require.Equal(t, int64(18), body.Data.MyRankings[1].Rank)
 }
 
+func TestAPIKeyRankingReturnsEmptyArraysWhenNoRows(t *testing.T) {
+	repo := &userRankingRepoStub{result: &usagestats.UserAPIKeyRankingResponse{}}
+	router := newUserRankingTestRouter(repo, 42)
+
+	req := httptest.NewRequest(http.MethodGet, "/usage/ranking?limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var body struct {
+		Data struct {
+			Ranking    json.RawMessage `json:"ranking"`
+			MyRankings json.RawMessage `json:"my_rankings"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.JSONEq(t, "[]", string(body.Data.Ranking))
+	require.JSONEq(t, "[]", string(body.Data.MyRankings))
+}
+
 func TestMaskAPIKeyName(t *testing.T) {
 	require.Equal(t, "", maskAPIKeyName(""))
 	require.Equal(t, "*", maskAPIKeyName("a"))

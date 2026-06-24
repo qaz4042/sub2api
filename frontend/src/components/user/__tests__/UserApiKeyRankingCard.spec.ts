@@ -10,6 +10,22 @@ vi.mock('vue-i18n', () => ({
 }))
 
 describe('UserApiKeyRankingCard', () => {
+  it('renders empty state when ranking arrays are null-like', () => {
+    const wrapper = mount(UserApiKeyRankingCard, {
+      props: {
+        totalKeys: 0,
+        myRankings: null as any,
+        ranking: null as any,
+      },
+      global: {
+        stubs: { LoadingSpinner: true },
+      },
+    })
+
+    expect(wrapper.text()).toContain('usage.apiKeyRanking.noData')
+    expect(wrapper.text()).toContain('usage.apiKeyRanking.notRanked')
+  })
+
   it('highlights the current user rank and keeps other keys anonymous', async () => {
     const myKey = {
       rank: 18,

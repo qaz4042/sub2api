@@ -11,6 +11,7 @@ import type {
   PaginatedResponse,
   TrendDataPoint,
   ModelStat,
+  UserApiKeyRankingItem,
   UserApiKeyRankingResponse,
   UserErrorRequest,
   UserErrorRequestDetail,
@@ -91,6 +92,30 @@ export interface ApiKeyDailyUsageResponse {
   start_date: string
   end_date: string
 }
+
+const normalizeApiKeyRankingItem = (item: Partial<UserApiKeyRankingItem> = {}): UserApiKeyRankingItem => ({
+  rank: Number(item.rank) || 0,
+  api_key_id: item.api_key_id,
+  key_name: item.key_name || '',
+  is_mine: Boolean(item.is_mine),
+  actual_cost: Number(item.actual_cost) || 0,
+  requests: Number(item.requests) || 0,
+  tokens: Number(item.tokens) || 0,
+})
+
+const normalizeApiKeyRankingResponse = (
+  response: Partial<UserApiKeyRankingResponse> | null | undefined
+): UserApiKeyRankingResponse => ({
+  ranking: Array.isArray(response?.ranking)
+    ? response.ranking.map((item) => normalizeApiKeyRankingItem(item))
+    : [],
+  my_rankings: Array.isArray(response?.my_rankings)
+    ? response.my_rankings.map((item) => normalizeApiKeyRankingItem(item))
+    : [],
+  total_keys: Number(response?.total_keys) || 0,
+  start_date: response?.start_date || '',
+  end_date: response?.end_date || '',
+})
 
 /**
  * List usage logs with optional filters
@@ -266,7 +291,7 @@ export async function getApiKeyRanking(params?: {
   limit?: number
 }): Promise<UserApiKeyRankingResponse> {
   const { data } = await apiClient.get<UserApiKeyRankingResponse>('/usage/ranking', { params })
-  return data
+  return normalizeApiKeyRankingResponse(data)
 }
 
 /**

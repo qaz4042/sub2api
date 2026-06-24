@@ -81,11 +81,11 @@
             <p class="mt-2 text-sm leading-6 text-white/75">{{ t('usage.apiKeyRanking.notRankedHint') }}</p>
           </div>
 
-          <div v-if="myRankings.length > 1" class="mt-5 border-t border-white/20 pt-4">
+          <div v-if="safeMyRankings.length > 1" class="mt-5 border-t border-white/20 pt-4">
             <p class="mb-2 text-xs font-semibold text-white/75">{{ t('usage.apiKeyRanking.allMyKeys') }}</p>
             <div class="max-h-32 space-y-1.5 overflow-y-auto pr-1">
               <button
-                v-for="item in myRankings"
+                v-for="item in safeMyRankings"
                 :key="item.api_key_id"
                 type="button"
                 class="flex w-full items-center justify-between gap-3 rounded-lg bg-white/10 px-3 py-2 text-left text-xs transition hover:bg-white/20"
@@ -107,7 +107,7 @@
           <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('usage.apiKeyRanking.bySpend') }}</span>
         </div>
 
-        <div v-if="ranking.length" class="overflow-x-auto">
+        <div v-if="safeRanking.length" class="overflow-x-auto">
           <table class="w-full min-w-[520px] text-sm">
             <thead>
               <tr class="border-b border-gray-100 text-xs font-medium text-gray-400 dark:border-dark-700 dark:text-gray-500">
@@ -120,7 +120,7 @@
             </thead>
             <tbody>
               <tr
-                v-for="item in ranking"
+                v-for="item in safeRanking"
                 :key="`${item.rank}-${item.api_key_id || 'anonymous'}`"
                 class="border-b border-gray-50 last:border-0 dark:border-dark-800"
                 :class="item.is_mine ? 'bg-primary-50/80 dark:bg-primary-500/10' : ''"
@@ -176,12 +176,14 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import type { UserApiKeyRankingItem } from '@/types'
 
 const props = withDefaults(defineProps<{
-  ranking: UserApiKeyRankingItem[]
-  myRankings: UserApiKeyRankingItem[]
+  ranking?: UserApiKeyRankingItem[] | null
+  myRankings?: UserApiKeyRankingItem[] | null
   totalKeys?: number
   loading?: boolean
   error?: boolean
 }>(), {
+  ranking: () => [],
+  myRankings: () => [],
   totalKeys: 0,
   loading: false,
   error: false,
@@ -194,7 +196,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const bestRanking = computed(() => props.myRankings[0] || null)
+const safeRanking = computed(() => Array.isArray(props.ranking) ? props.ranking : [])
+const safeMyRankings = computed(() => Array.isArray(props.myRankings) ? props.myRankings : [])
+const bestRanking = computed(() => safeMyRankings.value[0] || null)
 const outrankPercent = computed(() => {
   if (!bestRanking.value || props.totalKeys <= 1) return 0
   return Math.max(0, Math.round(((props.totalKeys - bestRanking.value.rank) / (props.totalKeys - 1)) * 100))

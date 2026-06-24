@@ -3,9 +3,9 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SSH_TARGET="${SSH_TARGET:-my2g}"
+SSH_TARGET="${SSH_TARGET:-my4g}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/sub2api}"
-PUBLIC_HEALTH_URL="${PUBLIC_HEALTH_URL:-https://portal.lizubin.online/health}"
+PUBLIC_HEALTH_URL="${PUBLIC_HEALTH_URL:-https://codex.lizubin.online/health}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-60}"
 REQUIRE_CLEAN="${REQUIRE_CLEAN:-0}"
 BUILD_FRONTEND="${BUILD_FRONTEND:-1}"

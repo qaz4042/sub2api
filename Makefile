@@ -1,4 +1,4 @@
-.PHONY: dev-backend build build-backend build-frontend test test-backend test-frontend test-frontend-critical check-entrypoints secret-scan deploy-my2g deploy-my4g deploy-my4g-backend-only deploy-my2g-docker
+.PHONY: dev-backend build build-backend build-frontend test test-backend test-frontend test-frontend-critical check-entrypoints secret-scan deploy-my4g deploy-my4g-backend-only
 
 -include .dev.env
 
@@ -76,18 +76,10 @@ check-entrypoints:
 secret-scan:
 	@python3 tools/secret_scan.py
 
-# 在当前 Mac 构建前后端一体 linux/amd64 二进制，并发布到 my2g systemd 服务。
-deploy-my2g:
-	@./deploy/deploy-my2g-binary.sh
-
 # 在当前 Mac 构建前后端一体 linux/amd64 二进制，并发布到香港 my4g。
 deploy-my4g:
-	@SSH_TARGET=my4g PUBLIC_HEALTH_URL=https://codex.lizubin.online/health ./deploy/deploy-my2g-binary.sh
+	@./deploy/deploy-my4g.sh
 
 # 复用现有前端 dist，仅构建后端 linux/amd64 二进制并发布到香港 my4g。
 deploy-my4g-backend-only:
-	@SSH_TARGET=my4g PUBLIC_HEALTH_URL=https://codex.lizubin.online/health BUILD_FRONTEND=0 ./deploy/deploy-my2g-binary.sh
-
-# 重装前的 Docker 应用容器发布方式，仅供历史回退场景手动使用。
-deploy-my2g-docker:
-	@./deploy/deploy-my2g.sh
+	@BUILD_FRONTEND=0 ./deploy/deploy-my4g.sh

@@ -233,12 +233,29 @@
 </template>
 
 <script setup lang="ts">
+import { defineComponent, h } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Pagination from '@/components/common/Pagination.vue'
 import type { OpsErrorLog } from '@/api/admin/ops'
 import { getSeverityClass, formatDateTime } from '../utils/opsFormatters'
 
 const { t } = useI18n()
+
+const ElTooltip = defineComponent({
+  name: 'ElTooltip',
+  props: {
+    content: {
+      type: [String, Number],
+      default: '',
+    },
+  },
+  setup(props, { slots }) {
+    return () => h('span', {
+      class: 'inline-block min-w-0 max-w-full',
+      title: String(props.content || ''),
+    }, slots.default?.())
+  },
+})
 
 function isUpstreamRow(log: OpsErrorLog): boolean {
   const phase = String(log.phase || '').toLowerCase()
