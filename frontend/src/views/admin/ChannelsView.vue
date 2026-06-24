@@ -658,8 +658,8 @@ const appStore = useAppStore()
 const webSearchGlobalEnabled = ref(false)
 async function loadWebSearchGlobalState() {
   try {
-    const cfg = await adminAPI.settings.getWebSearchEmulationConfig()
-    webSearchGlobalEnabled.value = cfg?.enabled === true && (cfg?.providers?.length ?? 0) > 0
+    const settings = await adminAPI.settings.getSettings()
+    webSearchGlobalEnabled.value = settings.web_search_emulation_enabled === true
   } catch (err: unknown) {
     console.warn('Failed to load web search global state:', err)
     webSearchGlobalEnabled.value = false

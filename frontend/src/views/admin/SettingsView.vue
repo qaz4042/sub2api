@@ -7172,6 +7172,9 @@ const settingsTabKeyboardActions = {
 
 function selectSettingsTab(tab: SettingsTab): void {
   activeTab.value = tab;
+  if (tab === "gateway") {
+    void loadWebSearchConfig();
+  }
 }
 
 function focusSettingsTab(tab: SettingsTab): void {
@@ -8037,6 +8040,8 @@ const webSearchConfig = reactive<WebSearchEmulationConfig>({
   enabled: false,
   providers: [],
 });
+const webSearchConfigLoaded = ref(false);
+const webSearchConfigUnsupported = ref(false);
 
 const expandedProviders = reactive<Record<number, boolean>>({});
 const apiKeyVisible = reactive<Record<number, boolean>>({});
@@ -8157,6 +8162,7 @@ async function testWebSearchProvider() {
 }
 
 async function loadWebSearchConfig() {
+  if (webSearchConfigLoaded.value || webSearchConfigUnsupported.value) return;
   try {
     const [resp, proxiesResp] = await Promise.all([
       adminAPI.settings.getWebSearchEmulationConfig(),
@@ -8167,16 +8173,22 @@ async function loadWebSearchConfig() {
       webSearchConfig.providers = resp.providers || [];
     }
     webSearchProxies.value = proxiesResp.items || [];
+    webSearchConfigLoaded.value = true;
   } catch (err: unknown) {
-    // 404 is expected when config hasn't been created yet; show error for other failures
     const status = (err as { status?: number })?.status;
-    if (status !== 404 && status !== undefined) {
+    if (status === 404) {
+      webSearchConfigUnsupported.value = true;
+      webSearchConfigLoaded.value = false;
+    } else if (status !== undefined) {
       appStore.showError(extractApiErrorMessage(err, t("common.error")));
     }
   }
 }
 
 async function saveWebSearchConfig(): Promise<boolean> {
+  if (webSearchConfigUnsupported.value || !webSearchConfigLoaded.value) {
+    return true;
+  }
   try {
     for (const p of webSearchConfig.providers) {
       const raw = p.quota_limit;
@@ -8767,6 +8779,7 @@ async function loadSettings() {
       form.wechat_connect_mode,
     );
     form.oidc_connect_client_secret = "";
+    webSearchConfig.enabled = settings.web_search_emulation_enabled === true;
 
     // Load OpenAI fast/flex policy rules from bulk settings.
     // 仅当 payload 真的包含该字段时填充并标记为已加载；否则保持表单空值，
@@ -8785,8 +8798,6 @@ async function loadSettings() {
       openaiFastPolicyLoaded.value = true;
     }
 
-    // Load web search emulation config separately
-    await loadWebSearchConfig();
   } catch (error: unknown) {
     loadFailed.value = true;
     appStore.showError(
