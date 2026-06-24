@@ -224,6 +224,8 @@ const pendingAdoptionDecision = ref<{
   adoptDisplayName?: boolean
   adoptAvatar?: boolean
 } | null>(null)
+const initialCodeSent = ref<boolean>(false)
+const initialCodeSentCountdown = ref<number>(0)
 const hasRegisterData = ref<boolean>(false)
 
 // Public settings
@@ -278,6 +280,8 @@ onMounted(async () => {
             adoptAvatar: registerData.pending_adoption_decision.adopt_avatar === true
           }
         : null
+      initialCodeSent.value = registerData.code_sent === true
+      initialCodeSentCountdown.value = Number(registerData.code_sent_countdown) || 0
       hasRegisterData.value = !!(email.value && password.value)
     } catch {
       hasRegisterData.value = false
@@ -304,7 +308,12 @@ onMounted(async () => {
 
   // Auto-send verification code if we have valid data
   if (hasRegisterData.value) {
-    await sendCode()
+    if (initialCodeSent.value) {
+      codeSent.value = true
+      startCountdown(initialCodeSentCountdown.value || 60)
+    } else {
+      await sendCode()
+    }
   }
 })
 
