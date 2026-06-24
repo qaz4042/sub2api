@@ -64,6 +64,11 @@ func (h *AuthHandler) emailOAuthStart(c *gin.Context, provider string) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	cfg, err = emailOAuthConfigForRequest(c, cfg)
+	if err != nil {
+		response.ErrorFrom(c, infraerrors.BadRequest("OAUTH_REDIRECT_ORIGIN_NOT_ALLOWED", "oauth redirect origin is not allowed").WithCause(err))
+		return
+	}
 	state, err := oauth.GenerateState()
 	if err != nil {
 		response.ErrorFrom(c, infraerrors.InternalServer("OAUTH_STATE_GEN_FAILED", "failed to generate oauth state").WithCause(err))
@@ -97,6 +102,11 @@ func (h *AuthHandler) emailOAuthCallback(c *gin.Context, provider string) {
 	cfg, cfgErr := h.getEmailOAuthConfig(c.Request.Context(), provider)
 	if cfgErr != nil {
 		response.ErrorFrom(c, cfgErr)
+		return
+	}
+	cfg, cfgErr = emailOAuthConfigForRequest(c, cfg)
+	if cfgErr != nil {
+		response.ErrorFrom(c, infraerrors.BadRequest("OAUTH_REDIRECT_ORIGIN_NOT_ALLOWED", "oauth redirect origin is not allowed").WithCause(cfgErr))
 		return
 	}
 	frontendCallback := strings.TrimSpace(cfg.FrontendRedirectURL)
@@ -446,6 +456,60 @@ func (h *AuthHandler) getEmailOAuthConfig(ctx context.Context, provider string) 
 		return h.settingSvc.GetEmailOAuthProviderConfig(ctx, provider)
 	}
 	return config.EmailOAuthProviderConfig{}, infraerrors.ServiceUnavailable("CONFIG_NOT_READY", "config not loaded")
+}
+
+func emailOAuthConfigForRequest(c *gin.Context, cfg config.EmailOAuthProviderConfig) (config.EmailOAuthProviderConfig, error) {
+	if len(cfg.AllowedRedirectOrigins) == 0 {
+		return cfg, nil
+	}
+	if c == nil || c.Request == nil {
+		return cfg, errors.New("request is missing")
+	}
+
+	scheme := "http"
+	if isRequestHTTPS(c) {
+		scheme = "https"
+	}
+	requestOrigin, err := normalizeEmailOAuthOrigin(scheme + "://" + strings.TrimSpace(c.Request.Host))
+	if err != nil {
+		return cfg, fmt.Errorf("invalid request origin: %w", err)
+	}
+
+	allowed := false
+	for _, rawOrigin := range cfg.AllowedRedirectOrigins {
+		origin, originErr := normalizeEmailOAuthOrigin(rawOrigin)
+		if originErr != nil {
+			return cfg, fmt.Errorf("invalid allowed redirect origin %q: %w", rawOrigin, originErr)
+		}
+		if origin == requestOrigin {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return cfg, fmt.Errorf("request origin %q is not configured", requestOrigin)
+	}
+
+	redirectURL, err := url.Parse(strings.TrimSpace(cfg.RedirectURL))
+	if err != nil {
+		return cfg, fmt.Errorf("parse redirect url: %w", err)
+	}
+	originURL, _ := url.Parse(requestOrigin)
+	redirectURL.Scheme = originURL.Scheme
+	redirectURL.Host = originURL.Host
+	cfg.RedirectURL = redirectURL.String()
+	return cfg, nil
+}
+
+func normalizeEmailOAuthOrigin(raw string) (string, error) {
+	if err := config.ValidateAbsoluteHTTPOrigin(raw); err != nil {
+		return "", err
+	}
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return "", err
+	}
+	return strings.ToLower(u.Scheme) + "://" + strings.ToLower(u.Host), nil
 }
 
 func buildEmailOAuthAuthorizeURL(cfg config.EmailOAuthProviderConfig, state string) (string, error) {

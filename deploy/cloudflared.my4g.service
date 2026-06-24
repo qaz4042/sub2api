@@ -1,0 +1,14 @@
+[Unit]
+Description=Cloudflare Tunnel for Sub2API on my4g
+After=network-online.target sub2api.service
+Wants=network-online.target
+
+[Service]
+Type=notify
+TimeoutStartSec=30
+ExecStart=/usr/local/bin/cloudflared --no-autoupdate --config /etc/cloudflared/config.yml tunnel run
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

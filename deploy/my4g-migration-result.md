@@ -238,6 +238,49 @@ ssh -NT \
 
 该方案不依赖第三方 VPN，但仍是面向内部用户的 SSH 私有代理，不能作为普通用户无需配置即可访问的正式入口。
 
+## my4g Cloudflare Tunnel 独立备用域名
+
+### 最终结论
+
+- `codex.lizubin.online` 与 `portal.lizubin.online` 均可独立访问，不互相跳转；前者仍为正式域名，后者为备用域名。
+- 两个域名共用同一个 Google OAuth 客户端，并在 Google 控制台登记两个回调 URI：
+  - `https://codex.lizubin.online/api/v1/auth/oauth/google/callback`
+  - `https://portal.lizubin.online/api/v1/auth/oauth/google/callback`
+- 后端根据发起域名选择同域回调，并通过 Origin 白名单拒绝任意 Host，避免 OAuth state Cookie 跨域导致 `invalid_state`。
+- 两个域名的登录 Cookie 相互独立；浏览器若仍执行旧的 308 跳转，需要清除 `portal.lizubin.online` 缓存或使用无痕窗口。
+
+### 部署状态
+
+2026-06-24 已将 `portal.lizubin.online` 的现有 Cloudflare Tunnel connector 从
+`my2g` 迁移到 `my4g`：
+
+```text
+portal.lizubin.online
+  -> Cloudflare Tunnel
+  -> my4g cloudflared
+  -> 127.0.0.1:8080
+  -> sub2api.service
+```
+
+- `my4g` 的 `cloudflared.service` 已启用并运行。
+- Tunnel 使用 HTTP/2 建立 4 条香港 Edge 连接。
+- `my2g` 的 `cloudflared.service` 已停止并禁用，不再参与 Portal 运行链路。
+- Cloudflare DNS 仍指向同一个 Tunnel，无需暴露或依赖 `my4g` 公网 80/443 回源。
+- 2026-06-24 已部署双域名 OAuth release
+  `/opt/sub2api/releases/20260624-154700-63e7d753-dirty`，入口切换前配置备份位于
+  `/opt/sub2api/backups/portal-independent-20260624-155634`。
+
+仓库配置模板：
+
+```text
+deploy/cloudflared.my4g.yml
+deploy/cloudflared.my4g.service
+deploy/sub2api.my4g-oauth-domains.conf
+```
+
+该入口作为独立备用域名使用，但不能解决访问者网络到 Cloudflare Edge 的 TLS
+阻断或线路波动。
+
 ## 后续发布
 
 在本地仓库根目录执行：
@@ -275,12 +318,8 @@ UnitFileState=disabled
 
 `127.0.0.1:8080` 已关闭。
 
-旧域名 <https://portal.lizubin.online/> 继续通过原 Cloudflare Tunnel 访问 `my2g` Nginx，但只返回静态迁移提示页：
-
-```text
-站点域名已迁移
-https://codex.lizubin.online/
-```
+旧域名 <https://portal.lizubin.online/> 已改为通过运行在 `my4g` 的 Cloudflare
+Tunnel 独立访问同一个 Sub2API 应用。`my2g` 不再承载该域名的 connector 或迁移提示页。
 
 静态页和 Nginx 配置模板：
 
@@ -325,6 +364,10 @@ ssh my4g 'docker ps --format "{{.Names}}|{{.Status}}"'
 # 旧后端应保持停止
 ssh my2g 'systemctl show sub2api -p ActiveState -p SubState -p UnitFileState'
 
-# 旧站迁移提示
-curl -fsS https://portal.lizubin.online/
+# Tunnel 独立备用域名
+curl -fsS https://portal.lizubin.online/health
+ssh my4g 'systemctl status cloudflared'
+
+# my2g connector 应保持停止
+ssh my2g 'systemctl show cloudflared -p ActiveState -p UnitFileState'
 ```

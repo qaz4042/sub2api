@@ -78,6 +78,13 @@ cors:
   # 允许携带凭证（cookies/授权头）。不能与 "*" 通配符同时使用。
   allow_credentials: true
 
+# Optional allowlists for serving the same email OAuth flow from multiple domains.
+# When configured, the backend selects a same-origin callback only for an exact match.
+google_oauth:
+  allowed_redirect_origins: []
+github_oauth:
+  allowed_redirect_origins: []
+
 # =============================================================================
 # Security Configuration
 # 安全配置

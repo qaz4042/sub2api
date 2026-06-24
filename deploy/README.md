@@ -25,6 +25,7 @@ This directory contains files for deploying Sub2API on Linux servers.
 | `DATAMANAGEMENTD_CN.md` | datamanagementd 部署与联动说明（中文） |
 | `setup-my4g-ip-direct.sh` | my4g IP SAN 证书直连入口签发与 Nginx 灰度配置脚本 |
 | `check-my4g-ip-direct.sh` | my4g IP 直连入口客户端侧验证脚本 |
+| `my4g-primary-my2g-tunnel-standby.md` | my4g 主服务、my2g Cloudflared 备用入口与 ccSwitch 入口策略 |
 | `config.example.yaml` | Example configuration file |
 
 ---
