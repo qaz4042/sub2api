@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -1362,6 +1363,27 @@ func LoadForBootstrap() (*Config, error) {
 	return load(true)
 }
 
+func findNearestDevDataDir() string {
+	if strings.HasSuffix(os.Args[0], ".test") {
+		return ""
+	}
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for {
+		candidate := filepath.Join(dir, ".dev-data")
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
+
 func load(allowMissingJWTSecret bool) (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -1371,13 +1393,17 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	if dataDir := os.Getenv("DATA_DIR"); dataDir != "" {
 		viper.AddConfigPath(dataDir)
 	}
-	// 2. Docker data directory
+	// 2. Local development data directory discovered from cwd parents.
+	if devDataDir := findNearestDevDataDir(); devDataDir != "" {
+		viper.AddConfigPath(devDataDir)
+	}
+	// 3. Docker data directory
 	viper.AddConfigPath("/app/data")
-	// 3. Current directory
+	// 4. Current directory
 	viper.AddConfigPath(".")
-	// 4. Config subdirectory
+	// 5. Config subdirectory
 	viper.AddConfigPath("./config")
-	// 5. System config directory
+	// 6. System config directory
 	viper.AddConfigPath("/etc/sub2api")
 
 	// 环境变量支持

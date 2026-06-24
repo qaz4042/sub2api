@@ -24,8 +24,17 @@ AI API 网关平台，用于将订阅类 AI 产品额度转换为可分发、可
 后端开发：
 
 ```bash
-cd backend
-go run ./cmd/server
+make dev-backend
+```
+
+默认连接 `127.0.0.1:5432` 的 PostgreSQL 和 `127.0.0.1:6379` 的 Redis，运行态文件生成在 `.dev-data/`。
+首次运行会自动生成本地配置并执行迁移。默认数据库连接为 `postgres/postgres@127.0.0.1:5432/sub2api_dev`。
+需要换数据库或账号时，新建未提交的 `.dev.env`：
+
+```makefile
+DEV_DATABASE_USER=your_user
+DEV_DATABASE_PASSWORD=your_password
+DEV_DATABASE_DBNAME=sub2api_dev
 ```
 
 前端开发：
@@ -65,6 +74,8 @@ docs/      部署、运维、运行模式、支付与合规相关文档
 - 站点运营思路：[docs/站点运营思路.md](docs/站点运营思路.md)
 - 费用公告：[docs/费用公告.md](docs/费用公告.md)
 - 使用指南：[docs/使用指南.md](docs/使用指南.md)
+- 开发者解决方案：[docs/开发者解决方案.md](docs/开发者解决方案.md)
+- 企业解决方案：[docs/企业解决方案.md](docs/企业解决方案.md)
 - 部署说明：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 - 运维提示：[docs/OPERATIONS.md](docs/OPERATIONS.md)
 - 运行模式与兼容：[docs/MODES.md](docs/MODES.md)

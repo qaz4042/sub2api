@@ -1,4 +1,19 @@
-.PHONY: build build-backend build-frontend test test-backend test-frontend test-frontend-critical check-entrypoints secret-scan deploy-my2g deploy-my4g deploy-my4g-backend-only deploy-my2g-docker
+.PHONY: dev-backend build build-backend build-frontend test test-backend test-frontend test-frontend-critical check-entrypoints secret-scan deploy-my2g deploy-my4g deploy-my4g-backend-only deploy-my2g-docker
+
+-include .dev.env
+
+DEV_DATA_DIR ?= $(CURDIR)/.dev-data
+DEV_SERVER_HOST ?= 127.0.0.1
+DEV_SERVER_PORT ?= 8080
+DEV_DATABASE_HOST ?= 127.0.0.1
+DEV_DATABASE_PORT ?= 5432
+DEV_DATABASE_USER ?= postgres
+DEV_DATABASE_PASSWORD ?= postgres
+DEV_DATABASE_DBNAME ?= sub2api_dev
+DEV_REDIS_HOST ?= 127.0.0.1
+DEV_REDIS_PORT ?= 6379
+DEV_REDIS_DB ?= 15
+DEV_JWT_SECRET ?= local-dev-jwt-secret-change-me-32bytes
 
 FRONTEND_CRITICAL_VITEST := \
 	src/views/auth/__tests__/LinuxDoCallbackView.spec.ts \
@@ -7,6 +22,28 @@ FRONTEND_CRITICAL_VITEST := \
 	src/views/user/__tests__/PaymentResultView.spec.ts \
 	src/components/user/profile/__tests__/ProfileInfoCard.spec.ts \
 	src/views/admin/__tests__/SettingsView.spec.ts
+
+# 一条命令启动本地后端；首次运行会在 .dev-data 生成本地配置与安装标记。
+dev-backend:
+	@mkdir -p "$(DEV_DATA_DIR)"
+	@cd backend && \
+		DATA_DIR="$(DEV_DATA_DIR)" \
+		AUTO_SETUP=1 \
+		SERVER_HOST="$(DEV_SERVER_HOST)" \
+		SERVER_PORT="$(DEV_SERVER_PORT)" \
+		SERVER_MODE=debug \
+		DATABASE_HOST="$(DEV_DATABASE_HOST)" \
+		DATABASE_PORT="$(DEV_DATABASE_PORT)" \
+		DATABASE_USER="$(DEV_DATABASE_USER)" \
+		DATABASE_PASSWORD="$(DEV_DATABASE_PASSWORD)" \
+		DATABASE_DBNAME="$(DEV_DATABASE_DBNAME)" \
+		DATABASE_SSLMODE=disable \
+		REDIS_HOST="$(DEV_REDIS_HOST)" \
+		REDIS_PORT="$(DEV_REDIS_PORT)" \
+		REDIS_DB="$(DEV_REDIS_DB)" \
+		JWT_SECRET="$(DEV_JWT_SECRET)" \
+		TZ=Asia/Shanghai \
+		go run ./cmd/server
 
 # 一键编译前后端
 build: build-backend build-frontend

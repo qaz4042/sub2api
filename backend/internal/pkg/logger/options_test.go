@@ -11,6 +11,7 @@ import (
 
 func TestResolveLogFilePath_Default(t *testing.T) {
 	t.Setenv("DATA_DIR", "")
+	t.Chdir(t.TempDir())
 	got := resolveLogFilePath("")
 	if got != DefaultContainerLogPath {
 		t.Fatalf("resolveLogFilePath() = %q, want %q", got, DefaultContainerLogPath)
@@ -26,6 +27,26 @@ func TestResolveLogFilePath_WithDataDir(t *testing.T) {
 	}
 }
 
+func TestResolveLogFilePath_WithNearestDevData(t *testing.T) {
+	t.Setenv("DATA_DIR", "")
+	root := t.TempDir()
+	devData := filepath.Join(root, ".dev-data")
+	nested := filepath.Join(root, "backend")
+	if err := os.MkdirAll(devData, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(nested)
+
+	got := resolveLogFilePath("")
+	want := filepath.Join(devData, "logs", "sub2api.log")
+	if got != want {
+		t.Fatalf("resolveLogFilePath() = %q, want %q", got, want)
+	}
+}
+
 func TestResolveLogFilePath_ExplicitPath(t *testing.T) {
 	t.Setenv("DATA_DIR", "/tmp/ignore")
 	got := resolveLogFilePath("/var/log/custom.log")
@@ -36,6 +57,7 @@ func TestResolveLogFilePath_ExplicitPath(t *testing.T) {
 
 func TestNormalizedOptions_InvalidFallback(t *testing.T) {
 	t.Setenv("DATA_DIR", "")
+	t.Chdir(t.TempDir())
 	opts := InitOptions{
 		Level:           "TRACE",
 		Format:          "TEXT",

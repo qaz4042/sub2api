@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -38,10 +39,14 @@ func setupDefaultAdminConcurrency() int {
 }
 
 // GetDataDir returns the data directory for storing config and lock files.
-// Priority: DATA_DIR env > /app/data (if exists and writable) > current directory
+// Priority: DATA_DIR env > nearest .dev-data > /app/data (if writable) > current directory
 func GetDataDir() string {
 	// Check DATA_DIR environment variable first
 	if dir := os.Getenv("DATA_DIR"); dir != "" {
+		return dir
+	}
+
+	if dir := findNearestDevDataDir(); dir != "" {
 		return dir
 	}
 
@@ -59,6 +64,27 @@ func GetDataDir() string {
 
 	// Default to current directory
 	return "."
+}
+
+func findNearestDevDataDir() string {
+	if strings.HasSuffix(os.Args[0], ".test") {
+		return ""
+	}
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for {
+		candidate := filepath.Join(dir, ".dev-data")
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
 }
 
 // GetConfigFilePath returns the full path to config.yaml
