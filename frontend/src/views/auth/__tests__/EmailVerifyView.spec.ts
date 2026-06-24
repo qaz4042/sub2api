@@ -455,4 +455,32 @@ describe('EmailVerifyView', () => {
     expect(apiClientPostMock).not.toHaveBeenCalled()
     expect(pushMock).toHaveBeenCalledWith('/dashboard')
   })
+
+  it('does not send the verification code again when it was already sent before navigation', async () => {
+    sessionStorage.setItem(
+      'register_data',
+      JSON.stringify({
+        email: 'normal@example.com',
+        password: 'secret-456',
+        code_sent: true,
+        code_sent_countdown: 45,
+      })
+    )
+
+    mount(EmailVerifyView, {
+      global: {
+        stubs: {
+          AuthLayout: { template: '<div><slot /><slot name="footer" /></div>' },
+          Icon: true,
+          TurnstileWidget: true,
+          transition: false,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(sendVerifyCodeMock).not.toHaveBeenCalled()
+    expect(sendPendingOAuthVerifyCodeMock).not.toHaveBeenCalled()
+  })
 })
