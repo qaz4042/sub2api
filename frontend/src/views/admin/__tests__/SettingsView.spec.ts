@@ -305,6 +305,7 @@ const baseSettingsResponse = {
   site_logo: "",
   site_subtitle: "",
   api_base_url: "",
+  ccs_import_base_url: "",
   contact_info: "",
   doc_url: "",
   home_content: "",

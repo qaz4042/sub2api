@@ -5860,7 +5860,11 @@ export default {
         apiBaseUrl: 'API Base URL',
         apiBaseUrlPlaceholder: 'https://api.example.com',
         apiBaseUrlHint:
-          'Used for "Use Key" and "Import to CC Switch" features. Leave empty to use current site URL.',
+          'Used for "Use Key" and client configuration. Leave empty to use current site URL.',
+        ccsImportBaseUrl: 'CCS Import Base URL',
+        ccsImportBaseUrlPlaceholder: 'https://152.32.190.110',
+        ccsImportBaseUrlHint:
+          'Only used by "Import to CCS" on the API Keys page. Empty defaults to the IP certificate direct URL https://152.32.190.110.',
         tablePreferencesTitle: 'Global Table Preferences',
         tablePreferencesDescription: 'Configure default pagination behavior for shared table components',
         tableDefaultPageSize: 'Default Rows Per Page',

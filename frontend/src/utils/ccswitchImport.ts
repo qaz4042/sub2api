@@ -1,6 +1,7 @@
 import type { GroupPlatform } from '@/types'
 
-export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-5.4'
+export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-5.5'
+export const DEFAULT_CC_SWITCH_DIRECT_BASE_URL = 'https://152.32.190.110'
 
 export type CcSwitchClientType = 'claude' | 'gemini'
 
@@ -17,6 +18,24 @@ export interface CcSwitchImportDeeplinkInput {
   providerName: string
   apiKey: string
   usageScript: string
+}
+
+export interface CcSwitchBaseUrlSettings {
+  ccs_import_base_url?: string | null
+  api_base_url?: string | null
+}
+
+export function resolveCcSwitchBaseUrl(
+  settings: CcSwitchBaseUrlSettings | null | undefined,
+  currentOrigin: string
+): string {
+  const configuredBaseUrl = settings?.ccs_import_base_url?.trim()
+  if (configuredBaseUrl) return configuredBaseUrl
+
+  const defaultDirectBaseUrl = DEFAULT_CC_SWITCH_DIRECT_BASE_URL.trim()
+  if (defaultDirectBaseUrl) return defaultDirectBaseUrl
+
+  return settings?.api_base_url?.trim() || currentOrigin
 }
 
 export function resolveCcSwitchImportConfig(

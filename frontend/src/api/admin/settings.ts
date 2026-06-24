@@ -430,6 +430,7 @@ export interface SystemSettings {
   site_logo: string;
   site_subtitle: string;
   api_base_url: string;
+  ccs_import_base_url: string;
   contact_info: string;
   doc_url: string;
   home_content: string;
@@ -699,6 +700,7 @@ export interface UpdateSettingsRequest {
   site_logo?: string;
   site_subtitle?: string;
   api_base_url?: string;
+  ccs_import_base_url?: string;
   contact_info?: string;
   doc_url?: string;
   home_content?: string;

@@ -1075,6 +1075,7 @@ import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
 import {
   buildCcSwitchImportDeeplink,
+  resolveCcSwitchBaseUrl,
   type CcSwitchClientType
 } from '@/utils/ccswitchImport'
 
@@ -1705,7 +1706,7 @@ const importToCcswitch = (row: ApiKey) => {
 }
 
 const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
-  const baseUrl = publicSettings.value?.api_base_url || window.location.origin
+  const baseUrl = resolveCcSwitchBaseUrl(publicSettings.value, window.location.origin)
   const platform = row.group?.platform || 'anthropic'
 
   const usageScript = `({
