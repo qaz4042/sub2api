@@ -1,4 +1,4 @@
-.PHONY: build build-backend build-frontend test test-backend test-frontend test-frontend-critical check-entrypoints secret-scan deploy-my2g deploy-my4g deploy-my2g-docker
+.PHONY: build build-backend build-frontend test test-backend test-frontend test-frontend-critical check-entrypoints secret-scan deploy-my2g deploy-my4g deploy-my4g-backend-only deploy-my2g-docker
 
 FRONTEND_CRITICAL_VITEST := \
 	src/views/auth/__tests__/LinuxDoCallbackView.spec.ts \
@@ -46,6 +46,10 @@ deploy-my2g:
 # 在当前 Mac 构建前后端一体 linux/amd64 二进制，并发布到香港 my4g。
 deploy-my4g:
 	@SSH_TARGET=my4g PUBLIC_HEALTH_URL=https://codex.lizubin.online/health ./deploy/deploy-my2g-binary.sh
+
+# 复用现有前端 dist，仅构建后端 linux/amd64 二进制并发布到香港 my4g。
+deploy-my4g-backend-only:
+	@SSH_TARGET=my4g PUBLIC_HEALTH_URL=https://codex.lizubin.online/health BUILD_FRONTEND=0 ./deploy/deploy-my2g-binary.sh
 
 # 重装前的 Docker 应用容器发布方式，仅供历史回退场景手动使用。
 deploy-my2g-docker:
