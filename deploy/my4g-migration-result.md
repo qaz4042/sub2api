@@ -135,6 +135,83 @@ deploy/certbot-reload-nginx.sh
 `edge.lizubin.online` 不含 `codex` 关键字，用于区分运营商线路/IP 问题和 TLS SNI 干扰。
 正式域名 `codex.lizubin.online` 暂不切换。
 
+### IP 证书直连 ccSwitch 灰度方案
+
+如果后续确认“域名访问失败，但 `152.32.190.110:443` 可以稳定访问”，可以为 `my4g`
+公网 IP 申请包含 `iPAddress:152.32.190.110` SAN 的公网 TLS 证书，并在 ccSwitch 中将 API
+入口配置为：
+
+```text
+https://152.32.190.110
+```
+
+该方案仅作为 ccSwitch、Claude Code 等 API 客户端的灰度或备用入口，不作为正式 Web 入口。
+
+关键前提：
+
+- 客户端所在网络必须能直连 `152.32.190.110:443`。
+- 灰度前必须用 ccSwitch、Claude Code 等目标客户端完成一次真实 API 请求验证，不能只看 TCP
+  端口或浏览器健康检查。
+- 证书必须是 IP SAN 证书，不能使用 `codex.lizubin.online` 的域名证书代替。
+- Nginx 需要为 IP 入口配置独立证书，并处理无域名 SNI 的 IP 直连请求，例如为 443
+  配置独立 `default_server`，继续反代到 `127.0.0.1:8080`。
+- Let's Encrypt IP 证书是短有效期证书，需要可靠自动续期和续期后重载 Nginx。
+
+证书运维要求：
+
+- 不建议人工续期。IP 证书有效期只有约 160 小时，应使用支持 IP 证书的新版 ACME 客户端自动续期。
+- 续期任务至少每天执行一次，续期后通过 deploy hook 执行 `nginx -t && systemctl reload nginx`。
+- 首次签发先用 Let's Encrypt staging 环境验证，正式启用后监控证书剩余有效期，低于 48 小时告警。
+
+不作为正式入口的原因：
+
+- 如果连接在进入 Nginx 前已经被运营商重置，IP 证书无法解决问题。
+- 前端、OAuth 回调、Cookie、CORS 和系统配置仍以 `codex.lizubin.online` 为正式域名。
+- IP 入口绑定单个公网 IP，后续更换香港 IP 或线路时，已导入 ccSwitch 的配置需要同步更新。
+- 短有效期证书提高运维要求，续期失败会直接导致客户端不可用。
+
+因此该方案的定位是“小范围、可回滚、面向 API 客户端”的快速访问补充方案。正式服务入口仍保持：
+
+```text
+https://codex.lizubin.online
+```
+
+仓库已提供灰度落地脚本：
+
+```text
+deploy/setup-my4g-ip-direct.sh
+deploy/check-my4g-ip-direct.sh
+```
+
+执行顺序：
+
+```bash
+# 1. 先用 staging 验证 HTTP-01 与 IP 证书签发链路，不安装 Nginx 443 入口。
+scp deploy/setup-my4g-ip-direct.sh my4g:/tmp/setup-my4g-ip-direct.sh
+ssh my4g 'sudo MODE=staging ACME_EMAIL=ops@example.com bash /tmp/setup-my4g-ip-direct.sh'
+
+# 2. staging 通过后签发正式短有效期 IP 证书，并安装独立 default_server 入口。
+ssh my4g 'sudo MODE=production ACME_EMAIL=ops@example.com bash /tmp/setup-my4g-ip-direct.sh'
+
+# 3. 从目标客户端所在网络验证 TLS、健康检查和真实 API 请求。
+PUBLIC_IP=152.32.190.110 API_KEY=sk-xxx ./deploy/check-my4g-ip-direct.sh
+```
+
+脚本默认生成 `/etc/nginx/conf.d/sub2api-ip-direct.conf`，证书路径为：
+
+```text
+/etc/letsencrypt/live/152.32.190.110/fullchain.pem
+/etc/letsencrypt/live/152.32.190.110/privkey.pem
+```
+
+回滚只需要删除该独立 Nginx 片段并重载 Nginx，不影响 `codex.lizubin.online` 和
+`codex-direct.lizubin.online`：
+
+```bash
+sudo rm -f /etc/nginx/conf.d/sub2api-ip-direct.conf
+sudo nginx -t && sudo systemctl reload nginx
+```
+
 ### 当前阶段结论
 
 项目仍处于初创阶段，当前选择低成本的小闭环方案：

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  DEFAULT_CC_SWITCH_DIRECT_BASE_URL,
   OPENAI_CC_SWITCH_CODEX_MODEL,
-  buildCcSwitchImportDeeplink
+  buildCcSwitchImportDeeplink,
+  resolveCcSwitchBaseUrl
 } from '@/utils/ccswitchImport'
 import type { GroupPlatform } from '@/types'
 
@@ -17,6 +19,29 @@ describe('ccswitchImport utils', () => {
     apiKey: 'sk-test',
     usageScript: 'return true'
   }
+
+  it('uses gpt-5.5 as the default Codex model', () => {
+    expect(OPENAI_CC_SWITCH_CODEX_MODEL).toBe('gpt-5.5')
+  })
+
+  it('prefers the CCS import base URL over the general API base URL', () => {
+    expect(
+      resolveCcSwitchBaseUrl(
+        {
+          ccs_import_base_url: 'https://152.32.190.110',
+          api_base_url: 'https://codex.lizubin.online'
+        },
+        'https://current.example.com'
+      )
+    ).toBe('https://152.32.190.110')
+  })
+
+  it('defaults CCS imports to the IP direct base URL when no dedicated URL is configured', () => {
+    expect(
+      resolveCcSwitchBaseUrl({ ccs_import_base_url: '', api_base_url: 'https://api.example.com' }, 'https://current.example.com')
+    ).toBe(DEFAULT_CC_SWITCH_DIRECT_BASE_URL)
+    expect(resolveCcSwitchBaseUrl(null, 'https://current.example.com')).toBe(DEFAULT_CC_SWITCH_DIRECT_BASE_URL)
+  })
 
   it('adds the Codex model parameter for OpenAI imports', () => {
     const params = paramsFromDeeplink(

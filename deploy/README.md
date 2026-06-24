@@ -23,6 +23,8 @@ This directory contains files for deploying Sub2API on Linux servers.
 | `sub2api.service` | Systemd service unit file |
 | `sub2api-datamanagementd.service` | datamanagementd systemd service unit file |
 | `DATAMANAGEMENTD_CN.md` | datamanagementd 部署与联动说明（中文） |
+| `setup-my4g-ip-direct.sh` | my4g IP SAN 证书直连入口签发与 Nginx 灰度配置脚本 |
+| `check-my4g-ip-direct.sh` | my4g IP 直连入口客户端侧验证脚本 |
 | `config.example.yaml` | Example configuration file |
 
 ---
