@@ -8,11 +8,11 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/devdata"
 	"github.com/spf13/viper"
 )
 
@@ -1363,27 +1363,6 @@ func LoadForBootstrap() (*Config, error) {
 	return load(true)
 }
 
-func findNearestDevDataDir() string {
-	if strings.HasSuffix(os.Args[0], ".test") {
-		return ""
-	}
-	dir, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
-	for {
-		candidate := filepath.Join(dir, ".dev-data")
-		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
-			return candidate
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return ""
-		}
-		dir = parent
-	}
-}
-
 func load(allowMissingJWTSecret bool) (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -1394,7 +1373,7 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 		viper.AddConfigPath(dataDir)
 	}
 	// 2. Local development data directory discovered from cwd parents.
-	if devDataDir := findNearestDevDataDir(); devDataDir != "" {
+	if devDataDir := devdata.FindNearestOutsideTests(); devDataDir != "" {
 		viper.AddConfigPath(devDataDir)
 	}
 	// 3. Docker data directory

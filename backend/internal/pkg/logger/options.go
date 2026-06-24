@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/devdata"
 )
 
 const (
@@ -100,28 +102,10 @@ func resolveLogFilePath(explicit string) string {
 	if dataDir != "" {
 		return filepath.Join(dataDir, "logs", defaultLogFilename)
 	}
-	if dataDir := findNearestDevDataDir(); dataDir != "" {
+	if dataDir := devdata.FindNearest(); dataDir != "" {
 		return filepath.Join(dataDir, "logs", defaultLogFilename)
 	}
 	return DefaultContainerLogPath
-}
-
-func findNearestDevDataDir() string {
-	dir, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
-	for {
-		candidate := filepath.Join(dir, ".dev-data")
-		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
-			return candidate
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return ""
-		}
-		dir = parent
-	}
 }
 
 func bootstrapOptions() InitOptions {

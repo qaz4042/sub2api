@@ -8,12 +8,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/devdata"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/repository"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -46,7 +46,7 @@ func GetDataDir() string {
 		return dir
 	}
 
-	if dir := findNearestDevDataDir(); dir != "" {
+	if dir := devdata.FindNearestOutsideTests(); dir != "" {
 		return dir
 	}
 
@@ -64,27 +64,6 @@ func GetDataDir() string {
 
 	// Default to current directory
 	return "."
-}
-
-func findNearestDevDataDir() string {
-	if strings.HasSuffix(os.Args[0], ".test") {
-		return ""
-	}
-	dir, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
-	for {
-		candidate := filepath.Join(dir, ".dev-data")
-		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
-			return candidate
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return ""
-		}
-		dir = parent
-	}
 }
 
 // GetConfigFilePath returns the full path to config.yaml
