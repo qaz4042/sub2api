@@ -24,6 +24,18 @@ step_done() {
   log "$1 完成（耗时 $((SECONDS - STEP_STARTED))s）"
 }
 
+run_quiet() {
+  local label="$1"
+  shift
+  local output
+  output="$(mktemp "${TMP_DIR}/deploy-step.XXXXXX")"
+  if ! "$@" >"${output}" 2>&1; then
+    log "${label} 失败，输出如下：" >&2
+    cat "${output}" >&2
+    return 1
+  fi
+}
+
 for command in git go pnpm ssh scp rsync curl mktemp; do
   if ! command -v "${command}" >/dev/null 2>&1; then
     echo "缺少本地命令: ${command}" >&2
@@ -100,8 +112,8 @@ step_done "[1/6] 远端环境检查"
 
 if [[ "${BUILD_FRONTEND}" == "1" ]]; then
   step_start "[2/6] 构建前端"
-  pnpm --dir "${ROOT_DIR}/frontend" install --frozen-lockfile
-  pnpm --dir "${ROOT_DIR}/frontend" run build
+  run_quiet "前端依赖安装" pnpm --dir "${ROOT_DIR}/frontend" install --frozen-lockfile
+  run_quiet "前端构建" pnpm --dir "${ROOT_DIR}/frontend" run build
   step_done "[2/6] 前端构建"
 else
   step_start "[2/6] 跳过前端构建"
