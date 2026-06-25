@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
+import { clearAuthSession } from '@/api/authSession'
 
 // Mock authAPI
 const mockLogin = vi.fn()
@@ -54,9 +55,11 @@ const fakeAuthResponse = {
 describe('useAuthStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    clearAuthSession()
     localStorage.clear()
     vi.useFakeTimers()
     vi.clearAllMocks()
+    mockRefreshToken.mockRejectedValue(new Error('No refresh session'))
   })
 
   afterEach(() => {
@@ -75,7 +78,7 @@ describe('useAuthStore', () => {
       expect(store.token).toBe('test-token-123')
       expect(store.user).toEqual(fakeUser)
       expect(store.isAuthenticated).toBe(true)
-      expect(localStorage.getItem('auth_token')).toBe('test-token-123')
+      expect(localStorage.getItem('auth_token')).toBeNull()
       expect(localStorage.getItem('auth_user')).toBe(JSON.stringify(fakeUser))
     })
 
@@ -161,7 +164,7 @@ describe('useAuthStore', () => {
   // --- checkAuth ---
 
   describe('checkAuth', () => {
-    it('从 localStorage 恢复持久化状态', () => {
+    it('兼容迁移旧 localStorage access token', async () => {
       localStorage.setItem('auth_token', 'saved-token')
       localStorage.setItem('auth_user', JSON.stringify(fakeUser))
 
@@ -169,50 +172,59 @@ describe('useAuthStore', () => {
       mockGetCurrentUser.mockResolvedValue({ data: fakeUser })
 
       const store = useAuthStore()
-      store.checkAuth()
+      await store.checkAuth()
 
       expect(store.token).toBe('saved-token')
       expect(store.user).toEqual(fakeUser)
       expect(store.isAuthenticated).toBe(true)
+      expect(localStorage.getItem('auth_token')).toBeNull()
     })
 
-    it('localStorage 无数据时保持未认证状态', () => {
+    it('localStorage 无数据时保持未认证状态', async () => {
       const store = useAuthStore()
-      store.checkAuth()
+      await store.checkAuth()
 
       expect(store.token).toBeNull()
       expect(store.user).toBeNull()
       expect(store.isAuthenticated).toBe(false)
     })
 
-    it('localStorage 中用户数据损坏时清除状态', () => {
+    it('localStorage 中用户数据损坏时清除状态', async () => {
       localStorage.setItem('auth_token', 'saved-token')
       localStorage.setItem('auth_user', 'invalid-json{{{')
 
       const store = useAuthStore()
-      store.checkAuth()
+      await store.checkAuth()
 
       expect(store.token).toBeNull()
       expect(store.user).toBeNull()
       expect(localStorage.getItem('auth_token')).toBeNull()
     })
 
-    it('恢复 refresh token 和过期时间', () => {
+    it('启动时用 refresh session 静默刷新', async () => {
       const futureTs = String(Date.now() + 3600_000)
       localStorage.setItem('auth_token', 'saved-token')
       localStorage.setItem('auth_user', JSON.stringify(fakeUser))
       localStorage.setItem('refresh_token', 'saved-refresh')
       localStorage.setItem('token_expires_at', futureTs)
 
+      mockRefreshToken.mockResolvedValue({
+        access_token: 'refreshed-token',
+        expires_in: 3600,
+        token_type: 'Bearer',
+      })
       mockGetCurrentUser.mockResolvedValue({ data: fakeUser })
 
       const store = useAuthStore()
-      store.checkAuth()
+      await store.checkAuth()
 
       expect(store.isAuthenticated).toBe(true)
+      expect(store.token).toBe('refreshed-token')
+      expect(localStorage.getItem('refresh_token')).toBeNull()
+      expect(localStorage.getItem('token_expires_at')).toBeNull()
     })
 
-    it('恢复持久化 pending auth session', () => {
+    it('恢复持久化 pending auth session', async () => {
       localStorage.setItem(
         'pending_auth_session',
         JSON.stringify({
@@ -224,7 +236,7 @@ describe('useAuthStore', () => {
       )
 
       const store = useAuthStore()
-      store.checkAuth()
+      await store.checkAuth()
 
       expect(store.hasPendingAuthSession).toBe(true)
       expect(store.pendingAuthSession).toEqual({
@@ -261,7 +273,7 @@ describe('useAuthStore', () => {
       expect(localStorage.getItem('pending_auth_session')).toBeNull()
     })
 
-    it('restores a persisted pending oauth session without requiring a token value', () => {
+    it('restores a persisted pending oauth session without requiring a token value', async () => {
       const firstStore = useAuthStore()
 
       firstStore.setPendingAuthSession({
@@ -275,7 +287,7 @@ describe('useAuthStore', () => {
 
       setActivePinia(createPinia())
       const restoredStore = useAuthStore()
-      restoredStore.checkAuth()
+      await restoredStore.checkAuth()
 
       expect(restoredStore.isAuthenticated).toBe(false)
       expect(restoredStore.hasPendingAuthSession).toBe(true)

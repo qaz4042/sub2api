@@ -6,6 +6,13 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 import type { ApiResponse } from '@/types'
 import { getLocale } from '@/i18n'
+import {
+  clearAuthSession,
+  getAccessToken,
+  getLegacyRefreshToken,
+  setAccessToken,
+  setAccessTokenExpiresIn
+} from './authSession'
 
 // ==================== Axios Instance Configuration ====================
 
@@ -55,8 +62,8 @@ const getUserTimezone = (): string => {
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Attach token from localStorage
-    const token = localStorage.getItem('auth_token')
+    // Attach access token from memory only.
+    const token = getAccessToken()
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -165,15 +172,15 @@ apiClient.interceptors.response.use(
         })
       }
 
-      // 401: Try to refresh the token if we have a refresh token
+      // 401: Try to refresh the token via HttpOnly cookie.
       // This handles TOKEN_EXPIRED, INVALID_TOKEN, TOKEN_REVOKED, etc.
       if (status === 401 && !originalRequest._retry) {
-        const refreshToken = localStorage.getItem('refresh_token')
+        const legacyRefreshToken = getLegacyRefreshToken()
         const isAuthEndpoint =
           url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/refresh')
 
-        // If we have a refresh token and this is not an auth endpoint, try to refresh
-        if (refreshToken && !isAuthEndpoint) {
+        // If this is not an auth endpoint, try to refresh with cookie first.
+        if (!isAuthEndpoint) {
           if (isRefreshing) {
             // Wait for the ongoing refresh to complete
             return new Promise((resolve, reject) => {
@@ -204,23 +211,27 @@ apiClient.interceptors.response.use(
             // Call refresh endpoint directly to avoid circular dependency
             const refreshResponse = await axios.post(
               `${API_BASE_URL}/auth/refresh`,
-              { refresh_token: refreshToken },
-              { headers: { 'Content-Type': 'application/json' } }
+              legacyRefreshToken ? { refresh_token: legacyRefreshToken } : {},
+              {
+                headers: { 'Content-Type': 'application/json' },
+                withCredentials: true
+              }
             )
 
             const refreshData = refreshResponse.data as ApiResponse<{
               access_token: string
-              refresh_token: string
+              refresh_token?: string
               expires_in: number
             }>
 
             if (refreshData.code === 0 && refreshData.data) {
-              const { access_token, refresh_token: newRefreshToken, expires_in } = refreshData.data
+              const { access_token, expires_in } = refreshData.data
 
-              // Update tokens in localStorage (convert expires_in to timestamp)
-              localStorage.setItem('auth_token', access_token)
-              localStorage.setItem('refresh_token', newRefreshToken)
-              localStorage.setItem('token_expires_at', String(Date.now() + expires_in * 1000))
+              setAccessToken(access_token)
+              setAccessTokenExpiresIn(expires_in)
+              localStorage.removeItem('auth_token')
+              localStorage.removeItem('refresh_token')
+              localStorage.removeItem('token_expires_at')
 
               // Notify subscribers with new token
               onTokenRefreshed(access_token)
@@ -242,10 +253,8 @@ apiClient.interceptors.response.use(
             isRefreshing = false
 
             // Clear tokens and redirect to login
-            localStorage.removeItem('auth_token')
-            localStorage.removeItem('refresh_token')
+            clearAuthSession()
             localStorage.removeItem('auth_user')
-            localStorage.removeItem('token_expires_at')
             sessionStorage.setItem('auth_expired', '1')
 
             if (!window.location.pathname.includes('/login')) {
@@ -260,8 +269,8 @@ apiClient.interceptors.response.use(
           }
         }
 
-        // No refresh token or is auth endpoint - clear auth and redirect
-        const hasToken = !!localStorage.getItem('auth_token')
+        // Auth endpoint failed or retry was not attempted - clear auth and redirect
+        const hasToken = !!getAccessToken() || !!localStorage.getItem('auth_token')
         const headers = error.config?.headers as Record<string, unknown> | undefined
         const authHeader = headers?.Authorization ?? headers?.authorization
         const sentAuth =
@@ -271,10 +280,8 @@ apiClient.interceptors.response.use(
               ? authHeader.length > 0
               : !!authHeader
 
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('refresh_token')
+        clearAuthSession()
         localStorage.removeItem('auth_user')
-        localStorage.removeItem('token_expires_at')
         if ((hasToken || sentAuth) && !isAuthEndpoint) {
           sessionStorage.setItem('auth_expired', '1')
         }

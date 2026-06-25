@@ -26,7 +26,8 @@ describe('API Client', () => {
 
   describe('请求拦截器', () => {
     it('自动附加 Authorization 头', async () => {
-      localStorage.setItem('auth_token', 'my-jwt-token')
+      const { setAccessToken } = await import('@/api/authSession')
+      setAccessToken('my-jwt-token')
 
       // 拦截实际请求
       const adapter = vi.fn().mockResolvedValue({

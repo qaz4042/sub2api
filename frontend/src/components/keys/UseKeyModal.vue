@@ -105,7 +105,7 @@
                 </button>
               </div>
               <!-- Code Content -->
-              <pre class="p-4 text-sm font-mono text-gray-100 overflow-x-auto"><code v-if="file.highlighted" v-html="file.highlighted"></code><code v-else v-text="file.content"></code></pre>
+              <pre class="p-4 text-sm font-mono text-gray-100 overflow-x-auto"><code v-if="file.highlighted" v-html="sanitizeHighlightedHtml(file.highlighted)"></code><code v-else v-text="file.content"></code></pre>
             </div>
           </div>
         </div>
@@ -139,6 +139,7 @@ import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
+import { sanitizeHtml } from '@/utils/sanitize'
 import type { GroupPlatform } from '@/types'
 
 interface Props {
@@ -372,6 +373,8 @@ const variable = (value: string) => wrapToken('text-sky-200', value)
 const operator = (value: string) => wrapToken('text-slate-400', value)
 const string = (value: string) => wrapToken('text-amber-200', value)
 const comment = (value: string) => wrapToken('text-slate-500', value)
+
+const sanitizeHighlightedHtml = (value: string) => sanitizeHtml(value)
 
 // Syntax highlighting helpers
 // Generate file configs based on platform and active tab
