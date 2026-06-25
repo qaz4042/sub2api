@@ -15,13 +15,16 @@ log() {
 }
 
 STEP_STARTED=0
+STEP_NAME=""
 step_start() {
   STEP_STARTED=${SECONDS}
-  log "$1"
+  STEP_NAME="$1"
+  log "开始 ${STEP_NAME}"
 }
 
 step_done() {
-  log "$1 完成（耗时 $((SECONDS - STEP_STARTED))s）"
+  local label="${1:-${STEP_NAME}}"
+  log "完成 ${label} ($((SECONDS - STEP_STARTED))s)"
 }
 
 run_quiet() {
@@ -87,12 +90,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
+DEPLOY_STARTED=${SECONDS}
+log "发布开始: ${TAG} -> ${SSH_TARGET}:${REMOTE_RELEASE}"
 if [[ "${DIRTY}" == "true" ]]; then
-  log "提示: 正在发布未提交的工作区，版本标记为 ${COMMIT}。"
+  log "提示: 工作区有未提交改动，版本=${COMMIT}"
 fi
 
-DEPLOY_STARTED=${SECONDS}
-step_start "[1/6] 检查远端 systemd 部署环境"
+step_start "1/6 远端环境"
 ssh "${SSH_TARGET}" bash -s -- "${REMOTE_DIR}" "${REMOTE_RELEASE}" <<'REMOTE_PREFLIGHT'
 set -Eeuo pipefail
 remote_dir="$1"
@@ -108,20 +112,20 @@ if [[ -e "${remote_release}" ]]; then
   exit 1
 fi
 REMOTE_PREFLIGHT
-step_done "[1/6] 远端环境检查"
+step_done
 
 if [[ "${BUILD_FRONTEND}" == "1" ]]; then
-  step_start "[2/6] 构建前端"
+  step_start "2/6 前端构建"
   run_quiet "前端依赖安装" pnpm --dir "${ROOT_DIR}/frontend" install --frozen-lockfile
   run_quiet "前端构建" pnpm --dir "${ROOT_DIR}/frontend" run build
-  step_done "[2/6] 前端构建"
+  step_done
 else
-  step_start "[2/6] 跳过前端构建"
+  step_start "2/6 复用前端 dist"
   test -f "${ROOT_DIR}/backend/internal/web/dist/index.html"
-  step_done "[2/6] 复用现有前端 dist"
+  step_done
 fi
 
-step_start "[3/6] 构建 linux/amd64 后端二进制（已嵌入前端）"
+step_start "3/6 后端构建 linux/amd64"
 (
   cd "${ROOT_DIR}/backend"
   CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
@@ -131,16 +135,16 @@ step_start "[3/6] 构建 linux/amd64 后端二进制（已嵌入前端）"
     -o "${ARTIFACT}" \
     ./cmd/server
 )
-step_done "[3/6] 后端二进制构建"
+step_done
 
-step_start "[4/6] 上传 release ${TAG}"
+step_start "4/6 上传 release"
 ssh "${SSH_TARGET}" "mkdir -p '${REMOTE_INCOMING}/resources'"
 REMOTE_PREPARED=true
-scp "${ARTIFACT}" "${SSH_TARGET}:${REMOTE_INCOMING}/sub2api"
+scp -q "${ARTIFACT}" "${SSH_TARGET}:${REMOTE_INCOMING}/sub2api"
 rsync -a --delete "${ROOT_DIR}/backend/resources/" "${SSH_TARGET}:${REMOTE_INCOMING}/resources/"
-step_done "[4/6] release 上传"
+step_done
 
-step_start "[5/6] 原子切换、重启并执行本机健康检查"
+step_start "5/6 切换重启 + 本机健康"
 ssh "${SSH_TARGET}" bash -s -- \
   "${REMOTE_DIR}" "${REMOTE_INCOMING}" "${REMOTE_RELEASE}" "${HEALTH_TIMEOUT}" <<'REMOTE_DEPLOY'
 set -Eeuo pipefail
@@ -160,7 +164,7 @@ log() {
 wait_for_health() {
   local attempt
   for ((attempt = 0; attempt < health_timeout; attempt++)); do
-    if curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:8080/health >/dev/null; then
+    if curl -fs --connect-timeout 1 --max-time 2 http://127.0.0.1:8080/health >/dev/null 2>&1; then
       return 0
     fi
     sleep 1
@@ -193,15 +197,14 @@ systemctl restart sub2api
 wait_for_health
 
 trap - ERR
-log "远端应用已健康: $(readlink -f "${current}")"
 REMOTE_DEPLOY
 REMOTE_PREPARED=false
-step_done "[5/6] 远端切换与健康检查"
+step_done
 
-step_start "[6/6] 检查公网入口"
+step_start "6/6 公网健康"
 public_healthy=false
 for _ in 1 2 3 4 5; do
-  if curl -fsS --connect-timeout 5 --max-time 15 "${PUBLIC_HEALTH_URL}" >/dev/null; then
+  if curl -fs --connect-timeout 5 --max-time 15 "${PUBLIC_HEALTH_URL}" >/dev/null 2>&1; then
     public_healthy=true
     break
   fi
@@ -211,7 +214,8 @@ if [[ "${public_healthy}" != "true" ]]; then
   echo "应用本机健康，但公网健康检查失败: ${PUBLIC_HEALTH_URL}" >&2
   exit 1
 fi
-step_done "[6/6] 公网入口检查"
+step_done
 
-log "部署成功（总耗时 $((SECONDS - DEPLOY_STARTED))s）: ${REMOTE_RELEASE}"
-log "健康检查: ${PUBLIC_HEALTH_URL}"
+log "发布完成 ($((SECONDS - DEPLOY_STARTED))s)"
+log "release: ${REMOTE_RELEASE}"
+log "health:  ${PUBLIC_HEALTH_URL}"
