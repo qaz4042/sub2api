@@ -387,11 +387,22 @@
     />
     <TempUnschedStatusModal :show="showTempUnsched" :account="tempUnschedAcc" @close="showTempUnsched = false" @reset="handleTempUnschedReset" />
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.accounts.deleteAccount')" :message="t('admin.accounts.deleteConfirm', { name: deletingAcc?.name })" :confirm-text="t('common.delete')" :cancel-text="t('common.cancel')" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
-    <ConfirmDialog :show="showExportDataDialog" :title="t('admin.accounts.dataExport')" :message="t('admin.accounts.dataExportConfirmMessage')" :confirm-text="t('admin.accounts.dataExportConfirm')" :cancel-text="t('common.cancel')" @confirm="handleExportData" @cancel="showExportDataDialog = false">
+    <ConfirmDialog :show="showExportDataDialog" :title="t('admin.accounts.dataExport')" :message="t('admin.accounts.dataExportConfirmMessage')" :confirm-text="t('admin.accounts.dataExportConfirm')" :cancel-text="t('common.cancel')" @confirm="handleExportData" @cancel="closeExportDataDialog">
       <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
         <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" v-model="includeProxyOnExport" />
         <span>{{ t('admin.accounts.dataExportIncludeProxies') }}</span>
       </label>
+      <div>
+        <label class="input-label">{{ t('admin.accounts.dataExportPassword') }}</label>
+        <input
+          v-model="exportPassword"
+          type="password"
+          class="input w-full"
+          autocomplete="current-password"
+          :placeholder="t('admin.accounts.dataExportPasswordPlaceholder')"
+          @keyup.enter="handleExportData"
+        />
+      </div>
     </ConfirmDialog>
     <ErrorPassthroughRulesModal :show="showErrorPassthrough" @close="showErrorPassthrough = false" />
     <TLSFingerprintProfilesModal :show="showTLSFingerprintProfiles" @close="showTLSFingerprintProfiles = false" />
@@ -492,6 +503,7 @@ const showSync = ref(false)
 const showImportData = ref(false)
 const showExportDataDialog = ref(false)
 const includeProxyOnExport = ref(true)
+const exportPassword = ref('')
 const showBulkEdit = ref(false)
 const bulkEditTarget = ref<AccountBulkEditTarget | null>(null)
 const showTempUnsched = ref(false)
@@ -1525,18 +1537,29 @@ const formatExportTimestamp = () => {
 }
 const openExportDataDialog = () => {
   includeProxyOnExport.value = true
+  exportPassword.value = ''
   showExportDataDialog.value = true
+}
+const closeExportDataDialog = () => {
+  showExportDataDialog.value = false
+  exportPassword.value = ''
 }
 const handleExportData = async () => {
   if (exportingData.value) return
+  const password = exportPassword.value
+  if (!password) {
+    appStore.showError(t('admin.accounts.dataExportPasswordRequired'))
+    return
+  }
   exportingData.value = true
   try {
     const dataPayload = await adminAPI.accounts.exportData(
       selIds.value.length > 0
-        ? { ids: selIds.value, includeProxies: includeProxyOnExport.value }
+        ? { ids: selIds.value, includeProxies: includeProxyOnExport.value, password }
         : {
             includeProxies: includeProxyOnExport.value,
-            filters: buildAccountQueryFilters()
+            filters: buildAccountQueryFilters(),
+            password
           }
     )
     const timestamp = formatExportTimestamp()
@@ -1554,6 +1577,7 @@ const handleExportData = async () => {
   } finally {
     exportingData.value = false
     showExportDataDialog.value = false
+    exportPassword.value = ''
   }
 }
 const closeTestModal = () => { showTest.value = false; testingAcc.value = null }

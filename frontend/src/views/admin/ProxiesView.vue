@@ -831,8 +831,20 @@
       :confirm-text="t('admin.proxies.dataExportConfirm')"
       :cancel-text="t('common.cancel')"
       @confirm="handleExportData"
-      @cancel="showExportDataDialog = false"
-    />
+      @cancel="closeExportDataDialog"
+    >
+      <div>
+        <label class="input-label">{{ t('admin.proxies.dataExportPassword') }}</label>
+        <input
+          v-model="exportPassword"
+          type="password"
+          class="input w-full"
+          autocomplete="current-password"
+          :placeholder="t('admin.proxies.dataExportPasswordPlaceholder')"
+          @keyup.enter="handleExportData"
+        />
+      </div>
+    </ConfirmDialog>
 
     <ImportDataModal
       :show="showImportData"
@@ -1066,6 +1078,7 @@ const showImportData = ref(false)
 const showDeleteDialog = ref(false)
 const showBatchDeleteDialog = ref(false)
 const showExportDataDialog = ref(false)
+const exportPassword = ref('')
 const showAccountsModal = ref(false)
 const submitting = ref(false)
 const exportingData = ref(false)
@@ -1897,15 +1910,26 @@ const formatExportTimestamp = () => {
   return `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}`
 }
 
+const closeExportDataDialog = () => {
+  showExportDataDialog.value = false
+  exportPassword.value = ''
+}
+
 const handleExportData = async () => {
   if (exportingData.value) return
+  const password = exportPassword.value
+  if (!password) {
+    appStore.showError(t('admin.proxies.dataExportPasswordRequired'))
+    return
+  }
   exportingData.value = true
   try {
     const dataPayload = await adminAPI.proxies.exportData(
       selectedCount.value > 0
-        ? { ids: Array.from(selectedProxyIds.value) }
+        ? { ids: Array.from(selectedProxyIds.value), password }
         : {
-            filters: buildProxyQueryFilters()
+            filters: buildProxyQueryFilters(),
+            password
           }
     )
     const timestamp = formatExportTimestamp()
@@ -1923,6 +1947,7 @@ const handleExportData = async () => {
   } finally {
     exportingData.value = false
     showExportDataDialog.value = false
+    exportPassword.value = ''
   }
 }
 

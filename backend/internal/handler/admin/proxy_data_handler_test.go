@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -27,9 +28,15 @@ func setupProxyDataRouter() (*gin.Engine, *stubAdminService) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	adminSvc := newStubAdminService()
+	userLookup := newStubAdminUserLookup("admin-pass")
 
-	h := NewProxyHandler(adminSvc)
+	h := NewProxyHandler(adminSvc, userLookup)
+	router.Use(func(c *gin.Context) {
+		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 1})
+		c.Next()
+	})
 	router.GET("/api/v1/admin/proxies/data", h.ExportData)
+	router.POST("/api/v1/admin/proxies/data/export", h.ExportData)
 	router.POST("/api/v1/admin/proxies/data", h.ImportData)
 
 	return router, adminSvc
@@ -63,6 +70,7 @@ func TestProxyExportDataRespectsFilters(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/proxies/data?protocol=https", nil)
+	req.Header.Set("x-admin-password", "admin-pass")
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -108,6 +116,7 @@ func TestProxyExportDataWithSelectedIDs(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/proxies/data?ids=2", nil)
+	req.Header.Set("x-admin-password", "admin-pass")
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -138,6 +147,7 @@ func TestProxyExportDataPassesSortParams(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/proxies/data?protocol=http&status=active&search=proxy&sort_by=name&sort_order=asc", nil)
+	req.Header.Set("x-admin-password", "admin-pass")
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -197,6 +207,7 @@ func TestProxyExportDataSortByAccountCountUsesAccountCountListing(t *testing.T) 
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/proxies/data?sort_by=account_count&sort_order=desc", nil)
+	req.Header.Set("x-admin-password", "admin-pass")
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 

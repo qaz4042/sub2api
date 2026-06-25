@@ -817,6 +817,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyAPIBaseURL,
 		SettingKeyCcsImportBaseURL,
 		SettingKeyContactInfo,
+		SettingKeyContactMethods,
 		SettingKeyDocURL,
 		SettingKeyHomeContent,
 		SettingKeyHideCcsImportButton,
@@ -947,6 +948,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		APIBaseURL:                       settings[SettingKeyAPIBaseURL],
 		CcsImportBaseURL:                 strings.TrimSpace(settings[SettingKeyCcsImportBaseURL]),
 		ContactInfo:                      settings[SettingKeyContactInfo],
+		ContactMethods:                   settings[SettingKeyContactMethods],
 		DocURL:                           settings[SettingKeyDocURL],
 		HomeContent:                      settings[SettingKeyHomeContent],
 		HideCcsImportButton:              settings[SettingKeyHideCcsImportButton] == "true",
@@ -1320,6 +1322,7 @@ type PublicSettingsInjectionPayload struct {
 	APIBaseURL                       string                   `json:"api_base_url"`
 	CcsImportBaseURL                 string                   `json:"ccs_import_base_url"`
 	ContactInfo                      string                   `json:"contact_info"`
+	ContactMethods                   json.RawMessage          `json:"contact_methods"`
 	DocURL                           string                   `json:"doc_url"`
 	HomeContent                      string                   `json:"home_content"`
 	HideCcsImportButton              bool                     `json:"hide_ccs_import_button"`
@@ -1388,6 +1391,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		APIBaseURL:                       settings.APIBaseURL,
 		CcsImportBaseURL:                 settings.CcsImportBaseURL,
 		ContactInfo:                      settings.ContactInfo,
+		ContactMethods:                   safeRawJSONArray(settings.ContactMethods),
 		DocURL:                           settings.DocURL,
 		HomeContent:                      settings.HomeContent,
 		HideCcsImportButton:              settings.HideCcsImportButton,
@@ -1988,6 +1992,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyAPIBaseURL] = settings.APIBaseURL
 	updates[SettingKeyCcsImportBaseURL] = strings.TrimSpace(settings.CcsImportBaseURL)
 	updates[SettingKeyContactInfo] = settings.ContactInfo
+	updates[SettingKeyContactMethods] = strings.TrimSpace(settings.ContactMethods)
 	updates[SettingKeyDocURL] = settings.DocURL
 	updates[SettingKeyHomeContent] = settings.HomeContent
 	updates[SettingKeyHideCcsImportButton] = strconv.FormatBool(settings.HideCcsImportButton)
@@ -3125,6 +3130,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		APIBaseURL:                       settings[SettingKeyAPIBaseURL],
 		CcsImportBaseURL:                 strings.TrimSpace(settings[SettingKeyCcsImportBaseURL]),
 		ContactInfo:                      settings[SettingKeyContactInfo],
+		ContactMethods:                   settings[SettingKeyContactMethods],
 		DocURL:                           settings[SettingKeyDocURL],
 		HomeContent:                      settings[SettingKeyHomeContent],
 		HideCcsImportButton:              settings[SettingKeyHideCcsImportButton] == "true",

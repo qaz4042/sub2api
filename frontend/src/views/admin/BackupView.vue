@@ -538,8 +538,10 @@ async function createBackup() {
 }
 
 async function downloadBackup(id: string) {
+  const password = window.prompt(t('admin.backup.actions.downloadPasswordPrompt'))
+  if (!password) return
   try {
-    const result = await adminAPI.backup.getDownloadURL(id)
+    const result = await adminAPI.backup.getDownloadURL(id, password)
     window.open(result.url, '_blank')
   } catch (error) {
     appStore.showError((error as { message?: string })?.message || t('errors.networkError'))

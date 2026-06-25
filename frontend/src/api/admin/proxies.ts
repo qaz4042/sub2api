@@ -223,7 +223,7 @@ export async function batchDelete(ids: number[]): Promise<{
   return data
 }
 
-export async function exportData(options?: {
+export async function exportData(options: {
   ids?: number[]
   filters?: {
     protocol?: string
@@ -232,6 +232,7 @@ export async function exportData(options?: {
     sort_by?: string
     sort_order?: 'asc' | 'desc'
   }
+  password: string
 }): Promise<AdminDataPayload> {
   const params: Record<string, string> = {}
   if (options?.ids && options.ids.length > 0) {
@@ -244,7 +245,7 @@ export async function exportData(options?: {
     if (sort_by) params.sort_by = sort_by
     if (sort_order) params.sort_order = sort_order
   }
-  const { data } = await apiClient.get<AdminDataPayload>('/admin/proxies/data', { params })
+  const { data } = await apiClient.post<AdminDataPayload>('/admin/proxies/data/export', { password: options.password }, { params })
   return data
 }
 

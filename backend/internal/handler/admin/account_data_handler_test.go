@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -50,6 +51,7 @@ func setupAccountDataRouter() (*gin.Engine, *stubAdminService) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	adminSvc := newStubAdminService()
+	userLookup := newStubAdminUserLookup("admin-pass")
 
 	h := NewAccountHandler(
 		adminSvc,
@@ -62,12 +64,18 @@ func setupAccountDataRouter() (*gin.Engine, *stubAdminService) {
 		nil,
 		nil,
 		nil,
+		userLookup,
 		nil,
 		nil,
 		nil,
 	)
 
+	router.Use(func(c *gin.Context) {
+		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 1})
+		c.Next()
+	})
 	router.GET("/api/v1/admin/accounts/data", h.ExportData)
+	router.POST("/api/v1/admin/accounts/data/export", h.ExportData)
 	router.POST("/api/v1/admin/accounts/data", h.ImportData)
 	return router, adminSvc
 }
@@ -115,6 +123,7 @@ func TestExportDataIncludesSecrets(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/data", nil)
+	req.Header.Set("x-admin-password", "admin-pass")
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -161,6 +170,7 @@ func TestExportDataWithoutProxies(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/data?include_proxies=false", nil)
+	req.Header.Set("x-admin-password", "admin-pass")
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -184,6 +194,7 @@ func TestExportDataPassesAccountFiltersAndSort(t *testing.T) {
 		"/api/v1/admin/accounts/data?platform=openai&type=oauth&status=active&group=12&privacy_mode=blocked&search=keyword&sort_by=priority&sort_order=desc",
 		nil,
 	)
+	req.Header.Set("x-admin-password", "admin-pass")
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -207,6 +218,7 @@ func TestExportDataSelectedIDsOverrideFilters(t *testing.T) {
 		"/api/v1/admin/accounts/data?ids=1,2&platform=openai&search=keyword&sort_by=priority&sort_order=desc",
 		nil,
 	)
+	req.Header.Set("x-admin-password", "admin-pass")
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -215,6 +227,31 @@ func TestExportDataSelectedIDsOverrideFilters(t *testing.T) {
 	require.Equal(t, 0, resp.Code)
 	require.Len(t, resp.Data.Accounts, 2)
 	require.Equal(t, 0, adminSvc.lastListAccounts.calls)
+}
+
+func TestExportDataRequiresAdminPassword(t *testing.T) {
+	router, _ := setupAccountDataRouter()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/data", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestExportDataAcceptsPasswordFromPostBody(t *testing.T) {
+	router, adminSvc := setupAccountDataRouter()
+	adminSvc.accounts = []service.Account{
+		{ID: 21, Name: "account", Platform: service.PlatformOpenAI, Type: service.AccountTypeOAuth, Credentials: map[string]any{"token": "secret"}},
+	}
+
+	body, _ := json.Marshal(map[string]string{"password": "admin-pass"})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/data/export", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
 }
 
 func TestImportDataReusesProxyAndSkipsDefaultGroup(t *testing.T) {

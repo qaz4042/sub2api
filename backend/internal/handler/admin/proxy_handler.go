@@ -16,12 +16,14 @@ import (
 // ProxyHandler handles admin proxy management
 type ProxyHandler struct {
 	adminService service.AdminService
+	userService  AdminUserLookup
 }
 
 // NewProxyHandler creates a new admin proxy handler
-func NewProxyHandler(adminService service.AdminService) *ProxyHandler {
+func NewProxyHandler(adminService service.AdminService, userService AdminUserLookup) *ProxyHandler {
 	return &ProxyHandler{
 		adminService: adminService,
+		userService:  userService,
 	}
 }
 

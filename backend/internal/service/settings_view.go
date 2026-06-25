@@ -133,6 +133,7 @@ type SystemSettings struct {
 	APIBaseURL                  string
 	CcsImportBaseURL            string
 	ContactInfo                 string
+	ContactMethods              string
 	DocURL                      string
 	HomeContent                 string
 	HideCcsImportButton         bool
@@ -264,6 +265,7 @@ type PublicSettings struct {
 	APIBaseURL                       string
 	CcsImportBaseURL                 string
 	ContactInfo                      string
+	ContactMethods                   string
 	DocURL                           string
 	HomeContent                      string
 	HideCcsImportButton              bool

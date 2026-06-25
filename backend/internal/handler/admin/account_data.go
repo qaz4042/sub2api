@@ -91,6 +91,10 @@ func buildProxyKey(protocol, host string, port int, username, password string) s
 }
 
 func (h *AccountHandler) ExportData(c *gin.Context) {
+	if !requireAdminPassword(c, h.userService) {
+		return
+	}
+
 	ctx := c.Request.Context()
 
 	selectedIDs, err := parseAccountIDs(c)

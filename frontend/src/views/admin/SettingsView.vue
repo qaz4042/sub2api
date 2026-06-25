@@ -4945,22 +4945,124 @@
                 </button>
               </div>
 
-              <!-- Contact Info -->
+              <!-- Contact Methods -->
               <div>
                 <label
                   class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >
-                  {{ t("admin.settings.site.contactInfo") }}
+                  {{ t("admin.settings.site.contactMethods.title") }}
                 </label>
-                <input
-                  v-model="form.contact_info"
-                  type="text"
-                  class="input"
-                  :placeholder="t('admin.settings.site.contactInfoPlaceholder')"
-                />
-                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  {{ t("admin.settings.site.contactInfoHint") }}
+                <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.site.contactMethods.description") }}
                 </p>
+
+                <div class="space-y-3">
+                  <div
+                    v-for="(method, index) in form.contact_methods"
+                    :key="index"
+                    class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+                  >
+                    <div class="mb-3 flex items-center justify-between gap-3">
+                      <div class="flex min-w-0 items-center gap-3">
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          {{
+                            t("admin.settings.site.contactMethods.itemLabel", {
+                              n: index + 1,
+                            })
+                          }}
+                        </span>
+                        <label class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                          <Toggle v-model="method.enabled" />
+                          {{ t("common.enabled") }}
+                        </label>
+                      </div>
+                      <div class="flex flex-shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-700 dark:hover:text-gray-200"
+                          :disabled="index === 0"
+                          @click="moveContactMethod(index, -1)"
+                        >
+                          <Icon name="arrowUp" size="sm" />
+                        </button>
+                        <button
+                          type="button"
+                          class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-700 dark:hover:text-gray-200"
+                          :disabled="index === form.contact_methods.length - 1"
+                          @click="moveContactMethod(index, 1)"
+                        >
+                          <Icon name="arrowDown" size="sm" />
+                        </button>
+                        <button
+                          type="button"
+                          class="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                          @click="removeContactMethod(index)"
+                        >
+                          <Icon name="trash" size="sm" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                          {{ t("admin.settings.site.contactMethods.type") }}
+                        </label>
+                        <select v-model="method.type" class="input text-sm">
+                          <option
+                            v-for="option in contactMethodTypeOptions"
+                            :key="option.value"
+                            :value="option.value"
+                          >
+                            {{ option.label }}
+                          </option>
+                        </select>
+                      </div>
+                      <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                          {{ t("admin.settings.site.contactMethods.label") }}
+                        </label>
+                        <input
+                          v-model="method.label"
+                          type="text"
+                          class="input text-sm"
+                          :placeholder="contactMethodLabelPlaceholder(method.type)"
+                        />
+                      </div>
+                      <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                          {{ t("admin.settings.site.contactMethods.value") }}
+                        </label>
+                        <input
+                          v-model="method.value"
+                          type="text"
+                          class="input text-sm"
+                          :placeholder="contactMethodValuePlaceholder(method.type)"
+                        />
+                      </div>
+                      <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                          {{ t("admin.settings.site.contactMethods.url") }}
+                        </label>
+                        <input
+                          v-model="method.url"
+                          type="text"
+                          class="input font-mono text-sm"
+                          :placeholder="contactMethodUrlPlaceholder(method.type)"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-2.5 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+                  @click="addContactMethod"
+                >
+                  <Icon name="plus" size="sm" />
+                  {{ t("admin.settings.site.contactMethods.add") }}
+                </button>
               </div>
 
               <!-- Doc URL -->
@@ -7086,6 +7188,7 @@ import type {
 } from "@/api/admin/settings";
 import type {
   AdminGroup,
+  ContactMethod,
   LoginAgreementDocument,
   NotifyEmailEntry,
   Proxy,
@@ -7128,14 +7231,14 @@ function localText(zh: string, en: string): string {
 
 const paymentGuideHref = computed(() =>
   locale.value.startsWith("zh")
-    ? "https://github.com/Wei-Shaw/sub2api/blob/main/docs/PAYMENT_CN.md"
-    : "https://github.com/Wei-Shaw/sub2api/blob/main/docs/PAYMENT.md",
+    ? "https://github.com/Wei-Shaw/sub2api/blob/main/docs/operator/PAYMENT_CN.md"
+    : "https://github.com/Wei-Shaw/sub2api/blob/main/docs/operator/PAYMENT.md",
 );
 
 const paymentMethodsHref = computed(() =>
   locale.value.startsWith("zh")
-    ? "https://github.com/Wei-Shaw/sub2api/blob/main/docs/PAYMENT_CN.md#支持的支付方式"
-    : "https://github.com/Wei-Shaw/sub2api/blob/main/docs/PAYMENT.md#supported-payment-methods",
+    ? "https://github.com/Wei-Shaw/sub2api/blob/main/docs/operator/PAYMENT_CN.md#支持的支付方式"
+    : "https://github.com/Wei-Shaw/sub2api/blob/main/docs/operator/PAYMENT.md#supported-payment-methods",
 );
 
 type SettingsTab =
@@ -7725,12 +7828,19 @@ interface DefaultSubscriptionGroupOption {
   [key: string]: unknown;
 }
 
+type ContactMethodFormItem = ContactMethod & {
+  enabled: boolean;
+  sort: number;
+  url: string;
+};
+
 type SettingsForm = Omit<
   SystemSettings,
   | "wechat_connect_open_enabled"
   | "wechat_connect_mp_enabled"
   | "wechat_connect_mobile_enabled"
   | "platform_configs"
+  | "contact_methods"
 > & {
   smtp_password: string;
   turnstile_secret_key: string;
@@ -7750,6 +7860,7 @@ type SettingsForm = Omit<
   openai_advanced_scheduler_enabled: boolean;
   // 系统全局平台限额 map；form 内始终归一化为全 4 平台对象（模板非空绑定依赖此不变量）
   default_platform_quotas: DefaultPlatformQuotasMap;
+  contact_methods: ContactMethodFormItem[];
 };
 
 const form = reactive<SettingsForm>({
@@ -7781,6 +7892,7 @@ const form = reactive<SettingsForm>({
   api_base_url: "",
   ccs_import_base_url: "",
   contact_info: "",
+  contact_methods: [] as ContactMethodFormItem[],
   doc_url: "",
   home_content: "",
   backend_mode_enabled: false,
@@ -8507,6 +8619,209 @@ function removeEndpoint(index: number) {
   form.custom_endpoints.splice(index, 1);
 }
 
+const contactMethodTypeOptions = computed(() => [
+  { value: "telegram", label: "Telegram" },
+  { value: "email", label: "Email" },
+  { value: "link", label: t("admin.settings.site.contactMethods.typeLink") },
+  { value: "text", label: t("admin.settings.site.contactMethods.typeText") },
+]);
+
+function createContactMethod(
+  overrides: Partial<ContactMethodFormItem> = {},
+): ContactMethodFormItem {
+  const sort = Number.isFinite(overrides.sort)
+    ? Number(overrides.sort)
+    : form.contact_methods.length;
+  const type = overrides.type || "telegram";
+  return {
+    type,
+    label: overrides.label || defaultContactMethodLabel(type),
+    value: overrides.value || "",
+    url: overrides.url || "",
+    enabled: overrides.enabled !== false,
+    sort,
+  };
+}
+
+function addContactMethod() {
+  form.contact_methods.push(createContactMethod());
+  normalizeContactMethodSort();
+}
+
+function removeContactMethod(index: number) {
+  form.contact_methods.splice(index, 1);
+  normalizeContactMethodSort();
+}
+
+function moveContactMethod(index: number, direction: -1 | 1) {
+  const targetIndex = index + direction;
+  if (targetIndex < 0 || targetIndex >= form.contact_methods.length) return;
+  const items = form.contact_methods;
+  const current = items[index];
+  items[index] = items[targetIndex];
+  items[targetIndex] = current;
+  normalizeContactMethodSort();
+}
+
+function normalizeContactMethodSort() {
+  form.contact_methods.forEach((method, index) => {
+    method.sort = index;
+  });
+}
+
+function normalizeContactMethods(
+  methods: ContactMethod[] | undefined,
+  legacyContactInfo: string,
+): ContactMethodFormItem[] {
+  const source = Array.isArray(methods) && methods.length > 0
+    ? methods
+    : parseLegacyContactInfo(legacyContactInfo);
+
+  return source
+    .map((method, index) =>
+      createContactMethod({
+        ...method,
+        type: method.type || inferContactMethodType(method.value || method.url || ""),
+        label: method.label || defaultContactMethodLabel(method.type),
+        url: method.url || "",
+        enabled: method.enabled !== false,
+        sort: Number.isFinite(method.sort) ? Number(method.sort) : index,
+      }),
+    )
+    .sort((a, b) => a.sort - b.sort)
+    .map((method, index) => ({ ...method, sort: index }));
+}
+
+function parseLegacyContactInfo(raw: string): ContactMethod[] {
+  return raw
+    .split(/[\n|；;]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .flatMap(parseLegacyContactChunk);
+}
+
+function parseLegacyContactChunk(chunk: string): ContactMethod[] {
+  const labelMatch = chunk.match(/^([^:：]{1,24})[:：]\s*(.+)$/);
+  const label = labelMatch?.[1]?.trim();
+  const value = (labelMatch?.[2] || chunk).trim();
+  const methods: ContactMethod[] = [];
+  const telegram = parseTelegramContact(value);
+  if (telegram) {
+    methods.push({
+      type: "telegram",
+      label: normalizeContactMethodLabel(label, "Telegram"),
+      value: telegram.display,
+      url: telegram.url,
+      enabled: true,
+    });
+  }
+  const email = value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
+  if (email) {
+    methods.push({
+      type: "email",
+      label: normalizeContactMethodLabel(label, "Email"),
+      value: email,
+      url: `mailto:${email}`,
+      enabled: true,
+    });
+  }
+  if (methods.length > 0) return methods;
+  const url = value.match(/https?:\/\/[^\s]+/i)?.[0]?.replace(/[，。,.;；|)）]+$/g, "");
+  if (url) {
+    return [{
+      type: "link",
+      label: normalizeContactMethodLabel(label, "Link"),
+      value: url,
+      url,
+      enabled: true,
+    }];
+  }
+  return [{
+    type: "text",
+    label: normalizeContactMethodLabel(label, t("common.contactSupport")),
+    value,
+    enabled: true,
+  }];
+}
+
+function parseTelegramContact(value: string): { url: string; display: string } | null {
+  const urlMatch = value.match(/(?:https?:\/\/)?(?:t\.me|telegram\.me)\/([A-Za-z0-9_]{5,32})/i);
+  if (urlMatch?.[1]) {
+    return { url: `https://t.me/${urlMatch[1]}`, display: `@${urlMatch[1]}` };
+  }
+  const handleMatch = value.match(/(?:^|\s)@([A-Za-z0-9_]{5,32})(?:\s|$)/);
+  if (handleMatch?.[1]) {
+    return { url: `https://t.me/${handleMatch[1]}`, display: `@${handleMatch[1]}` };
+  }
+  return null;
+}
+
+function inferContactMethodType(value: string): string {
+  if (parseTelegramContact(value)) return "telegram";
+  if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(value)) return "email";
+  if (/^https?:\/\//i.test(value)) return "link";
+  return "text";
+}
+
+function defaultContactMethodLabel(type: string | undefined): string {
+  if (type === "telegram") return "Telegram";
+  if (type === "email") return "Email";
+  if (type === "link") return t("admin.settings.site.contactMethods.typeLink");
+  return t("admin.settings.site.contactMethods.typeText");
+}
+
+function normalizeContactMethodLabel(label: string | undefined, fallback: string): string {
+  const normalized = label?.trim();
+  if (!normalized) return fallback;
+  if (/^(tg|telegram)$/i.test(normalized)) return "Telegram";
+  if (/^(email|mail|e-mail|邮箱|郵箱)$/i.test(normalized)) return "Email";
+  return normalized;
+}
+
+function contactMethodLabelPlaceholder(type: string): string {
+  return defaultContactMethodLabel(type);
+}
+
+function contactMethodValuePlaceholder(type: string): string {
+  if (type === "telegram") return "@kaka_bin";
+  if (type === "email") return "support@example.com";
+  if (type === "link") return t("admin.settings.site.contactMethods.valuePlaceholderLink");
+  return t("admin.settings.site.contactMethods.valuePlaceholderText");
+}
+
+function contactMethodUrlPlaceholder(type: string): string {
+  if (type === "telegram") return "https://t.me/kaka_bin";
+  if (type === "email") return "mailto:support@example.com";
+  if (type === "link") return "https://example.com/support";
+  return t("admin.settings.site.contactMethods.urlPlaceholderText");
+}
+
+function sanitizeContactMethods(): ContactMethod[] {
+  normalizeContactMethodSort();
+  return form.contact_methods
+    .map((method, index) => ({
+      type: method.type || inferContactMethodType(method.value || method.url || ""),
+      label: method.label.trim() || defaultContactMethodLabel(method.type),
+      value: method.value.trim(),
+      url: method.url.trim() || undefined,
+      enabled: method.enabled !== false,
+      sort: index,
+    }))
+    .filter((method) => method.label && (method.value || method.url));
+}
+
+function buildLegacyContactInfo(methods: ContactMethod[]): string {
+  return methods
+    .filter((method) => method.enabled !== false)
+    .map((method) => {
+      const label = method.label || defaultContactMethodLabel(method.type);
+      const value = method.value || method.url || "";
+      return value ? `${label}: ${value}` : "";
+    })
+    .filter(Boolean)
+    .join(" | ");
+}
+
 function addLoginAgreementDocument() {
   form.login_agreement_documents.push({
     id: `custom-${Date.now().toString(36)}`,
@@ -8675,6 +8990,10 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
+    form.contact_methods = normalizeContactMethods(
+      settings.contact_methods,
+      settings.contact_info || "",
+    );
     platformConfigs.value = Array.isArray(settings.platform_configs)
       ? settings.platform_configs.map((item) => ({ ...item }))
       : [];
@@ -9021,6 +9340,11 @@ async function saveSettings() {
       );
     form.claude_oauth_system_prompt_blocks =
       claudeOAuthSystemPromptBlocksJSON;
+    const contactMethods = sanitizeContactMethods();
+    form.contact_methods = contactMethods.map((method) =>
+      createContactMethod(method),
+    );
+    form.contact_info = buildLegacyContactInfo(contactMethods);
 
     const payload: UpdateSettingsRequest = {
       registration_enabled: form.registration_enabled,
@@ -9055,6 +9379,7 @@ async function saveSettings() {
       api_base_url: form.api_base_url,
       ccs_import_base_url: form.ccs_import_base_url,
       contact_info: form.contact_info,
+      contact_methods: contactMethods,
       doc_url: form.doc_url,
       home_content: form.home_content,
       backend_mode_enabled: form.backend_mode_enabled,

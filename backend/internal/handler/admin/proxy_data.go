@@ -14,6 +14,10 @@ import (
 
 // ExportData exports proxy-only data for migration.
 func (h *ProxyHandler) ExportData(c *gin.Context) {
+	if !requireAdminPassword(c, h.userService) {
+		return
+	}
+
 	ctx := c.Request.Context()
 
 	selectedIDs, err := parseProxyIDs(c)

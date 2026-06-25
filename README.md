@@ -7,7 +7,7 @@ AI API 网关平台，用于将订阅类 AI 产品额度转换为可分发、可
 - 后端：Go、Gin、Ent，入口在 `backend/cmd/server`，核心模块在 `backend/internal`。
 - 前端：Vue 3、Vite、TailwindCSS，源码在 `frontend/src`。
 - 数据依赖：PostgreSQL 15+、Redis 7+。
-- 部署材料：`deploy/`，支付配置：`docs/PAYMENT.md` / `docs/PAYMENT_CN.md`。
+- 部署材料：`deploy/`，支付配置：`docs/operator/PAYMENT.md` / `docs/operator/PAYMENT_CN.md`。
 - 修改 `backend/ent/schema` 后，需要重新生成 Ent 与 Wire 相关代码。
 
 ## 核心功能
@@ -71,14 +71,14 @@ docs/      部署、运维、运行模式、支付与合规相关文档
 
 ## 文档索引
 
-- 站点运营思路：[docs/站点运营思路.md](docs/站点运营思路.md)
-- 费用公告：[docs/费用公告.md](docs/费用公告.md)
-- 使用指南：[docs/使用指南.md](docs/使用指南.md)
-- 开发者解决方案：[docs/开发者解决方案.md](docs/开发者解决方案.md)
-- 企业解决方案：[docs/企业解决方案.md](docs/企业解决方案.md)
-- 部署说明：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
-- 运维提示：[docs/OPERATIONS.md](docs/OPERATIONS.md)
-- 运行模式与兼容：[docs/MODES.md](docs/MODES.md)
-- 风险声明：[docs/DISCLAIMER.md](docs/DISCLAIMER.md)
-- 支付配置：[docs/PAYMENT.md](docs/PAYMENT.md)、[docs/PAYMENT_CN.md](docs/PAYMENT_CN.md)
+- 文档目录说明：[docs/README.md](docs/README.md)
+- 费用公告：[docs/public/费用公告.md](docs/public/费用公告.md)
+- 使用指南：[docs/public/使用指南.md](docs/public/使用指南.md)
+- 开发者解决方案：[docs/public/开发者解决方案.md](docs/public/开发者解决方案.md)
+- 企业解决方案：[docs/public/企业解决方案.md](docs/public/企业解决方案.md)
+- 部署说明：[docs/operator/DEPLOYMENT.md](docs/operator/DEPLOYMENT.md)
+- 运维提示：[docs/operator/OPERATIONS.md](docs/operator/OPERATIONS.md)
+- 运行模式与兼容：[docs/operator/MODES.md](docs/operator/MODES.md)
+- 风险声明：[docs/public/DISCLAIMER.md](docs/public/DISCLAIMER.md)
+- 支付配置：[docs/operator/PAYMENT.md](docs/operator/PAYMENT.md)、[docs/operator/PAYMENT_CN.md](docs/operator/PAYMENT_CN.md)
 - 许可证：[LGPL-3.0-or-later](LICENSE)

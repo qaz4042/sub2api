@@ -96,7 +96,7 @@
 
           <!-- Dropdown Menu -->
           <transition name="dropdown">
-            <div v-if="dropdownOpen" class="dropdown right-0 mt-2 w-56">
+            <div v-if="dropdownOpen" class="dropdown right-0 mt-2 w-72 max-w-[90vw]">
               <!-- User Info -->
               <div class="border-b border-gray-100 px-4 py-3 dark:border-dark-700">
                 <div class="text-sm font-medium text-gray-900 dark:text-white">
@@ -148,27 +148,46 @@
 
               <!-- Contact Support (only show if configured) -->
               <div
-                v-if="contactInfo"
-                class="border-t border-gray-100 px-4 py-2.5 dark:border-dark-700"
+                v-if="contactMethods.length > 0"
+                class="border-t border-gray-100 px-3 py-2.5 dark:border-dark-700"
               >
-                <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                  <svg
-                    class="h-3.5 w-3.5 flex-shrink-0"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155"
-                    />
-                  </svg>
-                  <span>{{ t('common.contactSupport') }}:</span>
-                  <span class="font-medium text-gray-700 dark:text-gray-300">{{
-                    contactInfo
-                  }}</span>
+                <div class="flex items-center gap-2 px-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+                  <Icon name="chat" size="xs" />
+                  <span>{{ t('common.contactSupport') }}</span>
+                </div>
+                <div class="mt-2 space-y-1">
+                  <template v-for="method in contactMethods" :key="method.key">
+                    <a
+                      v-if="method.href"
+                      :href="method.href"
+                      :target="method.external ? '_blank' : undefined"
+                      :rel="method.external ? 'noopener noreferrer' : undefined"
+                      class="flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                      @click="closeDropdown"
+                    >
+                      <Icon :name="method.icon" size="sm" class="flex-shrink-0 text-gray-400" />
+                      <span class="flex-1 truncate font-medium">{{ method.label }}</span>
+                      <span class="max-w-[9rem] truncate text-xs text-gray-500 dark:text-gray-400">
+                        {{ method.value }}
+                      </span>
+                      <Icon
+                        v-if="method.external"
+                        name="externalLink"
+                        size="xs"
+                        class="flex-shrink-0 text-gray-400"
+                      />
+                    </a>
+                    <div
+                      v-else
+                      class="flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-gray-700 dark:text-gray-300"
+                    >
+                      <Icon :name="method.icon" size="sm" class="flex-shrink-0 text-gray-400" />
+                      <span class="flex-shrink-0 font-medium">{{ method.label }}</span>
+                      <span class="min-w-0 flex-1 break-words text-xs text-gray-500 dark:text-gray-400">
+                        {{ method.value }}
+                      </span>
+                    </div>
+                  </template>
                 </div>
               </div>
 
@@ -218,6 +237,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
+import type { ContactMethod as ConfigContactMethod } from '@/types'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
@@ -237,6 +257,30 @@ const dropdownRef = ref<HTMLElement | null>(null)
 const contactInfo = computed(() => appStore.contactInfo)
 const docUrl = computed(() => appStore.docUrl)
 const avatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
+
+type ContactMethodIcon = 'chat' | 'mail' | 'link'
+
+interface DisplayContactMethod {
+  key: string
+  label: string
+  value: string
+  href?: string
+  external: boolean
+  icon: ContactMethodIcon
+  sort?: number
+}
+
+const contactMethods = computed(() => {
+  const structured = Array.isArray(appStore.contactMethods)
+    ? appStore.contactMethods
+        .filter((method) => method && method.enabled !== false)
+        .map(mapConfiguredContactMethod)
+        .filter((method): method is DisplayContactMethod => method !== null)
+        .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
+    : []
+
+  return structured.length > 0 ? structured : parseContactInfo(contactInfo.value)
+})
 
 // 只在标准模式的管理员下显示新手引导按钮
 const showOnboardingButton = computed(() => {
@@ -261,6 +305,170 @@ const displayName = computed(() => {
   if (!user.value) return ''
   return user.value.username || user.value.email?.split('@')[0] || ''
 })
+
+function parseContactInfo(raw: string): DisplayContactMethod[] {
+  const chunks = raw
+    .split(/[\n|；;]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+  const methods = chunks.flatMap(parseContactChunk)
+  const seen = new Set<string>()
+
+  return methods.filter((method) => {
+    const dedupeKey = method.href || `${method.label}:${method.value}`
+    if (seen.has(dedupeKey)) return false
+    seen.add(dedupeKey)
+    return true
+  })
+}
+
+function parseContactChunk(chunk: string): DisplayContactMethod[] {
+  const labelMatch = chunk.match(/^([^:：]{1,24})[:：]\s*(.+)$/)
+  const labelHint = labelMatch?.[1]?.trim()
+  const value = (labelMatch?.[2] || chunk).trim()
+  const methods: DisplayContactMethod[] = []
+
+  const telegram = parseTelegram(value)
+  if (telegram) {
+    methods.push({
+      key: `telegram:${telegram.href}`,
+      label: normalizeContactLabel(labelHint, 'Telegram'),
+      value: telegram.display,
+      href: telegram.href,
+      external: true,
+      icon: 'chat'
+    })
+  }
+
+  const email = value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]
+  if (email) {
+    methods.push({
+      key: `email:${email}`,
+      label: normalizeContactLabel(labelHint, 'Email'),
+      value: email,
+      href: `mailto:${email}`,
+      external: false,
+      icon: 'mail'
+    })
+  }
+
+  if (methods.length > 0) return methods
+
+  const url = value.match(/https?:\/\/[^\s]+/i)?.[0]
+  if (url) {
+    const cleanUrl = trimContactToken(url)
+    methods.push({
+      key: `url:${cleanUrl}`,
+      label: normalizeContactLabel(labelHint, getUrlHost(cleanUrl)),
+      value: cleanUrl,
+      href: cleanUrl,
+      external: true,
+      icon: 'link'
+    })
+    return methods
+  }
+
+  return [{
+    key: `text:${chunk}`,
+    label: normalizeContactLabel(labelHint, t('common.contactSupport')),
+    value,
+    external: false,
+    icon: 'chat'
+  }]
+}
+
+function parseTelegram(value: string): { href: string; display: string } | null {
+  const urlMatch = value.match(/(?:https?:\/\/)?(?:t\.me|telegram\.me)\/([A-Za-z0-9_]{5,32})/i)
+  if (urlMatch?.[1]) {
+    const handle = urlMatch[1]
+    return {
+      href: `https://t.me/${handle}`,
+      display: `@${handle}`
+    }
+  }
+
+  const handleMatch = value.match(/(?:^|\s)@([A-Za-z0-9_]{5,32})(?:\s|$)/)
+  if (handleMatch?.[1]) {
+    const handle = handleMatch[1]
+    return {
+      href: `https://t.me/${handle}`,
+      display: `@${handle}`
+    }
+  }
+
+  return null
+}
+
+function mapConfiguredContactMethod(
+  method: ConfigContactMethod,
+): DisplayContactMethod | null {
+  const label = method.label?.trim() || normalizeContactLabel(method.type, 'Link')
+  const value = method.value?.trim() || method.url?.trim() || ''
+  const type = method.type?.trim().toLowerCase() || ''
+  const url = method.url?.trim()
+  if (!label || (!value && !url)) return null
+
+  if (type === 'email') {
+    const email = value || url?.replace(/^mailto:/i, '') || ''
+    return {
+      key: `email:${email}`,
+      label,
+      value: email,
+      href: email ? `mailto:${email}` : undefined,
+      external: false,
+      icon: 'mail',
+      sort: Number.isFinite(method.sort) ? Number(method.sort) : 0
+    }
+  }
+
+  if (type === 'telegram') {
+    const telegram = parseTelegram(url || value)
+    const href = url || telegram?.href
+    return {
+      key: `telegram:${href || value}`,
+      label,
+      value: telegram?.display || value,
+      href,
+      external: true,
+      icon: 'chat',
+      sort: Number.isFinite(method.sort) ? Number(method.sort) : 0
+    }
+  }
+
+  const href = url || (/^https?:\/\//i.test(value) ? value : undefined)
+  return {
+    key: `${type || 'contact'}:${href || value}`,
+    label,
+    value,
+    href,
+    external: Boolean(href && /^https?:\/\//i.test(href)),
+    icon: type === 'text' ? 'chat' : 'link',
+    sort: Number.isFinite(method.sort) ? Number(method.sort) : 0
+  }
+}
+
+function normalizeContactLabel(label: string | undefined, fallback: string): string {
+  const normalized = label?.trim()
+  if (!normalized) return fallback
+
+  if (/^(tg|telegram)$/i.test(normalized)) return 'Telegram'
+  if (/^(email|mail|e-mail|邮箱|郵箱)$/i.test(normalized)) return 'Email'
+
+  return normalized
+}
+
+function trimContactToken(value: string): string {
+  return value.trim().replace(/[，。,.;；|)）]+$/g, '')
+}
+
+function getUrlHost(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return 'Link'
+  }
+}
 
 const pageTitle = computed(() => {
   // For custom pages, use the menu item's label instead of generic "自定义页面"

@@ -133,6 +133,7 @@ type SystemSettings struct {
 	APIBaseURL                  string           `json:"api_base_url"`
 	CcsImportBaseURL            string           `json:"ccs_import_base_url"`
 	ContactInfo                 string           `json:"contact_info"`
+	ContactMethods              json.RawMessage  `json:"contact_methods"`
 	DocURL                      string           `json:"doc_url"`
 	HomeContent                 string           `json:"home_content"`
 	HideCcsImportButton         bool             `json:"hide_ccs_import_button"`
@@ -294,6 +295,7 @@ type PublicSettings struct {
 	APIBaseURL                       string                   `json:"api_base_url"`
 	CcsImportBaseURL                 string                   `json:"ccs_import_base_url"`
 	ContactInfo                      string                   `json:"contact_info"`
+	ContactMethods                   json.RawMessage          `json:"contact_methods"`
 	DocURL                           string                   `json:"doc_url"`
 	HomeContent                      string                   `json:"home_content"`
 	HideCcsImportButton              bool                     `json:"hide_ccs_import_button"`
@@ -500,4 +502,21 @@ func ParseCustomEndpoints(raw string) []CustomEndpoint {
 		return []CustomEndpoint{}
 	}
 	return items
+}
+
+// SafeRawJSONArray returns raw as json.RawMessage if it is a valid JSON array.
+// Empty or invalid input returns [].
+func SafeRawJSONArray(raw string) json.RawMessage {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return json.RawMessage("[]")
+	}
+	if !json.Valid([]byte(raw)) {
+		return json.RawMessage("[]")
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		return json.RawMessage("[]")
+	}
+	return json.RawMessage(raw)
 }

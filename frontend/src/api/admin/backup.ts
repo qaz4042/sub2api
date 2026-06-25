@@ -91,8 +91,8 @@ export async function deleteBackup(id: string): Promise<void> {
   await apiClient.delete(`/admin/backups/${id}`)
 }
 
-export async function getDownloadURL(id: string): Promise<{ url: string }> {
-  const { data } = await apiClient.get<{ url: string }>(`/admin/backups/${id}/download-url`)
+export async function getDownloadURL(id: string, password: string): Promise<{ url: string }> {
+  const { data } = await apiClient.post<{ url: string }>(`/admin/backups/${id}/download-url`, { password })
   return data
 }
 

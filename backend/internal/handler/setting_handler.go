@@ -64,6 +64,7 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		APIBaseURL:                       settings.APIBaseURL,
 		CcsImportBaseURL:                 settings.CcsImportBaseURL,
 		ContactInfo:                      settings.ContactInfo,
+		ContactMethods:                   dto.SafeRawJSONArray(settings.ContactMethods),
 		DocURL:                           settings.DocURL,
 		HomeContent:                      settings.HomeContent,
 		HideCcsImportButton:              settings.HideCcsImportButton,

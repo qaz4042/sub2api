@@ -207,6 +207,7 @@ export interface PublicSettings {
   api_base_url: string
   ccs_import_base_url?: string
   contact_info: string
+  contact_methods?: ContactMethod[]
   doc_url: string
   home_content: string
   hide_ccs_import_button: boolean
@@ -238,6 +239,15 @@ export interface PublicSettings {
   service_quota_enabled: boolean
   affiliate_enabled: boolean
   allow_user_view_error_requests?: boolean
+}
+
+export interface ContactMethod {
+  type: 'telegram' | 'email' | 'link' | 'text' | string
+  label: string
+  value: string
+  url?: string
+  enabled?: boolean
+  sort?: number
 }
 
 export interface PlatformConfig {

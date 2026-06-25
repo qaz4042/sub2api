@@ -561,7 +561,7 @@ export async function syncFromCrs(params: {
   return data
 }
 
-export async function exportData(options?: {
+export async function exportData(options: {
   ids?: number[]
   filters?: {
     platform?: string
@@ -574,6 +574,7 @@ export async function exportData(options?: {
     sort_order?: 'asc' | 'desc'
   }
   includeProxies?: boolean
+  password: string
 }): Promise<AdminDataPayload> {
   const params: Record<string, string> = {}
   if (options?.ids && options.ids.length > 0) {
@@ -592,7 +593,7 @@ export async function exportData(options?: {
   if (options?.includeProxies === false) {
     params.include_proxies = 'false'
   }
-  const { data } = await apiClient.get<AdminDataPayload>('/admin/accounts/data', { params })
+  const { data } = await apiClient.post<AdminDataPayload>('/admin/accounts/data/export', { password: options.password }, { params })
   return data
 }
 

@@ -10504,9 +10504,14 @@ func (s *GatewayService) initDebugGatewayBodyFile(path string) {
 		}
 	}
 
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		slog.Error("failed to open gateway debug log file", "path", path, "error", err)
+		return
+	}
+	if err := f.Chmod(0600); err != nil {
+		_ = f.Close()
+		slog.Error("failed to restrict gateway debug log file permissions", "path", path, "error", err)
 		return
 	}
 	s.debugGatewayBodyFile.Store(f)
