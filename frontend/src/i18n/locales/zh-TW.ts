@@ -2376,7 +2376,7 @@ export default {
         opusModel: 'Opus 對映模型',
         opusModelPlaceholder: '例如: gpt-5.4',
         sonnetModel: 'Sonnet 對映模型',
-        sonnetModelPlaceholder: '例如: gpt-5.3-codex',
+        sonnetModelPlaceholder: '例如: gpt-5.4',
         haikuModel: 'Haiku 對映模型',
         haikuModelPlaceholder: '例如: gpt-5.4-mini',
         exactMappingTitle: '精確模型覆蓋',
