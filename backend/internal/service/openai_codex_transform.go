@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 )
 
@@ -1095,7 +1096,7 @@ func filterCodexInput(input []any, preserveReferences bool) []any {
 
 func filterCodexInputWithOptions(input []any, opts codexInputFilterOptions) []any {
 	filtered := make([]any, 0, len(input))
-	for _, item := range input {
+	for idx, item := range input {
 		m, ok := item.(map[string]any)
 		if !ok {
 			filtered = append(filtered, item)
@@ -1195,6 +1196,8 @@ func filterCodexInputWithOptions(input []any, opts codexInputFilterOptions) []an
 			}
 		}
 
+		normalizeCodexToolCallArguments(idx, typ, m["arguments"], &newItem, ensureCopy)
+
 		if !opts.PreserveReferences {
 			ensureCopy()
 			delete(newItem, "id")
@@ -1203,6 +1206,59 @@ func filterCodexInputWithOptions(input []any, opts codexInputFilterOptions) []an
 		filtered = append(filtered, newItem)
 	}
 	return filtered
+}
+
+func normalizeCodexToolCallArguments(inputIndex int, typ string, value any, newItem *map[string]any, ensureCopy func()) bool {
+	if strings.TrimSpace(typ) != "function_call" && strings.TrimSpace(typ) != "mcp_tool_call" {
+		return false
+	}
+	if value == nil {
+		return false
+	}
+	if _, ok := value.(string); ok {
+		return false
+	}
+	diag := describeCodexToolCallArguments(value)
+	logger.LegacyPrintf(
+		"service.openai_codex_transform",
+		"codex_oauth.non_string_tool_call_arguments input_index=%d item_type=%s arg_type=%s object_keys=%d max_key_len=%d array_len=%d",
+		inputIndex,
+		strings.TrimSpace(typ),
+		diag.ArgType,
+		diag.ObjectKeys,
+		diag.MaxKeyLen,
+		diag.ArrayLen,
+	)
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		encoded = []byte(fmt.Sprint(value))
+	}
+	ensureCopy()
+	(*newItem)["arguments"] = string(encoded)
+	return true
+}
+
+type codexToolCallArgumentsDiagnostic struct {
+	ArgType    string
+	ObjectKeys int
+	MaxKeyLen  int
+	ArrayLen   int
+}
+
+func describeCodexToolCallArguments(value any) codexToolCallArgumentsDiagnostic {
+	diag := codexToolCallArgumentsDiagnostic{ArgType: fmt.Sprintf("%T", value)}
+	switch v := value.(type) {
+	case map[string]any:
+		diag.ObjectKeys = len(v)
+		for key := range v {
+			if l := len(key); l > diag.MaxKeyLen {
+				diag.MaxKeyLen = l
+			}
+		}
+	case []any:
+		diag.ArrayLen = len(v)
+	}
+	return diag
 }
 
 func isCodexToolCallItemType(typ string) bool {

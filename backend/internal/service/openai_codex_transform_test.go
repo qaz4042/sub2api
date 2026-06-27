@@ -343,6 +343,51 @@ func TestApplyCodexOAuthTransform_AddsFallbackNameForFunctionCallInput(t *testin
 	require.Equal(t, "fc_1", item["call_id"])
 }
 
+func TestApplyCodexOAuthTransform_StringifiesFunctionCallArguments(t *testing.T) {
+	longKey := strings.Repeat("x", 300)
+	reqBody := map[string]any{
+		"model": "gpt-5.5",
+		"input": []any{
+			map[string]any{"type": "message", "role": "user", "content": "continue"},
+			map[string]any{
+				"type":      "function_call",
+				"call_id":   "call_1",
+				"name":      "tool",
+				"arguments": map[string]any{longKey: "value"},
+			},
+		},
+	}
+
+	applyCodexOAuthTransform(reqBody, true, false)
+
+	input, ok := reqBody["input"].([]any)
+	require.True(t, ok)
+	item, ok := input[1].(map[string]any)
+	require.True(t, ok)
+	args, ok := item["arguments"].(string)
+	require.True(t, ok)
+	require.Contains(t, args, longKey)
+	require.JSONEq(t, `{"`+longKey+`":"value"}`, args)
+}
+
+func TestDescribeCodexToolCallArgumentsDiagnostic(t *testing.T) {
+	diag := describeCodexToolCallArguments(map[string]any{
+		"short":                "a",
+		strings.Repeat("x", 5): "b",
+	})
+
+	require.Equal(t, "map[string]interface {}", diag.ArgType)
+	require.Equal(t, 2, diag.ObjectKeys)
+	require.Equal(t, 5, diag.MaxKeyLen)
+	require.Equal(t, 0, diag.ArrayLen)
+
+	arrDiag := describeCodexToolCallArguments([]any{"a", "b"})
+	require.Equal(t, "[]interface {}", arrDiag.ArgType)
+	require.Equal(t, 0, arrDiag.ObjectKeys)
+	require.Equal(t, 0, arrDiag.MaxKeyLen)
+	require.Equal(t, 2, arrDiag.ArrayLen)
+}
+
 func TestApplyCodexOAuthTransform_PreservesFunctionCallInputName(t *testing.T) {
 	reqBody := map[string]any{
 		"model": "gpt-5.4",
