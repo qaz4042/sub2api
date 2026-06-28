@@ -935,6 +935,7 @@
       :selected-key-id="selectedKey?.id ?? null"
       :api-key="selectedKey?.key || ''"
       :base-url="publicSettings?.api_base_url || ''"
+      :gateway-base-url="apiTestGatewayBaseUrl"
       :platform="selectedKey?.group?.platform || null"
       :allow-messages-dispatch="selectedKey?.group?.allow_messages_dispatch || false"
       @update:selected-key-id="selectUseKey"
@@ -1275,6 +1276,10 @@ const useKeyOptions = computed(() =>
     platform: key.group?.platform ?? null,
     groupName: key.group?.name ?? null
   }))
+)
+
+const apiTestGatewayBaseUrl = computed(() =>
+  resolveCcSwitchBaseUrl(publicSettings.value, window.location.origin)
 )
 
 // Group dropdown search

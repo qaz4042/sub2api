@@ -817,6 +817,12 @@ export default {
         rawResponse: 'Raw response',
         emptyResponse: 'Request succeeded, but response is empty.',
         requestFailed: 'Request failed',
+        displayEndpoint: 'Displayed/copied endpoint: {url}',
+        actualRequestEndpoint: 'Actual page request: {url}',
+        corsBlockedTitle: 'Browser CORS restriction',
+        corsBlocked:
+          'The request gateway is cross-origin from this page, so the browser will block this test during CORS preflight. curl and server-side requests are not affected.',
+        useCurlInstead: 'Copy the curl example below and test from a terminal, or enable CORS on that gateway before using the page test.',
       },
       antigravity: {
         description: 'Configure API access for Antigravity group. Select the configuration method based on your client.',

@@ -55,6 +55,7 @@ describe('UseKeyModal', () => {
         show: true,
         apiKey: 'sk-test',
         baseUrl: 'https://example.com/v1',
+        gatewayBaseUrl: 'https://gateway.example.com',
         platform: 'openai'
       },
       global: {
@@ -129,6 +130,7 @@ describe('UseKeyModal', () => {
         show: true,
         apiKey: 'sk-test',
         baseUrl: 'https://example.com/v1',
+        gatewayBaseUrl: 'https://gateway.example.com',
         platform: 'openai'
       },
       global: {
@@ -153,8 +155,9 @@ describe('UseKeyModal', () => {
 
     const codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
     expect(codeBlocks.some((content) => content.includes('GET /v1/models'))).toBe(false)
-    expect(codeBlocks.some((content) => content.includes('https://example.com/v1/models'))).toBe(true)
-    expect(codeBlocks.some((content) => content.includes('https://example.com/v1/chat/completions'))).toBe(true)
+    expect(codeBlocks.some((content) => content.includes('https://gateway.example.com/v1/models'))).toBe(true)
+    expect(codeBlocks.some((content) => content.includes('https://gateway.example.com/v1/chat/completions'))).toBe(true)
+    expect(codeBlocks.some((content) => content.includes('https://example.com/v1/chat/completions'))).toBe(false)
     expect(codeBlocks.some((content) => content.includes('Authorization: Bearer sk-test'))).toBe(true)
   })
 

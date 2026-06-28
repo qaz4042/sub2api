@@ -353,6 +353,7 @@ interface Props {
   apiKeys?: UseKeyOption[]
   selectedKeyId?: number | null
   baseUrl: string
+  gatewayBaseUrl?: string
   platform: GroupPlatform | null
   allowMessagesDispatch?: boolean
 }
@@ -731,6 +732,9 @@ const currentFiles = computed((): FileConfig[] => {
   const baseUrl = props.baseUrl || window.location.origin
   const apiKey = props.apiKey
   const baseRoot = baseUrl.replace(/\/v1\/?$/, '').replace(/\/+$/, '')
+  const gatewayRoot = (props.gatewayBaseUrl || baseUrl || window.location.origin)
+    .replace(/\/v1\/?$/, '')
+    .replace(/\/+$/, '')
   const ensureV1 = (value: string) => {
     const trimmed = value.replace(/\/+$/, '')
     return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
@@ -745,20 +749,29 @@ const currentFiles = computed((): FileConfig[] => {
     const trimmed = baseRoot.replace(/\/+$/, '')
     return trimmed.endsWith('/v1beta') ? trimmed : `${trimmed}/v1beta`
   })()
+  const apiTestApiBase = ensureV1(gatewayRoot)
+  const apiTestAntigravityGeminiBase = (() => {
+    const trimmed = `${gatewayRoot}/antigravity`.replace(/\/+$/, '')
+    return trimmed.endsWith('/v1beta') ? trimmed : `${trimmed}/v1beta`
+  })()
+  const apiTestGeminiBase = (() => {
+    const trimmed = gatewayRoot.replace(/\/+$/, '')
+    return trimmed.endsWith('/v1beta') ? trimmed : `${trimmed}/v1beta`
+  })()
 
   if (activeClientTab.value === 'api-test') {
     switch (props.platform) {
       case 'openai':
-        return generateOpenAIApiTestFiles(apiBase, apiKey)
+        return generateOpenAIApiTestFiles(apiTestApiBase, apiKey)
       case 'gemini':
-        return [generateGeminiApiTestFile(geminiBase, apiKey)]
+        return [generateGeminiApiTestFile(apiTestGeminiBase, apiKey)]
       case 'antigravity':
         return [
-          generateAnthropicApiTestFile(`${baseRoot}/antigravity`, apiKey, 'claude-fable-5', 'Claude'),
-          generateGeminiApiTestFile(antigravityGeminiBase, apiKey, 'gemini-2.5-flash', 'Gemini')
+          generateAnthropicApiTestFile(`${gatewayRoot}/antigravity`, apiKey, 'claude-fable-5', 'Claude'),
+          generateGeminiApiTestFile(apiTestAntigravityGeminiBase, apiKey, 'gemini-2.5-flash', 'Gemini')
         ]
       default:
-        return [generateAnthropicApiTestFile(baseRoot, apiKey, 'claude-sonnet-4-6')]
+        return [generateAnthropicApiTestFile(gatewayRoot, apiKey, 'claude-sonnet-4-6')]
     }
   }
 
@@ -905,8 +918,9 @@ function abortApiTest() {
 }
 
 const getApiTestBaseUrl = () => {
-  const baseUrl = props.baseUrl || window.location.origin
-  const baseRoot = baseUrl.replace(/\/v1\/?$/, '').replace(/\/+$/, '')
+  const baseRoot = window.location.origin
+    .replace(/\/v1\/?$/, '')
+    .replace(/\/+$/, '')
 
   if (props.platform === 'antigravity') {
     if (apiTestProtocol.value === 'gemini') return `${baseRoot}/antigravity/v1beta`
@@ -916,6 +930,14 @@ const getApiTestBaseUrl = () => {
   if (apiTestProtocol.value === 'gemini') return `${baseRoot}/v1beta`
   if (apiTestProtocol.value === 'openai') return `${baseRoot}/v1`
   return baseRoot
+}
+
+const getDisplayedApiTestUrl = () => {
+  const files = currentFiles.value
+  const requestFile = files.find((file) => file.path.startsWith('POST '))
+  if (!requestFile) return ''
+  const match = requestFile.content.match(/curl "([^"]+)"/)
+  return match?.[1] || ''
 }
 
 const getApiTestUrl = () => {
@@ -1006,9 +1028,13 @@ const startApiTest = async () => {
   apiTestAbortController = new AbortController()
 
   const url = getApiTestUrl()
+  const displayedUrl = getDisplayedApiTestUrl()
   addApiTestLine(t('keys.useKeyModal.apiTest.starting'), 'text-blue-400')
   addApiTestLine(`${apiTestProtocol.value.toUpperCase()} ${apiTestModel.value}`, 'text-cyan-400')
-  addApiTestLine(`POST ${url}`, 'text-gray-400')
+  if (displayedUrl && displayedUrl !== url) {
+    addApiTestLine(t('keys.useKeyModal.apiTest.displayEndpoint', { url: displayedUrl }), 'text-gray-400')
+  }
+  addApiTestLine(t('keys.useKeyModal.apiTest.actualRequestEndpoint', { url }), 'text-gray-400')
   addApiTestLine('', 'text-gray-300')
 
   try {

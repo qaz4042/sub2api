@@ -817,7 +817,13 @@ export default {
         response: '響應內容',
         rawResponse: '原始響應',
         emptyResponse: '請求成功，但響應為空。',
-        requestFailed: '請求失敗'
+        requestFailed: '請求失敗',
+        displayEndpoint: '展示/複製端點：{url}',
+        actualRequestEndpoint: '頁面實際請求：{url}',
+        corsBlockedTitle: '瀏覽器 CORS 限制',
+        corsBlocked:
+          '當前請求網關與頁面不同源，瀏覽器會因 CORS 預檢限制攔截此測試。curl 或服務端請求不受此限制。',
+        useCurlInstead: '請複製下方 curl 示例在終端測試，或為該網關啟用 CORS 後再使用頁面測試。'
       },
       antigravity: {
         description: '為 Antigravity 分組配置 API 訪問。請根據您使用的客戶端選擇對應的配置方式。',

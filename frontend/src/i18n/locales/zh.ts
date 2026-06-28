@@ -817,7 +817,13 @@ export default {
         response: '响应内容',
         rawResponse: '原始响应',
         emptyResponse: '请求成功，但响应为空。',
-        requestFailed: '请求失败'
+        requestFailed: '请求失败',
+        displayEndpoint: '展示/复制端点：{url}',
+        actualRequestEndpoint: '页面实际请求：{url}',
+        corsBlockedTitle: '浏览器 CORS 限制',
+        corsBlocked:
+          '当前请求网关与页面不同源，浏览器会因 CORS 预检限制拦截此测试。curl 或服务端请求不受此限制。',
+        useCurlInstead: '请复制下方 curl 示例在终端测试，或为该网关启用 CORS 后再使用页面测试。'
       },
       antigravity: {
         description: '为 Antigravity 分组配置 API 访问。请根据您使用的客户端选择对应的配置方式。',
