@@ -6,6 +6,45 @@
     @close="emit('close')"
   >
     <div class="space-y-4">
+      <div v-if="apiKeyOptions.length > 0" class="space-y-1.5">
+        <label class="input-label">{{ t('keys.useKeyModal.keySelectorLabel') }}</label>
+        <Select
+          :model-value="selectedKeyId"
+          :options="apiKeyOptions"
+          :searchable="true"
+          :search-placeholder="t('keys.useKeyModal.keySelectorSearchPlaceholder')"
+          @update:model-value="updateSelectedKey"
+        >
+          <template #selected="{ option }">
+            <span v-if="option" class="flex min-w-0 items-center gap-2">
+              <span class="truncate font-medium">{{ option.label }}</span>
+              <span class="shrink-0 text-xs text-gray-400 dark:text-gray-500">{{ option.maskedKey }}</span>
+            </span>
+            <span v-else class="text-gray-400">{{ t('keys.useKeyModal.keySelectorPlaceholder') }}</span>
+          </template>
+          <template #option="{ option, selected }">
+            <div class="flex min-w-0 flex-1 items-center justify-between gap-3">
+              <div class="min-w-0">
+                <div class="truncate text-sm font-medium text-gray-900 dark:text-white">
+                  {{ option.label }}
+                </div>
+                <div class="mt-0.5 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <span class="font-mono">{{ option.maskedKey }}</span>
+                  <span v-if="option.groupName" class="truncate">{{ option.groupName }}</span>
+                </div>
+              </div>
+              <Icon
+                v-if="selected"
+                name="check"
+                size="sm"
+                class="shrink-0 text-primary-500"
+                :stroke-width="2"
+              />
+            </div>
+          </template>
+        </Select>
+      </div>
+
       <!-- No Group Assigned Warning -->
       <div v-if="!platform" class="flex items-start gap-3 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
         <svg class="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
@@ -72,6 +111,162 @@
           </nav>
         </div>
 
+        <!-- API Integration Test -->
+        <div
+          v-if="activeClientTab === 'api-test'"
+          class="space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-dark-600 dark:bg-dark-800/70"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h4 class="text-sm font-semibold text-gray-900 dark:text-white">
+                {{ t('keys.useKeyModal.apiTest.quickTestTitle') }}
+              </h4>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('keys.useKeyModal.apiTest.quickTestDescription') }}
+              </p>
+            </div>
+            <span
+              :class="[
+                'rounded-full px-2.5 py-1 text-xs font-semibold',
+                apiTestStatus === 'success'
+                  ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400'
+                  : apiTestStatus === 'error'
+                    ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
+                    : apiTestStatus === 'connecting'
+                      ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400'
+                      : 'bg-gray-100 text-gray-600 dark:bg-dark-600 dark:text-gray-300'
+              ]"
+            >
+              {{ apiTestStatusLabel }}
+            </span>
+          </div>
+
+          <div class="grid gap-3 md:grid-cols-2">
+            <div v-if="apiTestProtocolOptions.length > 1" class="space-y-1.5">
+              <label class="input-label">{{ t('keys.useKeyModal.apiTest.protocolLabel') }}</label>
+              <Select
+                v-model="apiTestProtocol"
+                :options="apiTestProtocolOptions"
+                :disabled="apiTestStatus === 'connecting'"
+              />
+            </div>
+            <div class="space-y-1.5">
+              <label class="input-label">{{ t('keys.useKeyModal.apiTest.modelLabel') }}</label>
+              <Select
+                v-model="apiTestModel"
+                :options="apiTestModelOptions"
+                :disabled="apiTestStatus === 'connecting'"
+              />
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="input-label">{{ t('keys.useKeyModal.apiTest.promptLabel') }}</label>
+            <textarea
+              v-model="apiTestPrompt"
+              rows="2"
+              :disabled="apiTestStatus === 'connecting'"
+              class="input min-h-[72px] resize-y"
+              :placeholder="t('keys.useKeyModal.apiTest.promptPlaceholder')"
+            />
+          </div>
+
+          <div class="group relative">
+            <div
+              ref="apiTestTerminalRef"
+              class="max-h-[220px] min-h-[118px] overflow-y-auto rounded-xl border border-gray-700 bg-gray-900 p-4 font-mono text-sm dark:border-gray-800 dark:bg-black"
+            >
+              <div v-if="apiTestStatus === 'idle' && apiTestOutputLines.length === 0" class="flex items-center gap-2 text-gray-500">
+                <Icon name="play" size="sm" :stroke-width="2" />
+                <span>{{ t('keys.useKeyModal.apiTest.ready') }}</span>
+              </div>
+              <div v-else-if="apiTestStatus === 'connecting'" class="flex items-center gap-2 text-yellow-400">
+                <Icon name="refresh" size="sm" class="animate-spin" :stroke-width="2" />
+                <span>{{ t('keys.useKeyModal.apiTest.testing') }}</span>
+              </div>
+
+              <div v-for="(line, index) in apiTestOutputLines" :key="index" :class="line.class">
+                {{ line.text }}
+              </div>
+
+              <div v-if="apiTestStreamingContent" class="whitespace-pre-wrap text-green-400">
+                {{ apiTestStreamingContent }}
+              </div>
+
+              <div
+                v-if="apiTestStatus === 'success'"
+                class="mt-3 flex items-center gap-2 border-t border-gray-700 pt-3 text-green-400"
+              >
+                <Icon name="check" size="sm" :stroke-width="2" />
+                <span>{{ t('keys.useKeyModal.apiTest.completed') }}</span>
+              </div>
+              <div
+                v-else-if="apiTestStatus === 'error'"
+                class="mt-3 flex items-center gap-2 border-t border-gray-700 pt-3 text-red-400"
+              >
+                <Icon name="x" size="sm" :stroke-width="2" />
+                <span>{{ apiTestErrorMessage }}</span>
+              </div>
+            </div>
+
+            <button
+              v-if="apiTestOutputLines.length > 0 || apiTestStreamingContent"
+              @click="copyApiTestOutput"
+              class="absolute right-2 top-2 rounded-lg bg-gray-800/80 p-1.5 text-gray-400 opacity-0 transition-all hover:bg-gray-700 hover:text-white group-hover:opacity-100"
+              :title="t('keys.useKeyModal.apiTest.copyOutput')"
+            >
+              <Icon name="link" size="sm" :stroke-width="2" />
+            </button>
+          </div>
+
+          <div class="flex flex-wrap justify-end gap-3">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              :disabled="apiTestStatus === 'connecting'"
+              @click="resetApiTestState"
+            >
+              {{ t('keys.useKeyModal.apiTest.clear') }}
+            </button>
+            <button
+              type="button"
+              :disabled="apiTestStatus === 'connecting' || !apiTestModel"
+              :class="[
+                'btn',
+                apiTestStatus === 'success'
+                  ? 'bg-green-500 text-white hover:bg-green-600'
+                  : apiTestStatus === 'error'
+                    ? 'bg-orange-500 text-white hover:bg-orange-600'
+                    : 'btn-primary',
+                (apiTestStatus === 'connecting' || !apiTestModel) && 'cursor-not-allowed opacity-70'
+              ]"
+              @click="startApiTest"
+            >
+              <Icon
+                v-if="apiTestStatus === 'connecting'"
+                name="refresh"
+                size="sm"
+                class="mr-2 animate-spin"
+                :stroke-width="2"
+              />
+              <Icon
+                v-else
+                name="play"
+                size="sm"
+                class="mr-2"
+                :stroke-width="2"
+              />
+              {{
+                apiTestStatus === 'connecting'
+                  ? t('keys.useKeyModal.apiTest.testing')
+                  : apiTestStatus === 'idle'
+                    ? t('keys.useKeyModal.apiTest.start')
+                    : t('keys.useKeyModal.apiTest.retry')
+              }}
+            </button>
+          </div>
+        </div>
+
         <!-- Code Blocks (Stacked for multi-file platforms) -->
         <div class="space-y-4">
           <div
@@ -134,17 +329,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h, watch, type Component } from 'vue'
+import { ref, computed, h, watch, nextTick, onBeforeUnmount, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { sanitizeHtml } from '@/utils/sanitize'
 import type { GroupPlatform } from '@/types'
 
+interface UseKeyOption {
+  id: number
+  name: string
+  key: string
+  status: string
+  platform: GroupPlatform | null
+  groupName: string | null
+}
+
 interface Props {
   show: boolean
   apiKey: string
+  apiKeys?: UseKeyOption[]
+  selectedKeyId?: number | null
   baseUrl: string
   platform: GroupPlatform | null
   allowMessagesDispatch?: boolean
@@ -152,6 +359,7 @@ interface Props {
 
 interface Emits {
   (e: 'close'): void
+  (e: 'update:selectedKeyId', value: number | null): void
 }
 
 interface TabConfig {
@@ -167,6 +375,13 @@ interface FileConfig {
   highlighted?: string
 }
 
+interface ApiTestOutputLine {
+  text: string
+  class: string
+}
+
+type ApiTestProtocol = 'openai' | 'anthropic' | 'gemini'
+
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
@@ -176,6 +391,91 @@ const { copyToClipboard: clipboardCopy } = useClipboard()
 const copiedIndex = ref<number | null>(null)
 const activeTab = ref<string>('unix')
 const activeClientTab = ref<string>('claude')
+const apiTestTerminalRef = ref<HTMLElement | null>(null)
+const apiTestStatus = ref<'idle' | 'connecting' | 'success' | 'error'>('idle')
+const apiTestOutputLines = ref<ApiTestOutputLine[]>([])
+const apiTestStreamingContent = ref('')
+const apiTestErrorMessage = ref('')
+const apiTestPrompt = ref('')
+const apiTestProtocol = ref<ApiTestProtocol>('openai')
+const apiTestModel = ref('')
+let apiTestAbortController: AbortController | null = null
+
+const maskKey = (value: string) => {
+  if (!value) return ''
+  if (value.length <= 12) return value
+  return `${value.slice(0, 6)}...${value.slice(-4)}`
+}
+
+const apiKeyOptions = computed(() =>
+  (props.apiKeys ?? []).map((key) => ({
+    value: key.id,
+    label: key.name,
+    description: [key.key, key.groupName, key.platform].filter(Boolean).join(' '),
+    maskedKey: maskKey(key.key),
+    groupName: key.groupName,
+    status: key.status
+  }))
+)
+
+const updateSelectedKey = (value: string | number | boolean | null) => {
+  emit('update:selectedKeyId', typeof value === 'number' ? value : null)
+}
+
+const defaultApiTestPrompt = computed(() => t('keys.useKeyModal.apiTest.defaultPrompt'))
+
+const apiTestProtocolOptions = computed(() => {
+  switch (props.platform) {
+    case 'openai':
+      return [{ value: 'openai', label: 'OpenAI' }]
+    case 'gemini':
+      return [{ value: 'gemini', label: 'Gemini' }]
+    case 'antigravity':
+      return [
+        { value: 'anthropic', label: 'Claude' },
+        { value: 'gemini', label: 'Gemini' }
+      ]
+    default:
+      return [{ value: 'anthropic', label: 'Claude' }]
+  }
+})
+
+const apiTestModelOptions = computed(() => {
+  switch (apiTestProtocol.value) {
+    case 'openai':
+      return [
+        { value: 'gpt-5.5', label: 'gpt-5.5' },
+        { value: 'gpt-5.4', label: 'gpt-5.4' },
+        { value: 'gpt-5.4-mini', label: 'gpt-5.4-mini' }
+      ]
+    case 'gemini':
+      return [
+        { value: 'gemini-2.0-flash', label: 'gemini-2.0-flash' },
+        { value: 'gemini-2.5-flash', label: 'gemini-2.5-flash' },
+        { value: 'gemini-2.5-pro', label: 'gemini-2.5-pro' },
+        { value: 'gemini-3-pro-preview', label: 'gemini-3-pro-preview' }
+      ]
+    default:
+      return [
+        { value: props.platform === 'antigravity' ? 'claude-fable-5' : 'claude-sonnet-4-6', label: props.platform === 'antigravity' ? 'claude-fable-5' : 'claude-sonnet-4-6' },
+        { value: 'claude-opus-4-6-thinking', label: 'claude-opus-4-6-thinking' },
+        { value: 'claude-sonnet-4-6', label: 'claude-sonnet-4-6' }
+      ]
+  }
+})
+
+const apiTestStatusLabel = computed(() => {
+  switch (apiTestStatus.value) {
+    case 'connecting':
+      return t('keys.useKeyModal.apiTest.statusConnecting')
+    case 'success':
+      return t('keys.useKeyModal.apiTest.statusSuccess')
+    case 'error':
+      return t('keys.useKeyModal.apiTest.statusError')
+    default:
+      return t('keys.useKeyModal.apiTest.statusIdle')
+  }
+})
 
 // Reset tabs when platform changes
 const defaultClientTab = computed(() => {
@@ -195,6 +495,35 @@ watch(() => props.platform, () => {
   activeTab.value = 'unix'
   activeClientTab.value = defaultClientTab.value
 }, { immediate: true })
+
+watch(
+  () => props.platform,
+  () => {
+    apiTestProtocol.value = (apiTestProtocolOptions.value[0]?.value as ApiTestProtocol | undefined) ?? 'openai'
+  },
+  { immediate: true }
+)
+
+watch(apiTestProtocol, () => {
+  apiTestModel.value = String(apiTestModelOptions.value[0]?.value ?? '')
+  resetApiTestState()
+}, { immediate: true })
+
+watch(activeClientTab, (tab) => {
+  if (tab === 'api-test' && !apiTestPrompt.value.trim()) {
+    apiTestPrompt.value = defaultApiTestPrompt.value
+  }
+})
+
+watch(() => props.apiKey, () => {
+  resetApiTestState()
+})
+
+watch(() => props.show, (show) => {
+  if (!show) {
+    abortApiTest()
+  }
+})
 
 // Reset shell tab when client changes
 watch(activeClientTab, () => {
@@ -275,24 +604,30 @@ const clientTabs = computed((): TabConfig[] => {
       if (props.allowMessagesDispatch) {
         tabs.push({ id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon })
       }
-      tabs.push({ id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon })
+      tabs.push(
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon },
+        { id: 'api-test', label: t('keys.useKeyModal.cliTabs.apiTest'), icon: TerminalIcon }
+      )
       return tabs
     }
     case 'gemini':
       return [
         { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
-        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon },
+        { id: 'api-test', label: t('keys.useKeyModal.cliTabs.apiTest'), icon: TerminalIcon }
       ]
     case 'antigravity':
       return [
         { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
         { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
-        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon },
+        { id: 'api-test', label: t('keys.useKeyModal.cliTabs.apiTest'), icon: TerminalIcon }
       ]
     default:
       return [
         { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
-        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon },
+        { id: 'api-test', label: t('keys.useKeyModal.cliTabs.apiTest'), icon: TerminalIcon }
       ]
   }
 })
@@ -310,7 +645,9 @@ const openaiTabs: TabConfig[] = [
   { id: 'windows', label: 'Windows', icon: WindowsIcon }
 ]
 
-const showShellTabs = computed(() => activeClientTab.value !== 'opencode')
+const noShellTabClients = new Set(['opencode', 'api-test'])
+
+const showShellTabs = computed(() => !noShellTabClients.has(activeClientTab.value))
 
 const currentTabs = computed(() => {
   if (!showShellTabs.value) return []
@@ -323,15 +660,27 @@ const currentTabs = computed(() => {
 const platformDescription = computed(() => {
   switch (props.platform) {
     case 'openai':
+      if (activeClientTab.value === 'api-test') {
+        return t('keys.useKeyModal.apiTest.openaiDescription')
+      }
       if (activeClientTab.value === 'claude') {
         return t('keys.useKeyModal.description')
       }
       return t('keys.useKeyModal.openai.description')
     case 'gemini':
+      if (activeClientTab.value === 'api-test') {
+        return t('keys.useKeyModal.apiTest.geminiDescription')
+      }
       return t('keys.useKeyModal.gemini.description')
     case 'antigravity':
+      if (activeClientTab.value === 'api-test') {
+        return t('keys.useKeyModal.apiTest.antigravityDescription')
+      }
       return t('keys.useKeyModal.antigravity.description')
     default:
+      if (activeClientTab.value === 'api-test') {
+        return t('keys.useKeyModal.apiTest.description')
+      }
       return t('keys.useKeyModal.description')
   }
 })
@@ -356,7 +705,7 @@ const platformNote = computed(() => {
   }
 })
 
-const showPlatformNote = computed(() => activeClientTab.value !== 'opencode')
+const showPlatformNote = computed(() => !noShellTabClients.has(activeClientTab.value))
 
 const escapeHtml = (value: string) => value
   .replace(/&/g, '&amp;')
@@ -397,6 +746,22 @@ const currentFiles = computed((): FileConfig[] => {
     return trimmed.endsWith('/v1beta') ? trimmed : `${trimmed}/v1beta`
   })()
 
+  if (activeClientTab.value === 'api-test') {
+    switch (props.platform) {
+      case 'openai':
+        return generateOpenAIApiTestFiles(apiBase, apiKey)
+      case 'gemini':
+        return [generateGeminiApiTestFile(geminiBase, apiKey)]
+      case 'antigravity':
+        return [
+          generateAnthropicApiTestFile(`${baseRoot}/antigravity`, apiKey, 'claude-fable-5', 'Claude'),
+          generateGeminiApiTestFile(antigravityGeminiBase, apiKey, 'gemini-2.5-flash', 'Gemini')
+        ]
+      default:
+        return [generateAnthropicApiTestFile(baseRoot, apiKey, 'claude-sonnet-4-6')]
+    }
+  }
+
   if (activeClientTab.value === 'opencode') {
     switch (props.platform) {
       case 'anthropic':
@@ -434,6 +799,287 @@ const currentFiles = computed((): FileConfig[] => {
     default:
       return generateAnthropicFiles(baseUrl, apiKey)
   }
+})
+
+function generateOpenAIApiTestFiles(baseUrl: string, apiKey: string): FileConfig[] {
+  const listModels = `curl "${baseUrl}/models" \\
+  -H "Authorization: Bearer ${apiKey}"`
+
+  const chatCompletions = `curl "${baseUrl}/chat/completions" \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -d '{
+    "model": "gpt-5.5",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Say hello in one short sentence."
+      }
+    ],
+    "stream": false
+  }'`
+
+  return [
+    {
+      path: 'GET /v1/models',
+      content: listModels,
+      hint: t('keys.useKeyModal.apiTest.listModelsHint')
+    },
+    {
+      path: 'POST /v1/chat/completions',
+      content: chatCompletions,
+      hint: t('keys.useKeyModal.apiTest.requestHint')
+    }
+  ]
+}
+
+function generateAnthropicApiTestFile(baseUrl: string, apiKey: string, model: string, label?: string): FileConfig {
+  const endpointBase = baseUrl.replace(/\/+$/, '')
+  return {
+    path: label ? `POST /v1/messages (${label})` : 'POST /v1/messages',
+    content: `curl "${endpointBase}/v1/messages" \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "anthropic-version: 2023-06-01" \\
+  -d '{
+    "model": "${model}",
+    "max_tokens": 128,
+    "messages": [
+      {
+        "role": "user",
+        "content": "Say hello in one short sentence."
+      }
+    ]
+  }'`,
+    hint: t('keys.useKeyModal.apiTest.requestHint')
+  }
+}
+
+function generateGeminiApiTestFile(baseUrl: string, apiKey: string, model = 'gemini-2.0-flash', label?: string): FileConfig {
+  const endpointBase = baseUrl.replace(/\/+$/, '')
+  return {
+    path: label ? `POST /v1beta/models:generateContent (${label})` : 'POST /v1beta/models:generateContent',
+    content: `curl "${endpointBase}/models/${model}:generateContent" \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -d '{
+    "contents": [
+      {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Say hello in one short sentence."
+          }
+        ]
+      }
+    ]
+  }'`,
+    hint: t('keys.useKeyModal.apiTest.requestHint')
+  }
+}
+
+const scrollApiTestToBottom = async () => {
+  await nextTick()
+  if (apiTestTerminalRef.value) {
+    apiTestTerminalRef.value.scrollTop = apiTestTerminalRef.value.scrollHeight
+  }
+}
+
+const addApiTestLine = (text: string, className = 'text-gray-300') => {
+  apiTestOutputLines.value.push({ text, class: className })
+  scrollApiTestToBottom()
+}
+
+function resetApiTestState() {
+  apiTestStatus.value = 'idle'
+  apiTestOutputLines.value = []
+  apiTestStreamingContent.value = ''
+  apiTestErrorMessage.value = ''
+}
+
+function abortApiTest() {
+  if (apiTestAbortController) {
+    apiTestAbortController.abort()
+    apiTestAbortController = null
+  }
+}
+
+const getApiTestBaseUrl = () => {
+  const baseUrl = props.baseUrl || window.location.origin
+  const baseRoot = baseUrl.replace(/\/v1\/?$/, '').replace(/\/+$/, '')
+
+  if (props.platform === 'antigravity') {
+    if (apiTestProtocol.value === 'gemini') return `${baseRoot}/antigravity/v1beta`
+    return `${baseRoot}/antigravity`
+  }
+
+  if (apiTestProtocol.value === 'gemini') return `${baseRoot}/v1beta`
+  if (apiTestProtocol.value === 'openai') return `${baseRoot}/v1`
+  return baseRoot
+}
+
+const getApiTestUrl = () => {
+  const baseUrl = getApiTestBaseUrl().replace(/\/+$/, '')
+  switch (apiTestProtocol.value) {
+    case 'openai':
+      return `${baseUrl}/chat/completions`
+    case 'gemini':
+      return `${baseUrl}/models/${apiTestModel.value}:generateContent`
+    default:
+      return `${baseUrl}/v1/messages`
+  }
+}
+
+const buildApiTestBody = () => {
+  const prompt = apiTestPrompt.value.trim() || defaultApiTestPrompt.value
+  switch (apiTestProtocol.value) {
+    case 'openai':
+      return {
+        model: apiTestModel.value,
+        messages: [{ role: 'user', content: prompt }],
+        stream: false
+      }
+    case 'gemini':
+      return {
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: prompt }]
+          }
+        ]
+      }
+    default:
+      return {
+        model: apiTestModel.value,
+        max_tokens: 128,
+        messages: [{ role: 'user', content: prompt }]
+      }
+  }
+}
+
+const extractApiTestText = (payload: unknown): string => {
+  if (!payload || typeof payload !== 'object') return ''
+  const data = payload as Record<string, any>
+
+  if (Array.isArray(data.choices)) {
+    return data.choices
+      .map((choice) => choice?.message?.content ?? choice?.delta?.content ?? choice?.text ?? '')
+      .filter(Boolean)
+      .join('\n')
+  }
+
+  if (Array.isArray(data.content)) {
+    return data.content
+      .map((part) => typeof part === 'string' ? part : part?.text ?? '')
+      .filter(Boolean)
+      .join('\n')
+  }
+
+  if (Array.isArray(data.candidates)) {
+    return data.candidates
+      .flatMap((candidate) => candidate?.content?.parts ?? [])
+      .map((part) => part?.text ?? '')
+      .filter(Boolean)
+      .join('\n')
+  }
+
+  if (typeof data.output_text === 'string') return data.output_text
+  if (typeof data.text === 'string') return data.text
+  return ''
+}
+
+const extractApiTestError = (payload: unknown) => {
+  if (!payload || typeof payload !== 'object') return ''
+  const data = payload as Record<string, any>
+  if (typeof data.error === 'string') return data.error
+  if (data.error?.message) return String(data.error.message)
+  if (data.message) return String(data.message)
+  return ''
+}
+
+const startApiTest = async () => {
+  if (!props.apiKey || !apiTestModel.value) return
+
+  abortApiTest()
+  resetApiTestState()
+  apiTestStatus.value = 'connecting'
+  apiTestAbortController = new AbortController()
+
+  const url = getApiTestUrl()
+  addApiTestLine(t('keys.useKeyModal.apiTest.starting'), 'text-blue-400')
+  addApiTestLine(`${apiTestProtocol.value.toUpperCase()} ${apiTestModel.value}`, 'text-cyan-400')
+  addApiTestLine(`POST ${url}`, 'text-gray-400')
+  addApiTestLine('', 'text-gray-300')
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${props.apiKey}`,
+        'Content-Type': 'application/json',
+        ...(apiTestProtocol.value === 'anthropic' ? { 'anthropic-version': '2023-06-01' } : {})
+      },
+      body: JSON.stringify(buildApiTestBody()),
+      signal: apiTestAbortController.signal
+    })
+
+    const rawText = await response.text()
+    let payload: unknown = null
+    if (rawText) {
+      try {
+        payload = JSON.parse(rawText)
+      } catch {
+        payload = rawText
+      }
+    }
+
+    addApiTestLine(`HTTP ${response.status} ${response.statusText}`, response.ok ? 'text-green-400' : 'text-red-400')
+
+    if (!response.ok) {
+      const errorText = extractApiTestError(payload) || rawText || t('keys.useKeyModal.apiTest.requestFailed')
+      apiTestStatus.value = 'error'
+      apiTestErrorMessage.value = errorText
+      addApiTestLine(errorText, 'text-red-400')
+      return
+    }
+
+    const responseText = extractApiTestText(payload)
+    if (responseText) {
+      addApiTestLine(t('keys.useKeyModal.apiTest.response'), 'text-yellow-400')
+      apiTestStreamingContent.value = responseText
+    } else if (rawText) {
+      addApiTestLine(t('keys.useKeyModal.apiTest.rawResponse'), 'text-yellow-400')
+      apiTestStreamingContent.value = rawText.length > 1200 ? `${rawText.slice(0, 1200)}...` : rawText
+    } else {
+      addApiTestLine(t('keys.useKeyModal.apiTest.emptyResponse'), 'text-yellow-400')
+    }
+
+    apiTestStatus.value = 'success'
+    scrollApiTestToBottom()
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      apiTestStatus.value = 'idle'
+      return
+    }
+    const message = error instanceof Error ? error.message : String(error)
+    apiTestStatus.value = 'error'
+    apiTestErrorMessage.value = message
+    addApiTestLine(`Error: ${message}`, 'text-red-400')
+  } finally {
+    apiTestAbortController = null
+  }
+}
+
+const copyApiTestOutput = async () => {
+  const content = [
+    ...apiTestOutputLines.value.map((line) => line.text),
+    apiTestStreamingContent.value
+  ].filter(Boolean).join('\n')
+  await clipboardCopy(content, t('keys.copied'))
+}
+
+onBeforeUnmount(() => {
+  abortApiTest()
 })
 
 function generateAnthropicFiles(baseUrl: string, apiKey: string): FileConfig[] {

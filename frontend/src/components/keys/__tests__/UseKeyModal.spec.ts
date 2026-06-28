@@ -123,6 +123,41 @@ describe('UseKeyModal', () => {
     expect(codeBlock.text()).not.toContain('"name": "GPT-5.4 Nano"')
   })
 
+  it('renders API integration and test examples as a client tab', async () => {
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'openai'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    const apiTestTab = wrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.apiTest')
+    )
+
+    expect(apiTestTab).toBeDefined()
+    await apiTestTab!.trigger('click')
+    await nextTick()
+
+    const codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
+    expect(codeBlocks.some((content) => content.includes('GET /v1/models'))).toBe(false)
+    expect(codeBlocks.some((content) => content.includes('https://example.com/v1/models'))).toBe(true)
+    expect(codeBlocks.some((content) => content.includes('https://example.com/v1/chat/completions'))).toBe(true)
+    expect(codeBlocks.some((content) => content.includes('Authorization: Bearer sk-test'))).toBe(true)
+  })
+
   it('renders Claude Fable 5 OpenCode config with adaptive thinking', async () => {
     const wrapper = mount(UseKeyModal, {
       props: {

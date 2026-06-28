@@ -41,6 +41,14 @@
         >
           <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
         </button>
+        <button
+          @click="openUseKeyModal()"
+          :disabled="apiKeys.length === 0"
+          class="btn btn-secondary"
+        >
+          <Icon name="terminal" size="md" class="mr-2" />
+          {{ t('keys.useKey') }}
+        </button>
         <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
           <Icon name="plus" size="md" class="mr-2" />
           {{ t('keys.createKey') }}
@@ -923,10 +931,13 @@
     <!-- Use Key Modal -->
     <UseKeyModal
       :show="showUseKeyModal"
+      :api-keys="useKeyOptions"
+      :selected-key-id="selectedKey?.id ?? null"
       :api-key="selectedKey?.key || ''"
       :base-url="publicSettings?.api_base_url || ''"
       :platform="selectedKey?.group?.platform || null"
       :allow-messages-dispatch="selectedKey?.group?.allow_messages_dispatch || false"
+      @update:selected-key-id="selectUseKey"
       @close="closeUseKeyModal"
     />
 
@@ -1255,6 +1266,17 @@ const groupOptions = computed(() =>
   }))
 )
 
+const useKeyOptions = computed(() =>
+  apiKeys.value.map((key) => ({
+    id: key.id,
+    name: key.name,
+    key: key.key,
+    status: key.status,
+    platform: key.group?.platform ?? null,
+    groupName: key.group?.name ?? null
+  }))
+)
+
 // Group dropdown search
 const groupSearchQuery = ref('')
 const filteredGroupOptions = computed(() => {
@@ -1360,14 +1382,19 @@ const loadPublicSettings = async () => {
   }
 }
 
-const openUseKeyModal = (key: ApiKey) => {
-  selectedKey.value = key
+const openUseKeyModal = (key?: ApiKey) => {
+  selectedKey.value = key ?? selectedKey.value ?? apiKeys.value[0] ?? null
   showUseKeyModal.value = true
 }
 
 const closeUseKeyModal = () => {
   showUseKeyModal.value = false
   selectedKey.value = null
+}
+
+const selectUseKey = (keyId: number | null) => {
+  if (keyId === null) return
+  selectedKey.value = apiKeys.value.find((key) => key.id === keyId) ?? selectedKey.value
 }
 
 const handlePageChange = (page: number) => {
