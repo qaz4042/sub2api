@@ -79,7 +79,7 @@
         </div>
 
         <!-- Turnstile Widget -->
-        <div v-if="turnstileEnabled && turnstileSiteKey">
+        <div v-if="turnstileRequired">
           <TurnstileWidget
             ref="turnstileRef"
             :site-key="turnstileSiteKey"
@@ -92,7 +92,7 @@
         <!-- Submit Button -->
         <button
           type="submit"
-          :disabled="authActionDisabled || (turnstileEnabled && !turnstileToken)"
+          :disabled="authActionDisabled || (turnstileRequired && !turnstileToken)"
           class="btn btn-primary w-full"
         >
           <svg
@@ -292,6 +292,7 @@ const authActionDisabled = computed(
 
 const showOAuthLogin = computed(
   () =>
+    !turnstileRequired.value &&
     !backendModeEnabled.value &&
     (linuxdoOAuthEnabled.value ||
       dingtalkOAuthEnabled.value ||
@@ -299,6 +300,10 @@ const showOAuthLogin = computed(
       oidcOAuthEnabled.value ||
       githubOAuthEnabled.value ||
       googleOAuthEnabled.value)
+)
+
+const turnstileRequired = computed(
+  () => turnstileEnabled.value && Boolean(turnstileSiteKey.value)
 )
 
 watch(validationToastMessage, (value, previousValue) => {
@@ -458,7 +463,7 @@ function validateForm(): boolean {
   }
 
   // Turnstile validation
-  if (turnstileEnabled.value && !turnstileToken.value) {
+  if (turnstileRequired.value && !turnstileToken.value) {
     errors.turnstile = t('auth.completeVerification')
     isValid = false
   }
@@ -484,7 +489,7 @@ async function handleLogin(): Promise<void> {
     const response = await authStore.login({
       email: formData.email,
       password: formData.password,
-      turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined
+      turnstile_token: turnstileRequired.value ? turnstileToken.value : undefined
     })
 
     // Check if 2FA is required

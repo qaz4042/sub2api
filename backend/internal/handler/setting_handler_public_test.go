@@ -120,3 +120,65 @@ func TestSettingHandler_GetPublicSettings_ExposesWeChatOAuthModeCapabilities(t *
 	require.True(t, resp.Data.WeChatOAuthOpenEnabled)
 	require.True(t, resp.Data.WeChatOAuthMPEnabled)
 }
+
+func TestSettingHandler_GetPublicSettings_FiltersEmailOAuthByRequestOrigin(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewSettingHandler(service.NewSettingService(&settingHandlerPublicRepoStub{
+		values: map[string]string{
+			service.SettingKeyEmailOAuthClients: `[
+				{
+					"id":"portal-github",
+					"provider":"github",
+					"name":"Portal GitHub",
+					"origin":"https://portal.example.com",
+					"enabled":true,
+					"client_id":"portal-github-client",
+					"client_secret":"portal-github-secret",
+					"redirect_url":"https://portal.example.com/api/v1/auth/oauth/github/callback"
+				},
+				{
+					"id":"codex-github",
+					"provider":"github",
+					"name":"Codex GitHub",
+					"origin":"https://codex.example.com",
+					"enabled":true,
+					"client_id":"codex-github-client",
+					"client_secret":"",
+					"redirect_url":"https://codex.example.com/api/v1/auth/oauth/github/callback"
+				},
+				{
+					"id":"codex-google",
+					"provider":"google",
+					"name":"Codex Google",
+					"origin":"https://codex.example.com",
+					"enabled":true,
+					"client_id":"codex-google-client",
+					"client_secret":"codex-google-secret",
+					"redirect_url":"https://codex.example.com/api/v1/auth/oauth/google/callback"
+				}
+			]`,
+		},
+	}, &config.Config{}), "test-version")
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/settings/public", nil)
+	c.Request.Host = "codex.example.com"
+	c.Request.Header.Set("X-Forwarded-Proto", "https")
+
+	h.GetPublicSettings(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var resp struct {
+		Code int `json:"code"`
+		Data struct {
+			GitHubOAuthEnabled bool `json:"github_oauth_enabled"`
+			GoogleOAuthEnabled bool `json:"google_oauth_enabled"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.Equal(t, 0, resp.Code)
+	require.False(t, resp.Data.GitHubOAuthEnabled)
+	require.True(t, resp.Data.GoogleOAuthEnabled)
+}

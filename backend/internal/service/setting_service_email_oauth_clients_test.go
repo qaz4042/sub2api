@@ -69,3 +69,53 @@ func TestParseSettings_EmailOAuthClientsFallbackToLegacySettings(t *testing.T) {
 	require.Equal(t, "https://portal.example.com", got.EmailOAuthClients[0].Origin)
 	require.True(t, got.EmailOAuthClients[0].ClientSecretConfigured)
 }
+
+func TestGetPublicSettingsForOrigin_FiltersEmailOAuthClientsByOrigin(t *testing.T) {
+	repo := &settingPublicRepoStub{
+		values: map[string]string{
+			SettingKeyEmailOAuthClients: `[
+				{
+					"id":"portal-github",
+					"provider":"github",
+					"name":"Portal GitHub",
+					"origin":"https://portal.example.com",
+					"enabled":true,
+					"client_id":"portal-github-client",
+					"client_secret":"portal-github-secret",
+					"redirect_url":"https://portal.example.com/api/v1/auth/oauth/github/callback"
+				},
+				{
+					"id":"codex-github",
+					"provider":"github",
+					"name":"Codex GitHub",
+					"origin":"https://codex.example.com",
+					"enabled":false,
+					"client_id":"codex-github-client",
+					"client_secret":"",
+					"redirect_url":"https://codex.example.com/api/v1/auth/oauth/github/callback"
+				},
+				{
+					"id":"codex-google",
+					"provider":"google",
+					"name":"Codex Google",
+					"origin":"https://codex.example.com",
+					"enabled":true,
+					"client_id":"codex-google-client",
+					"client_secret":"codex-google-secret",
+					"redirect_url":"https://codex.example.com/api/v1/auth/oauth/google/callback"
+				}
+			]`,
+		},
+	}
+	svc := NewSettingService(repo, &config.Config{})
+
+	portal, err := svc.GetPublicSettingsForOrigin(context.Background(), "https://portal.example.com")
+	require.NoError(t, err)
+	require.True(t, portal.GitHubOAuthEnabled)
+	require.False(t, portal.GoogleOAuthEnabled)
+
+	codex, err := svc.GetPublicSettingsForOrigin(context.Background(), "https://codex.example.com")
+	require.NoError(t, err)
+	require.False(t, codex.GitHubOAuthEnabled)
+	require.True(t, codex.GoogleOAuthEnabled)
+}

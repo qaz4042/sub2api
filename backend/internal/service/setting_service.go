@@ -795,6 +795,15 @@ func (s *SettingService) GetCyberSessionBlockRuntime(ctx context.Context) (bool,
 
 // GetPublicSettings 获取公开设置（无需登录）
 func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings, error) {
+	return s.getPublicSettings(ctx, "")
+}
+
+// GetPublicSettingsForOrigin 获取指定访问源的公开设置（无需登录）。
+func (s *SettingService) GetPublicSettingsForOrigin(ctx context.Context, origin string) (*PublicSettings, error) {
+	return s.getPublicSettings(ctx, origin)
+}
+
+func (s *SettingService) getPublicSettings(ctx context.Context, requestOrigin string) (*PublicSettings, error) {
 	keys := []string{
 		SettingKeyRegistrationEnabled,
 		SettingKeyEmailVerifyEnabled,
@@ -898,8 +907,8 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 	if oidcProviderName == "" {
 		oidcProviderName = "OIDC"
 	}
-	gitHubEnabled := s.emailOAuthPublicEnabled(settings, "github")
-	googleEnabled := s.emailOAuthPublicEnabled(settings, "google")
+	gitHubEnabled := s.emailOAuthPublicEnabledForOrigin(settings, "github", requestOrigin)
+	googleEnabled := s.emailOAuthPublicEnabledForOrigin(settings, "google", requestOrigin)
 	weChatEnabled, weChatOpenEnabled, weChatMPEnabled, weChatMobileEnabled := s.weChatOAuthCapabilitiesFromSettings(settings)
 
 	// Password reset requires email verification to be enabled
@@ -1773,6 +1782,23 @@ func applyEmailOAuthClientsToConfig(cfg config.EmailOAuthProviderConfig, clients
 func (s *SettingService) emailOAuthPublicEnabled(settings map[string]string, provider string) bool {
 	cfg := s.effectiveEmailOAuthConfig(settings, provider)
 	return cfg.Enabled && strings.TrimSpace(cfg.ClientID) != "" && strings.TrimSpace(cfg.ClientSecret) != ""
+}
+
+func (s *SettingService) emailOAuthPublicEnabledForOrigin(settings map[string]string, provider string, origin string) bool {
+	origin = emailOAuthClientOrigin(origin)
+	clients := emailOAuthClientsForProvider(parseEmailOAuthClients(settings[SettingKeyEmailOAuthClients]), provider)
+	if origin != "" && len(clients) > 0 {
+		for _, item := range clients {
+			if emailOAuthClientOrigin(item.Origin) != origin {
+				continue
+			}
+			return item.Enabled &&
+				strings.TrimSpace(item.ClientID) != "" &&
+				strings.TrimSpace(item.ClientSecret) != ""
+		}
+		return false
+	}
+	return s.emailOAuthPublicEnabled(settings, provider)
 }
 
 func (s *SettingService) effectiveEmailOAuthConfig(settings map[string]string, provider string) config.EmailOAuthProviderConfig {
