@@ -114,6 +114,7 @@ type SystemSettings struct {
 	OIDCConnectUserInfoUsernamePath   string
 
 	// GitHub / Google 邮箱快捷登录
+	UpdateEmailOAuthClients          bool
 	EmailOAuthClients                 []EmailOAuthClientSetting
 	GitHubOAuthEnabled                bool
 	GitHubOAuthClientID               string

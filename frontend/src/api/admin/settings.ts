@@ -797,6 +797,7 @@ export interface UpdateSettingsRequest {
   oidc_connect_userinfo_email_path?: string;
   oidc_connect_userinfo_id_path?: string;
   oidc_connect_userinfo_username_path?: string;
+  update_email_oauth_clients?: boolean;
   email_oauth_clients?: EmailOAuthClient[];
   github_oauth_enabled?: boolean;
   github_oauth_client_id?: string;

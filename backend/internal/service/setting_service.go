@@ -2096,13 +2096,11 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 		SettingKeyGoogleOAuthRedirectURL,
 		SettingKeyGoogleOAuthFrontendRedirectURL,
 	})
-	settings.EmailOAuthClients = mergeEmailOAuthClientSecrets(
-		normalizeEmailOAuthClients(settings.EmailOAuthClients, true),
-		s.emailOAuthClientsFromSettings(previousRaw),
-	)
-	emailOAuthClientsJSON, err := json.Marshal(settings.EmailOAuthClients)
-	if err != nil {
-		return nil, fmt.Errorf("marshal email oauth clients: %w", err)
+	if settings.UpdateEmailOAuthClients {
+		settings.EmailOAuthClients = mergeEmailOAuthClientSecrets(
+			normalizeEmailOAuthClients(settings.EmailOAuthClients, true),
+			s.emailOAuthClientsFromSettings(previousRaw),
+		)
 	}
 
 	updates := make(map[string]string)
@@ -2208,20 +2206,26 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	}
 
 	// GitHub / Google 邮箱快捷登录
-	updates[SettingKeyEmailOAuthClients] = string(emailOAuthClientsJSON)
-	updates[SettingKeyGitHubOAuthEnabled] = strconv.FormatBool(settings.GitHubOAuthEnabled)
-	updates[SettingKeyGitHubOAuthClientID] = strings.TrimSpace(settings.GitHubOAuthClientID)
-	updates[SettingKeyGitHubOAuthRedirectURL] = settings.GitHubOAuthRedirectURL
-	updates[SettingKeyGitHubOAuthFrontendRedirectURL] = settings.GitHubOAuthFrontendRedirectURL
-	if settings.GitHubOAuthClientSecret != "" {
-		updates[SettingKeyGitHubOAuthClientSecret] = strings.TrimSpace(settings.GitHubOAuthClientSecret)
-	}
-	updates[SettingKeyGoogleOAuthEnabled] = strconv.FormatBool(settings.GoogleOAuthEnabled)
-	updates[SettingKeyGoogleOAuthClientID] = strings.TrimSpace(settings.GoogleOAuthClientID)
-	updates[SettingKeyGoogleOAuthRedirectURL] = settings.GoogleOAuthRedirectURL
-	updates[SettingKeyGoogleOAuthFrontendRedirectURL] = settings.GoogleOAuthFrontendRedirectURL
-	if settings.GoogleOAuthClientSecret != "" {
-		updates[SettingKeyGoogleOAuthClientSecret] = strings.TrimSpace(settings.GoogleOAuthClientSecret)
+	if settings.UpdateEmailOAuthClients {
+		emailOAuthClientsJSON, err := json.Marshal(settings.EmailOAuthClients)
+		if err != nil {
+			return nil, fmt.Errorf("marshal email oauth clients: %w", err)
+		}
+		updates[SettingKeyEmailOAuthClients] = string(emailOAuthClientsJSON)
+		updates[SettingKeyGitHubOAuthEnabled] = strconv.FormatBool(settings.GitHubOAuthEnabled)
+		updates[SettingKeyGitHubOAuthClientID] = strings.TrimSpace(settings.GitHubOAuthClientID)
+		updates[SettingKeyGitHubOAuthRedirectURL] = settings.GitHubOAuthRedirectURL
+		updates[SettingKeyGitHubOAuthFrontendRedirectURL] = settings.GitHubOAuthFrontendRedirectURL
+		if settings.GitHubOAuthClientSecret != "" {
+			updates[SettingKeyGitHubOAuthClientSecret] = strings.TrimSpace(settings.GitHubOAuthClientSecret)
+		}
+		updates[SettingKeyGoogleOAuthEnabled] = strconv.FormatBool(settings.GoogleOAuthEnabled)
+		updates[SettingKeyGoogleOAuthClientID] = strings.TrimSpace(settings.GoogleOAuthClientID)
+		updates[SettingKeyGoogleOAuthRedirectURL] = settings.GoogleOAuthRedirectURL
+		updates[SettingKeyGoogleOAuthFrontendRedirectURL] = settings.GoogleOAuthFrontendRedirectURL
+		if settings.GoogleOAuthClientSecret != "" {
+			updates[SettingKeyGoogleOAuthClientSecret] = strings.TrimSpace(settings.GoogleOAuthClientSecret)
+		}
 	}
 
 	// WeChat Connect OAuth 登录

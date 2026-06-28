@@ -183,7 +183,7 @@
         </div>
 
         <!-- Turnstile Widget -->
-        <div v-if="turnstileEnabled && turnstileSiteKey">
+        <div v-if="showTurnstileWidget">
           <TurnstileWidget
             ref="turnstileRef"
             :site-key="turnstileSiteKey"
@@ -208,7 +208,7 @@
         <!-- Submit Button -->
         <button
           type="submit"
-          :disabled="registrationActionDisabled || (turnstileEnabled && !turnstileToken)"
+          :disabled="registrationActionDisabled || (showTurnstileWidget && !turnstileToken)"
           class="btn btn-primary w-full"
         >
           <svg
@@ -420,11 +420,12 @@ const validationToastMessage = computed(() =>
 
 const showOAuthLogin = computed(
   () =>
-    linuxdoOAuthEnabled.value ||
-    wechatOAuthEnabled.value ||
-    oidcOAuthEnabled.value ||
-    githubOAuthEnabled.value ||
-    googleOAuthEnabled.value
+    !turnstileRequired.value &&
+    (linuxdoOAuthEnabled.value ||
+      wechatOAuthEnabled.value ||
+      oidcOAuthEnabled.value ||
+      githubOAuthEnabled.value ||
+      googleOAuthEnabled.value)
 )
 
 const agreementGateActive = computed(
@@ -439,9 +440,32 @@ const registrationActionDisabled = computed(
   () => isLoading.value || !settingsLoaded.value || agreementGateActive.value
 )
 
+const turnstileRequired = computed(
+  () => turnstileEnabled.value && Boolean(turnstileSiteKey.value)
+)
+
+const registrationFormReady = computed(
+  () =>
+    validateEmail(formData.email.trim()) &&
+    isRegistrationEmailSuffixAllowed(formData.email, registrationEmailSuffixWhitelist.value) &&
+    formData.password.length >= 6 &&
+    (!invitationCodeEnabled.value || invitationValidation.valid)
+)
+
+const showTurnstileWidget = computed(
+  () => turnstileRequired.value && registrationFormReady.value
+)
+
 watch(validationToastMessage, (value, previousValue) => {
   if (value && value !== previousValue) {
     appStore.showError(value)
+  }
+})
+
+watch(registrationFormReady, (ready) => {
+  if (!ready) {
+    turnstileToken.value = ''
+    errors.turnstile = ''
   }
 })
 
@@ -801,7 +825,7 @@ function validateForm(): boolean {
   }
 
   // Turnstile validation
-  if (turnstileEnabled.value && !turnstileToken.value) {
+  if (turnstileRequired.value && registrationFormReady.value && !turnstileToken.value) {
     errors.turnstile = t('auth.completeVerification')
     isValid = false
   }
@@ -870,7 +894,7 @@ async function handleRegister(): Promise<void> {
     if (emailVerifyEnabled.value) {
       const sendCodeResponse = await sendVerifyCode({
         email: formData.email,
-        turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined
+        turnstile_token: turnstileRequired.value ? turnstileToken.value : undefined
       })
 
       // Store registration data in sessionStorage
@@ -896,7 +920,7 @@ async function handleRegister(): Promise<void> {
     await authStore.register({
       email: formData.email,
       password: formData.password,
-      turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined,
+      turnstile_token: turnstileRequired.value ? turnstileToken.value : undefined,
       promo_code: formData.promo_code || undefined,
       invitation_code: formData.invitation_code || undefined,
       ...(affCode ? { aff_code: affCode } : {})

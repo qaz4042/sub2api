@@ -19,6 +19,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 )
 
 // semverPattern 预编译 semver 格式校验正则
@@ -589,6 +590,7 @@ type UpdateSettingsRequest struct {
 	OIDCConnectUserInfoIDPath       string `json:"oidc_connect_userinfo_id_path"`
 	OIDCConnectUserInfoUsernamePath string `json:"oidc_connect_userinfo_username_path"`
 
+	UpdateEmailOAuthClients        bool                              `json:"update_email_oauth_clients"`
 	EmailOAuthClients              []service.EmailOAuthClientSetting `json:"email_oauth_clients"`
 	GitHubOAuthEnabled             bool                              `json:"github_oauth_enabled"`
 	GitHubOAuthClientID            string                            `json:"github_oauth_client_id"`
@@ -786,11 +788,19 @@ type UpdateSettingsRequest struct {
 // UpdateSettings 更新系统设置
 // PUT /api/v1/admin/settings
 func (h *SettingHandler) UpdateSettings(c *gin.Context) {
-	var req UpdateSettingsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	var rawReq map[string]json.RawMessage
+	if err := c.ShouldBindBodyWith(&rawReq, binding.JSON); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
+
+	var req UpdateSettingsRequest
+	if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	_, updateEmailOAuthProvided := rawReq["update_email_oauth_clients"]
+	emailOAuthProvided := updateEmailOAuthProvided && req.UpdateEmailOAuthClients
 
 	previousSettings, err := h.settingService.GetAllSettings(c.Request.Context())
 	if err != nil {
@@ -1347,12 +1357,26 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		}
 	}
 
-	if len(req.EmailOAuthClients) == 0 && len(previousSettings.EmailOAuthClients) > 0 {
+	if !emailOAuthProvided {
+		req.EmailOAuthClients = previousSettings.EmailOAuthClients
+		req.GitHubOAuthEnabled = previousSettings.GitHubOAuthEnabled
+		req.GitHubOAuthClientID = previousSettings.GitHubOAuthClientID
+		req.GitHubOAuthClientSecret = previousSettings.GitHubOAuthClientSecret
+		req.GitHubOAuthRedirectURL = previousSettings.GitHubOAuthRedirectURL
+		req.GitHubOAuthFrontendRedirectURL = previousSettings.GitHubOAuthFrontendRedirectURL
+		req.GoogleOAuthEnabled = previousSettings.GoogleOAuthEnabled
+		req.GoogleOAuthClientID = previousSettings.GoogleOAuthClientID
+		req.GoogleOAuthClientSecret = previousSettings.GoogleOAuthClientSecret
+		req.GoogleOAuthRedirectURL = previousSettings.GoogleOAuthRedirectURL
+		req.GoogleOAuthFrontendRedirectURL = previousSettings.GoogleOAuthFrontendRedirectURL
+	} else if len(req.EmailOAuthClients) == 0 && len(previousSettings.EmailOAuthClients) > 0 {
 		req.EmailOAuthClients = previousSettings.EmailOAuthClients
 	}
-	if err := validateEmailOAuthClientSettings(req.EmailOAuthClients, previousSettings.EmailOAuthClients); err != nil {
-		response.BadRequest(c, err.Error())
-		return
+	if emailOAuthProvided {
+		if err := validateEmailOAuthClientSettings(req.EmailOAuthClients, previousSettings.EmailOAuthClients); err != nil {
+			response.BadRequest(c, err.Error())
+			return
+		}
 	}
 
 	// “购买订阅”页面配置验证
@@ -1685,6 +1709,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		OIDCConnectUserInfoEmailPath:           req.OIDCConnectUserInfoEmailPath,
 		OIDCConnectUserInfoIDPath:              req.OIDCConnectUserInfoIDPath,
 		OIDCConnectUserInfoUsernamePath:        req.OIDCConnectUserInfoUsernamePath,
+		UpdateEmailOAuthClients:                emailOAuthProvided,
 		EmailOAuthClients:                      req.EmailOAuthClients,
 		GitHubOAuthEnabled:                     req.GitHubOAuthEnabled,
 		GitHubOAuthClientID:                    req.GitHubOAuthClientID,

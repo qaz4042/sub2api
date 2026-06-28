@@ -7274,6 +7274,7 @@ const testEmailAddress = ref("");
 const registrationEmailSuffixWhitelistTags = ref<string[]>([]);
 const registrationEmailSuffixWhitelistDraft = ref("");
 const tablePageSizeOptionsInput = ref("10, 20, 50, 100");
+const emailOAuthClientsBaseline = ref("");
 
 // Admin API Key 状态
 const adminApiKeyLoading = ref(true);
@@ -8534,6 +8535,25 @@ function syncEmailOAuthClientRedirectUrl(client: EmailOAuthClientFormItem) {
   client.redirect_url = buildEmailOAuthRedirectURL(client.provider, client.origin);
 }
 
+function emailOAuthClientsSignature(clients: EmailOAuthClientFormItem[]): string {
+  return JSON.stringify(
+    clients.map((client, index) => ({
+      id: client.id,
+      provider: client.provider === "google" ? "google" : "github",
+      name: client.name.trim(),
+      origin: client.origin.trim().replace(/\/+$/, ""),
+      enabled: client.enabled !== false,
+      client_id: client.client_id.trim(),
+      client_secret: (client.client_secret || "").trim(),
+      client_secret_configured: Boolean(client.client_secret_configured),
+      redirect_url: client.redirect_url.trim(),
+      frontend_redirect_url:
+        client.frontend_redirect_url.trim() || "/auth/oauth/callback",
+      sort_order: index,
+    })),
+  );
+}
+
 const wechatRedirectUrlSuggestion = computed(() => {
   if (typeof window === "undefined") return "";
   const origin =
@@ -9037,6 +9057,9 @@ async function loadSettings() {
       settings.contact_info || "",
     );
     form.email_oauth_clients = normalizeEmailOAuthClients(settings);
+    emailOAuthClientsBaseline.value = emailOAuthClientsSignature(
+      form.email_oauth_clients,
+    );
     platformConfigs.value = Array.isArray(settings.platform_configs)
       ? settings.platform_configs.map((item) => ({ ...item }))
       : [];
@@ -9411,6 +9434,9 @@ async function saveSettings() {
     const primaryGoogleOAuthClient = emailOAuthClients.find(
       (client) => client.provider === "google",
     );
+    const shouldSaveEmailOAuth =
+      emailOAuthClientsSignature(form.email_oauth_clients) !==
+      emailOAuthClientsBaseline.value;
 
     const payload: UpdateSettingsRequest = {
       registration_enabled: form.registration_enabled,
@@ -9539,21 +9565,6 @@ async function saveSettings() {
       oidc_connect_userinfo_id_path: form.oidc_connect_userinfo_id_path,
       oidc_connect_userinfo_username_path:
         form.oidc_connect_userinfo_username_path,
-      email_oauth_clients: emailOAuthClients,
-      github_oauth_enabled: Boolean(primaryGitHubOAuthClient?.enabled),
-      github_oauth_client_id: primaryGitHubOAuthClient?.client_id || "",
-      github_oauth_client_secret:
-        primaryGitHubOAuthClient?.client_secret || undefined,
-      github_oauth_redirect_url: primaryGitHubOAuthClient?.redirect_url || "",
-      github_oauth_frontend_redirect_url:
-        primaryGitHubOAuthClient?.frontend_redirect_url || "/auth/oauth/callback",
-      google_oauth_enabled: Boolean(primaryGoogleOAuthClient?.enabled),
-      google_oauth_client_id: primaryGoogleOAuthClient?.client_id || "",
-      google_oauth_client_secret:
-        primaryGoogleOAuthClient?.client_secret || undefined,
-      google_oauth_redirect_url: primaryGoogleOAuthClient?.redirect_url || "",
-      google_oauth_frontend_redirect_url:
-        primaryGoogleOAuthClient?.frontend_redirect_url || "/auth/oauth/callback",
       enable_model_fallback: form.enable_model_fallback,
       fallback_model_anthropic: form.fallback_model_anthropic,
       fallback_model_openai: form.fallback_model_openai,
@@ -9636,6 +9647,25 @@ async function saveSettings() {
       allow_user_view_error_requests: form.allow_user_view_error_requests,
     };
 
+    if (shouldSaveEmailOAuth) {
+      payload.update_email_oauth_clients = true;
+      payload.email_oauth_clients = emailOAuthClients;
+      payload.github_oauth_enabled = Boolean(primaryGitHubOAuthClient?.enabled);
+      payload.github_oauth_client_id = primaryGitHubOAuthClient?.client_id || "";
+      payload.github_oauth_client_secret =
+        primaryGitHubOAuthClient?.client_secret || undefined;
+      payload.github_oauth_redirect_url = primaryGitHubOAuthClient?.redirect_url || "";
+      payload.github_oauth_frontend_redirect_url =
+        primaryGitHubOAuthClient?.frontend_redirect_url || "/auth/oauth/callback";
+      payload.google_oauth_enabled = Boolean(primaryGoogleOAuthClient?.enabled);
+      payload.google_oauth_client_id = primaryGoogleOAuthClient?.client_id || "";
+      payload.google_oauth_client_secret =
+        primaryGoogleOAuthClient?.client_secret || undefined;
+      payload.google_oauth_redirect_url = primaryGoogleOAuthClient?.redirect_url || "";
+      payload.google_oauth_frontend_redirect_url =
+        primaryGoogleOAuthClient?.frontend_redirect_url || "/auth/oauth/callback";
+    }
+
     // 仅当 openai_fast_policy_settings 已成功从后端加载时才回写，
     // 否则省略整个字段，让后端保留既有规则（含默认值）。
     if (openaiFastPolicyLoaded.value) {
@@ -9694,6 +9724,9 @@ async function saveSettings() {
     form.github_oauth_client_secret = "";
     form.google_oauth_client_secret = "";
     form.email_oauth_clients = normalizeEmailOAuthClients(updated);
+    emailOAuthClientsBaseline.value = emailOAuthClientsSignature(
+      form.email_oauth_clients,
+    );
     form.wechat_connect_app_secret = "";
     form.wechat_connect_open_app_secret = "";
     form.wechat_connect_mp_app_secret = "";

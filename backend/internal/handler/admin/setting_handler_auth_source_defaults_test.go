@@ -181,6 +181,49 @@ func TestValidateEmailOAuthClientSettings_AllowsConfiguredSecretPlaceholder(t *t
 	require.NoError(t, validateEmailOAuthClientSettings(next, previous))
 }
 
+func TestSettingHandler_UpdateSettings_SkipsEmailOAuthValidationWhenFieldsOmitted(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &settingHandlerRepoStub{
+		values: map[string]string{
+			service.SettingKeyPromoCodeEnabled: "true",
+			service.SettingKeyEmailOAuthClients: `[
+				{
+					"id":"github-codex",
+					"provider":"github",
+					"name":"Codex GitHub",
+					"origin":"https://codex.example.com",
+					"enabled":true,
+					"client_id":"codex-client",
+					"client_secret":"",
+					"client_secret_configured":false,
+					"redirect_url":"https://codex.example.com/api/v1/auth/oauth/github/callback",
+					"frontend_redirect_url":"/auth/oauth/callback"
+				}
+			]`,
+		},
+	}
+	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil, nil)
+
+	body := map[string]any{
+		"promo_code_enabled": false,
+		"totp_enabled":       false,
+	}
+	rawBody, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/admin/settings", bytes.NewReader(rawBody))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.UpdateSettings(c)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "false", repo.values[service.SettingKeyPromoCodeEnabled])
+	require.NotContains(t, repo.lastUpdates, service.SettingKeyEmailOAuthClients)
+}
+
 func TestSettingHandler_UpdateSettings_PreservesOmittedAuthSourceDefaults(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := &settingHandlerRepoStub{
