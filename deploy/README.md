@@ -9,7 +9,7 @@
 - 当前版本软链：`/opt/sub2api/current`
 - systemd 服务：`sub2api.service`
 - 访问域名：`https://codex.lizubin.online`
-- 健康检查：`https://codex.lizubin.online/health`
+- 发布健康检查：远端本机 `http://127.0.0.1:8080/health`
 
 ## 常用发布
 
@@ -27,9 +27,12 @@ REQUIRE_CLEAN=1 make deploy-my4g
 验证：
 
 ```bash
-curl -fsS https://codex.lizubin.online/health
 ssh my4g 'readlink -f /opt/sub2api/current'
 ssh my4g 'systemctl status sub2api --no-pager'
+```
+公网访问可按需手工验证，不作为发布脚本失败条件：
+```bash
+curl -fsS https://codex.lizubin.online/health
 ```
 
 回滚：

@@ -5,7 +5,6 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SSH_TARGET="${SSH_TARGET:-my4g}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/sub2api}"
-PUBLIC_HEALTH_URL="${PUBLIC_HEALTH_URL:-https://codex.lizubin.online/health}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-60}"
 REQUIRE_CLEAN="${REQUIRE_CLEAN:-0}"
 BUILD_FRONTEND="${BUILD_FRONTEND:-1}"
@@ -96,7 +95,7 @@ if [[ "${DIRTY}" == "true" ]]; then
   log "提示: 工作区有未提交改动，版本=${COMMIT}"
 fi
 
-step_start "1/6 远端环境"
+step_start "1/5 远端环境"
 ssh "${SSH_TARGET}" bash -s -- "${REMOTE_DIR}" "${REMOTE_RELEASE}" <<'REMOTE_PREFLIGHT'
 set -Eeuo pipefail
 remote_dir="$1"
@@ -115,17 +114,17 @@ REMOTE_PREFLIGHT
 step_done
 
 if [[ "${BUILD_FRONTEND}" == "1" ]]; then
-  step_start "2/6 前端构建"
+  step_start "2/5 前端构建"
   run_quiet "前端依赖安装" pnpm --dir "${ROOT_DIR}/frontend" install --frozen-lockfile
   run_quiet "前端构建" pnpm --dir "${ROOT_DIR}/frontend" run build
   step_done
 else
-  step_start "2/6 复用前端 dist"
+  step_start "2/5 复用前端 dist"
   test -f "${ROOT_DIR}/backend/internal/web/dist/index.html"
   step_done
 fi
 
-step_start "3/6 后端构建 linux/amd64"
+step_start "3/5 后端构建 linux/amd64"
 (
   cd "${ROOT_DIR}/backend"
   CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
@@ -137,14 +136,14 @@ step_start "3/6 后端构建 linux/amd64"
 )
 step_done
 
-step_start "4/6 上传 release"
+step_start "4/5 上传 release"
 ssh "${SSH_TARGET}" "mkdir -p '${REMOTE_INCOMING}/resources'"
 REMOTE_PREPARED=true
 scp -q "${ARTIFACT}" "${SSH_TARGET}:${REMOTE_INCOMING}/sub2api"
 rsync -a --delete "${ROOT_DIR}/backend/resources/" "${SSH_TARGET}:${REMOTE_INCOMING}/resources/"
 step_done
 
-step_start "5/6 切换重启 + 本机健康"
+step_start "5/5 切换重启 + 本机健康"
 ssh "${SSH_TARGET}" bash -s -- \
   "${REMOTE_DIR}" "${REMOTE_INCOMING}" "${REMOTE_RELEASE}" "${HEALTH_TIMEOUT}" <<'REMOTE_DEPLOY'
 set -Eeuo pipefail
@@ -201,21 +200,6 @@ REMOTE_DEPLOY
 REMOTE_PREPARED=false
 step_done
 
-step_start "6/6 公网健康"
-public_healthy=false
-for _ in 1 2 3 4 5; do
-  if curl -fs --connect-timeout 5 --max-time 15 "${PUBLIC_HEALTH_URL}" >/dev/null 2>&1; then
-    public_healthy=true
-    break
-  fi
-  sleep 2
-done
-if [[ "${public_healthy}" != "true" ]]; then
-  echo "应用本机健康，但公网健康检查失败: ${PUBLIC_HEALTH_URL}" >&2
-  exit 1
-fi
-step_done
-
 log "发布完成 ($((SECONDS - DEPLOY_STARTED))s)"
 log "release: ${REMOTE_RELEASE}"
-log "health:  ${PUBLIC_HEALTH_URL}"
+log "health:  http://127.0.0.1:8080/health (remote local check)"
