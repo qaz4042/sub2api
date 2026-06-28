@@ -521,6 +521,7 @@ export interface SystemSettings {
   oidc_connect_userinfo_email_path: string;
   oidc_connect_userinfo_id_path: string;
   oidc_connect_userinfo_username_path: string;
+  email_oauth_clients: EmailOAuthClient[];
   github_oauth_enabled: boolean;
   github_oauth_client_id: string;
   github_oauth_client_secret_configured: boolean;
@@ -630,6 +631,20 @@ export interface SystemSettings {
 
   // Allow user view error requests
   allow_user_view_error_requests: boolean;
+}
+
+export interface EmailOAuthClient {
+  id: string;
+  provider: "github" | "google" | string;
+  name: string;
+  origin: string;
+  enabled: boolean;
+  client_id: string;
+  client_secret?: string;
+  client_secret_configured: boolean;
+  redirect_url: string;
+  frontend_redirect_url: string;
+  sort_order: number;
 }
 
 export interface UpdateSettingsRequest {
@@ -782,6 +797,7 @@ export interface UpdateSettingsRequest {
   oidc_connect_userinfo_email_path?: string;
   oidc_connect_userinfo_id_path?: string;
   oidc_connect_userinfo_username_path?: string;
+  email_oauth_clients?: EmailOAuthClient[];
   github_oauth_enabled?: boolean;
   github_oauth_client_id?: string;
   github_oauth_client_secret?: string;

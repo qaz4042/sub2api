@@ -114,6 +114,7 @@ type SystemSettings struct {
 	OIDCConnectUserInfoUsernamePath   string
 
 	// GitHub / Google 邮箱快捷登录
+	EmailOAuthClients                 []EmailOAuthClientSetting
 	GitHubOAuthEnabled                bool
 	GitHubOAuthClientID               string
 	GitHubOAuthClientSecret           string
@@ -236,6 +237,20 @@ type SystemSettings struct {
 
 	// 允许终端用户在用量页查看自己的失败请求
 	AllowUserViewErrorRequests bool
+}
+
+type EmailOAuthClientSetting struct {
+	ID                     string `json:"id"`
+	Provider               string `json:"provider"`
+	Name                   string `json:"name"`
+	Origin                 string `json:"origin"`
+	Enabled                bool   `json:"enabled"`
+	ClientID               string `json:"client_id"`
+	ClientSecret           string `json:"client_secret,omitempty"`
+	ClientSecretConfigured bool   `json:"client_secret_configured"`
+	RedirectURL            string `json:"redirect_url"`
+	FrontendRedirectURL    string `json:"frontend_redirect_url"`
+	SortOrder              int    `json:"sort_order"`
 }
 
 type DefaultSubscriptionSetting struct {

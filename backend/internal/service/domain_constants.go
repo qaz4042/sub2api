@@ -230,6 +230,7 @@ const (
 	SettingKeyOIDCConnectUserInfoUsernamePath = "oidc_connect_userinfo_username_path"
 
 	// GitHub / Google 邮箱快捷登录设置
+	SettingKeyEmailOAuthClients              = "email_oauth_clients"
 	SettingKeyGitHubOAuthEnabled             = "github_oauth_enabled"
 	SettingKeyGitHubOAuthClientID            = "github_oauth_client_id"
 	SettingKeyGitHubOAuthClientSecret        = "github_oauth_client_secret"

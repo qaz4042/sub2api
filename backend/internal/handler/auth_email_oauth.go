@@ -489,6 +489,13 @@ func emailOAuthConfigForRequest(c *gin.Context, cfg config.EmailOAuthProviderCon
 	if !allowed {
 		return cfg, fmt.Errorf("request origin %q is not configured", requestOrigin)
 	}
+	if override, ok, overrideErr := emailOAuthOriginOverrideForRequest(requestOrigin, cfg.OriginOverrides); overrideErr != nil {
+		return cfg, overrideErr
+	} else if ok {
+		cfg.ClientID = override.ClientID
+		cfg.ClientSecret = override.ClientSecret
+		cfg.RedirectURL = override.RedirectURL
+	}
 
 	redirectURL, err := url.Parse(strings.TrimSpace(cfg.RedirectURL))
 	if err != nil {
@@ -499,6 +506,37 @@ func emailOAuthConfigForRequest(c *gin.Context, cfg config.EmailOAuthProviderCon
 	redirectURL.Host = originURL.Host
 	cfg.RedirectURL = redirectURL.String()
 	return cfg, nil
+}
+
+func emailOAuthOriginOverrideForRequest(requestOrigin string, overrides []config.EmailOAuthOriginOverride) (config.EmailOAuthOriginOverride, bool, error) {
+	if len(overrides) == 0 {
+		return config.EmailOAuthOriginOverride{}, false, nil
+	}
+	for _, override := range overrides {
+		origin, err := normalizeEmailOAuthOrigin(override.Origin)
+		if err != nil {
+			return config.EmailOAuthOriginOverride{}, false, fmt.Errorf("invalid origin override %q: %w", override.Origin, err)
+		}
+		if origin != requestOrigin {
+			continue
+		}
+		if strings.TrimSpace(override.ClientID) == "" {
+			return config.EmailOAuthOriginOverride{}, false, fmt.Errorf("origin override %q client_id is required", override.Origin)
+		}
+		if strings.TrimSpace(override.ClientSecret) == "" {
+			return config.EmailOAuthOriginOverride{}, false, fmt.Errorf("origin override %q client_secret is required", override.Origin)
+		}
+		if strings.TrimSpace(override.RedirectURL) == "" {
+			return config.EmailOAuthOriginOverride{}, false, fmt.Errorf("origin override %q redirect_url is required", override.Origin)
+		}
+		return config.EmailOAuthOriginOverride{
+			Origin:       strings.TrimSpace(override.Origin),
+			ClientID:     strings.TrimSpace(override.ClientID),
+			ClientSecret: strings.TrimSpace(override.ClientSecret),
+			RedirectURL:  strings.TrimSpace(override.RedirectURL),
+		}, true, nil
+	}
+	return config.EmailOAuthOriginOverride{}, false, nil
 }
 
 func normalizeEmailOAuthOrigin(raw string) (string, error) {

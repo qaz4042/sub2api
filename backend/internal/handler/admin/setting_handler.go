@@ -54,6 +54,99 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+func emailOAuthClientsToDTO(items []service.EmailOAuthClientSetting) []dto.EmailOAuthClient {
+	if len(items) == 0 {
+		return []dto.EmailOAuthClient{}
+	}
+	out := make([]dto.EmailOAuthClient, 0, len(items))
+	for _, item := range items {
+		out = append(out, dto.EmailOAuthClient{
+			ID:                     item.ID,
+			Provider:               item.Provider,
+			Name:                   item.Name,
+			Origin:                 item.Origin,
+			Enabled:                item.Enabled,
+			ClientID:               item.ClientID,
+			ClientSecretConfigured: item.ClientSecretConfigured || strings.TrimSpace(item.ClientSecret) != "",
+			RedirectURL:            item.RedirectURL,
+			FrontendRedirectURL:    item.FrontendRedirectURL,
+			SortOrder:              item.SortOrder,
+		})
+	}
+	return out
+}
+
+func validateEmailOAuthClientSettings(items, previous []service.EmailOAuthClientSetting) error {
+	previousSecrets := make(map[string]bool, len(previous))
+	for _, item := range previous {
+		key := strings.ToLower(strings.TrimSpace(item.Provider)) + "|" + strings.TrimSpace(item.Origin) + "|" + strings.TrimSpace(item.ClientID)
+		previousSecrets[key] = strings.TrimSpace(item.ClientSecret) != ""
+	}
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		provider := strings.ToLower(strings.TrimSpace(item.Provider))
+		if provider != "github" && provider != "google" {
+			return fmt.Errorf("Email OAuth provider must be github or google")
+		}
+		origin := strings.TrimSpace(item.Origin)
+		if origin == "" {
+			return fmt.Errorf("Email OAuth origin is required")
+		}
+		if err := config.ValidateAbsoluteHTTPOrigin(origin); err != nil {
+			return fmt.Errorf("Email OAuth origin must be an absolute http(s) origin")
+		}
+		key := provider + "|" + origin
+		if _, ok := seen[key]; ok {
+			return fmt.Errorf("Email OAuth origin cannot be duplicated for the same provider")
+		}
+		seen[key] = struct{}{}
+		if strings.TrimSpace(item.RedirectURL) == "" {
+			return fmt.Errorf("Email OAuth redirect URL is required")
+		}
+		if err := config.ValidateAbsoluteHTTPURL(item.RedirectURL); err != nil {
+			return fmt.Errorf("Email OAuth redirect URL must be an absolute http(s) URL")
+		}
+		if strings.TrimSpace(item.FrontendRedirectURL) == "" {
+			return fmt.Errorf("Email OAuth frontend redirect URL is required")
+		}
+		if err := config.ValidateFrontendRedirectURL(item.FrontendRedirectURL); err != nil {
+			return fmt.Errorf("Email OAuth frontend redirect URL is invalid")
+		}
+		if !item.Enabled {
+			continue
+		}
+		if strings.TrimSpace(item.ClientID) == "" {
+			return fmt.Errorf("Email OAuth Client ID is required when enabled")
+		}
+		secretKey := provider + "|" + origin + "|" + strings.TrimSpace(item.ClientID)
+		if strings.TrimSpace(item.ClientSecret) == "" && !previousSecrets[secretKey] {
+			return fmt.Errorf("Email OAuth Client Secret is required when enabled")
+		}
+	}
+	return nil
+}
+
+func equalEmailOAuthClientSummaries(a, b []service.EmailOAuthClientSetting) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].ID != b[i].ID ||
+			a[i].Provider != b[i].Provider ||
+			a[i].Name != b[i].Name ||
+			a[i].Origin != b[i].Origin ||
+			a[i].Enabled != b[i].Enabled ||
+			a[i].ClientID != b[i].ClientID ||
+			(strings.TrimSpace(a[i].ClientSecret) != "") != (strings.TrimSpace(b[i].ClientSecret) != "") ||
+			a[i].RedirectURL != b[i].RedirectURL ||
+			a[i].FrontendRedirectURL != b[i].FrontendRedirectURL ||
+			a[i].SortOrder != b[i].SortOrder {
+			return false
+		}
+	}
+	return true
+}
+
 // SettingHandler 系统设置处理器
 type SettingHandler struct {
 	settingService           *service.SettingService
@@ -201,6 +294,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		OIDCConnectUserInfoEmailPath:           settings.OIDCConnectUserInfoEmailPath,
 		OIDCConnectUserInfoIDPath:              settings.OIDCConnectUserInfoIDPath,
 		OIDCConnectUserInfoUsernamePath:        settings.OIDCConnectUserInfoUsernamePath,
+		EmailOAuthClients:                      emailOAuthClientsToDTO(settings.EmailOAuthClients),
 		GitHubOAuthEnabled:                     settings.GitHubOAuthEnabled,
 		GitHubOAuthClientID:                    settings.GitHubOAuthClientID,
 		GitHubOAuthClientSecretConfigured:      settings.GitHubOAuthClientSecretConfigured,
@@ -488,16 +582,17 @@ type UpdateSettingsRequest struct {
 	OIDCConnectUserInfoIDPath       string `json:"oidc_connect_userinfo_id_path"`
 	OIDCConnectUserInfoUsernamePath string `json:"oidc_connect_userinfo_username_path"`
 
-	GitHubOAuthEnabled             bool   `json:"github_oauth_enabled"`
-	GitHubOAuthClientID            string `json:"github_oauth_client_id"`
-	GitHubOAuthClientSecret        string `json:"github_oauth_client_secret"`
-	GitHubOAuthRedirectURL         string `json:"github_oauth_redirect_url"`
-	GitHubOAuthFrontendRedirectURL string `json:"github_oauth_frontend_redirect_url"`
-	GoogleOAuthEnabled             bool   `json:"google_oauth_enabled"`
-	GoogleOAuthClientID            string `json:"google_oauth_client_id"`
-	GoogleOAuthClientSecret        string `json:"google_oauth_client_secret"`
-	GoogleOAuthRedirectURL         string `json:"google_oauth_redirect_url"`
-	GoogleOAuthFrontendRedirectURL string `json:"google_oauth_frontend_redirect_url"`
+	EmailOAuthClients              []service.EmailOAuthClientSetting `json:"email_oauth_clients"`
+	GitHubOAuthEnabled             bool                              `json:"github_oauth_enabled"`
+	GitHubOAuthClientID            string                            `json:"github_oauth_client_id"`
+	GitHubOAuthClientSecret        string                            `json:"github_oauth_client_secret"`
+	GitHubOAuthRedirectURL         string                            `json:"github_oauth_redirect_url"`
+	GitHubOAuthFrontendRedirectURL string                            `json:"github_oauth_frontend_redirect_url"`
+	GoogleOAuthEnabled             bool                              `json:"google_oauth_enabled"`
+	GoogleOAuthClientID            string                            `json:"google_oauth_client_id"`
+	GoogleOAuthClientSecret        string                            `json:"google_oauth_client_secret"`
+	GoogleOAuthRedirectURL         string                            `json:"google_oauth_redirect_url"`
+	GoogleOAuthFrontendRedirectURL string                            `json:"google_oauth_frontend_redirect_url"`
 
 	// OEM设置
 	SiteName                    string                `json:"site_name"`
@@ -1245,6 +1340,14 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		}
 	}
 
+	if len(req.EmailOAuthClients) == 0 && len(previousSettings.EmailOAuthClients) > 0 {
+		req.EmailOAuthClients = previousSettings.EmailOAuthClients
+	}
+	if err := validateEmailOAuthClientSettings(req.EmailOAuthClients, previousSettings.EmailOAuthClients); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
 	// “购买订阅”页面配置验证
 	purchaseEnabled := previousSettings.PurchaseSubscriptionEnabled
 	if req.PurchaseSubscriptionEnabled != nil {
@@ -1575,6 +1678,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		OIDCConnectUserInfoEmailPath:           req.OIDCConnectUserInfoEmailPath,
 		OIDCConnectUserInfoIDPath:              req.OIDCConnectUserInfoIDPath,
 		OIDCConnectUserInfoUsernamePath:        req.OIDCConnectUserInfoUsernamePath,
+		EmailOAuthClients:                      req.EmailOAuthClients,
 		GitHubOAuthEnabled:                     req.GitHubOAuthEnabled,
 		GitHubOAuthClientID:                    req.GitHubOAuthClientID,
 		GitHubOAuthClientSecret:                req.GitHubOAuthClientSecret,
@@ -2453,6 +2557,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.OIDCConnectUserInfoUsernamePath != after.OIDCConnectUserInfoUsernamePath {
 		changed = append(changed, "oidc_connect_userinfo_username_path")
+	}
+	if !equalEmailOAuthClientSummaries(before.EmailOAuthClients, after.EmailOAuthClients) {
+		changed = append(changed, "email_oauth_clients")
 	}
 	if before.SiteName != after.SiteName {
 		changed = append(changed, "site_name")

@@ -25,6 +25,20 @@ type CustomEndpoint struct {
 	Description string `json:"description"`
 }
 
+// EmailOAuthClient represents one domain-scoped GitHub/Google email OAuth client.
+type EmailOAuthClient struct {
+	ID                     string `json:"id"`
+	Provider               string `json:"provider"`
+	Name                   string `json:"name"`
+	Origin                 string `json:"origin"`
+	Enabled                bool   `json:"enabled"`
+	ClientID               string `json:"client_id"`
+	ClientSecretConfigured bool   `json:"client_secret_configured"`
+	RedirectURL            string `json:"redirect_url"`
+	FrontendRedirectURL    string `json:"frontend_redirect_url"`
+	SortOrder              int    `json:"sort_order"`
+}
+
 // SystemSettings represents the admin settings API response payload.
 type SystemSettings struct {
 	RegistrationEnabled              bool                     `json:"registration_enabled"`
@@ -116,16 +130,17 @@ type SystemSettings struct {
 	OIDCConnectUserInfoIDPath         string `json:"oidc_connect_userinfo_id_path"`
 	OIDCConnectUserInfoUsernamePath   string `json:"oidc_connect_userinfo_username_path"`
 
-	GitHubOAuthEnabled                bool   `json:"github_oauth_enabled"`
-	GitHubOAuthClientID               string `json:"github_oauth_client_id"`
-	GitHubOAuthClientSecretConfigured bool   `json:"github_oauth_client_secret_configured"`
-	GitHubOAuthRedirectURL            string `json:"github_oauth_redirect_url"`
-	GitHubOAuthFrontendRedirectURL    string `json:"github_oauth_frontend_redirect_url"`
-	GoogleOAuthEnabled                bool   `json:"google_oauth_enabled"`
-	GoogleOAuthClientID               string `json:"google_oauth_client_id"`
-	GoogleOAuthClientSecretConfigured bool   `json:"google_oauth_client_secret_configured"`
-	GoogleOAuthRedirectURL            string `json:"google_oauth_redirect_url"`
-	GoogleOAuthFrontendRedirectURL    string `json:"google_oauth_frontend_redirect_url"`
+	EmailOAuthClients                 []EmailOAuthClient `json:"email_oauth_clients"`
+	GitHubOAuthEnabled                bool               `json:"github_oauth_enabled"`
+	GitHubOAuthClientID               string             `json:"github_oauth_client_id"`
+	GitHubOAuthClientSecretConfigured bool               `json:"github_oauth_client_secret_configured"`
+	GitHubOAuthRedirectURL            string             `json:"github_oauth_redirect_url"`
+	GitHubOAuthFrontendRedirectURL    string             `json:"github_oauth_frontend_redirect_url"`
+	GoogleOAuthEnabled                bool               `json:"google_oauth_enabled"`
+	GoogleOAuthClientID               string             `json:"google_oauth_client_id"`
+	GoogleOAuthClientSecretConfigured bool               `json:"google_oauth_client_secret_configured"`
+	GoogleOAuthRedirectURL            string             `json:"google_oauth_redirect_url"`
+	GoogleOAuthFrontendRedirectURL    string             `json:"google_oauth_frontend_redirect_url"`
 
 	SiteName                    string           `json:"site_name"`
 	SiteLogo                    string           `json:"site_logo"`

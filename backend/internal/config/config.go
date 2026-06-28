@@ -4,6 +4,7 @@ package config
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -287,17 +288,25 @@ type DingTalkConnectConfig struct {
 }
 
 type EmailOAuthProviderConfig struct {
-	Enabled                bool     `mapstructure:"enabled"`
-	ClientID               string   `mapstructure:"client_id"`
-	ClientSecret           string   `mapstructure:"client_secret"`
-	AuthorizeURL           string   `mapstructure:"authorize_url"`
-	TokenURL               string   `mapstructure:"token_url"`
-	UserInfoURL            string   `mapstructure:"userinfo_url"`
-	EmailsURL              string   `mapstructure:"emails_url"`
-	Scopes                 string   `mapstructure:"scopes"`
-	RedirectURL            string   `mapstructure:"redirect_url"`
-	AllowedRedirectOrigins []string `mapstructure:"allowed_redirect_origins"`
-	FrontendRedirectURL    string   `mapstructure:"frontend_redirect_url"`
+	Enabled                bool                       `mapstructure:"enabled"`
+	ClientID               string                     `mapstructure:"client_id"`
+	ClientSecret           string                     `mapstructure:"client_secret"`
+	AuthorizeURL           string                     `mapstructure:"authorize_url"`
+	TokenURL               string                     `mapstructure:"token_url"`
+	UserInfoURL            string                     `mapstructure:"userinfo_url"`
+	EmailsURL              string                     `mapstructure:"emails_url"`
+	Scopes                 string                     `mapstructure:"scopes"`
+	RedirectURL            string                     `mapstructure:"redirect_url"`
+	AllowedRedirectOrigins []string                   `mapstructure:"allowed_redirect_origins"`
+	OriginOverrides        []EmailOAuthOriginOverride `mapstructure:"origin_overrides"`
+	FrontendRedirectURL    string                     `mapstructure:"frontend_redirect_url"`
+}
+
+type EmailOAuthOriginOverride struct {
+	Origin       string `mapstructure:"origin"`
+	ClientID     string `mapstructure:"client_id"`
+	ClientSecret string `mapstructure:"client_secret"`
+	RedirectURL  string `mapstructure:"redirect_url"`
 }
 
 const (
@@ -1455,8 +1464,12 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	cfg.OIDC.ValidateIDTokenExplicit = hasExplicitConfigOrEnv("oidc_connect.validate_id_token", "OIDC_CONNECT_VALIDATE_ID_TOKEN")
 	cfg.Dashboard.KeyPrefix = strings.TrimSpace(cfg.Dashboard.KeyPrefix)
 	cfg.CORS.AllowedOrigins = normalizeStringSlice(cfg.CORS.AllowedOrigins)
+	applyEmailOAuthOriginOverrideEnv(&cfg.GitHubOAuth, "GITHUB_OAUTH_ORIGIN_OVERRIDES")
+	applyEmailOAuthOriginOverrideEnv(&cfg.GoogleOAuth, "GOOGLE_OAUTH_ORIGIN_OVERRIDES")
 	cfg.GitHubOAuth.AllowedRedirectOrigins = normalizeStringSlice(cfg.GitHubOAuth.AllowedRedirectOrigins)
+	cfg.GitHubOAuth.OriginOverrides = normalizeEmailOAuthOriginOverrides(cfg.GitHubOAuth.OriginOverrides)
 	cfg.GoogleOAuth.AllowedRedirectOrigins = normalizeStringSlice(cfg.GoogleOAuth.AllowedRedirectOrigins)
+	cfg.GoogleOAuth.OriginOverrides = normalizeEmailOAuthOriginOverrides(cfg.GoogleOAuth.OriginOverrides)
 	cfg.Security.ResponseHeaders.AdditionalAllowed = normalizeStringSlice(cfg.Security.ResponseHeaders.AdditionalAllowed)
 	cfg.Security.ResponseHeaders.ForceRemove = normalizeStringSlice(cfg.Security.ResponseHeaders.ForceRemove)
 	cfg.Security.CSP.Policy = strings.TrimSpace(cfg.Security.CSP.Policy)
@@ -1538,6 +1551,42 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	return &cfg, nil
 }
 
+func applyEmailOAuthOriginOverrideEnv(cfg *EmailOAuthProviderConfig, envName string) {
+	if cfg == nil {
+		return
+	}
+	raw := strings.TrimSpace(os.Getenv(envName))
+	if raw == "" {
+		return
+	}
+	var overrides []EmailOAuthOriginOverride
+	if err := json.Unmarshal([]byte(raw), &overrides); err != nil {
+		slog.Warn("invalid email oauth origin overrides env ignored", "env", envName, "error", err)
+		return
+	}
+	cfg.OriginOverrides = overrides
+}
+
+func normalizeEmailOAuthOriginOverrides(overrides []EmailOAuthOriginOverride) []EmailOAuthOriginOverride {
+	if len(overrides) == 0 {
+		return nil
+	}
+	normalized := make([]EmailOAuthOriginOverride, 0, len(overrides))
+	for _, override := range overrides {
+		item := EmailOAuthOriginOverride{
+			Origin:       strings.TrimSpace(override.Origin),
+			ClientID:     strings.TrimSpace(override.ClientID),
+			ClientSecret: strings.TrimSpace(override.ClientSecret),
+			RedirectURL:  strings.TrimSpace(override.RedirectURL),
+		}
+		if item.Origin == "" && item.ClientID == "" && item.ClientSecret == "" && item.RedirectURL == "" {
+			continue
+		}
+		normalized = append(normalized, item)
+	}
+	return normalized
+}
+
 func setDefaults() {
 	viper.SetDefault("run_mode", RunModeStandard)
 
@@ -1581,7 +1630,9 @@ func setDefaults() {
 	viper.SetDefault("cors.allowed_origins", []string{})
 	viper.SetDefault("cors.allow_credentials", true)
 	viper.SetDefault("github_oauth.allowed_redirect_origins", []string{})
+	viper.SetDefault("github_oauth.origin_overrides", []EmailOAuthOriginOverride{})
 	viper.SetDefault("google_oauth.allowed_redirect_origins", []string{})
+	viper.SetDefault("google_oauth.origin_overrides", []EmailOAuthOriginOverride{})
 
 	// Security
 	viper.SetDefault("security.url_allowlist.enabled", false)
@@ -2076,6 +2127,31 @@ func (c *Config) Validate() error {
 		for _, origin := range origins {
 			if err := ValidateAbsoluteHTTPOrigin(origin); err != nil {
 				return fmt.Errorf("%s.allowed_redirect_origins contains invalid origin %q: %w", provider, origin, err)
+			}
+		}
+	}
+	for provider, overrides := range map[string][]EmailOAuthOriginOverride{
+		"github_oauth": c.GitHubOAuth.OriginOverrides,
+		"google_oauth": c.GoogleOAuth.OriginOverrides,
+	} {
+		seen := make(map[string]struct{}, len(overrides))
+		for _, override := range overrides {
+			if err := ValidateAbsoluteHTTPOrigin(override.Origin); err != nil {
+				return fmt.Errorf("%s.origin_overrides contains invalid origin %q: %w", provider, override.Origin, err)
+			}
+			originKey := strings.ToLower(strings.TrimSpace(override.Origin))
+			if _, ok := seen[originKey]; ok {
+				return fmt.Errorf("%s.origin_overrides contains duplicate origin %q", provider, override.Origin)
+			}
+			seen[originKey] = struct{}{}
+			if strings.TrimSpace(override.ClientID) == "" {
+				return fmt.Errorf("%s.origin_overrides[%s].client_id is required", provider, override.Origin)
+			}
+			if strings.TrimSpace(override.ClientSecret) == "" {
+				return fmt.Errorf("%s.origin_overrides[%s].client_secret is required", provider, override.Origin)
+			}
+			if err := ValidateAbsoluteHTTPURL(override.RedirectURL); err != nil {
+				return fmt.Errorf("%s.origin_overrides[%s].redirect_url invalid: %w", provider, override.Origin, err)
 			}
 		}
 	}

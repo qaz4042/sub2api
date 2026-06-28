@@ -852,6 +852,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyGitHubOAuthEnabled,
 		SettingKeyGitHubOAuthClientID,
 		SettingKeyGitHubOAuthClientSecret,
+		SettingKeyEmailOAuthClients,
 		SettingKeyGoogleOAuthEnabled,
 		SettingKeyGoogleOAuthClientID,
 		SettingKeyGoogleOAuthClientSecret,
@@ -1554,6 +1555,221 @@ func mergeEmailOAuthBaseConfig(base, override config.EmailOAuthProviderConfig) c
 	return base
 }
 
+func normalizeEmailOAuthProvider(provider string) string {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "github":
+		return "github"
+	case "google":
+		return "google"
+	default:
+		return ""
+	}
+}
+
+func emailOAuthClientOrigin(raw string) string {
+	origin := strings.TrimSpace(raw)
+	if origin == "" {
+		return ""
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return origin
+	}
+	if u.Scheme == "" || u.Host == "" {
+		return origin
+	}
+	return strings.TrimRight(strings.ToLower(u.Scheme+"://"+u.Host), "/")
+}
+
+func parseEmailOAuthClients(raw string) []EmailOAuthClientSetting {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var items []EmailOAuthClientSetting
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		slog.Warn("parse email_oauth_clients failed", "error", err)
+		return nil
+	}
+	return normalizeEmailOAuthClients(items, false)
+}
+
+func normalizeEmailOAuthClients(items []EmailOAuthClientSetting, keepEmptySecret bool) []EmailOAuthClientSetting {
+	if len(items) == 0 {
+		return nil
+	}
+	normalized := make([]EmailOAuthClientSetting, 0, len(items))
+	seen := map[string]struct{}{}
+	for _, item := range items {
+		provider := normalizeEmailOAuthProvider(item.Provider)
+		origin := emailOAuthClientOrigin(item.Origin)
+		if provider == "" && origin == "" && strings.TrimSpace(item.ClientID) == "" && strings.TrimSpace(item.RedirectURL) == "" {
+			continue
+		}
+		if provider == "" {
+			continue
+		}
+		key := provider + "|" + origin
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		secret := strings.TrimSpace(item.ClientSecret)
+		if !keepEmptySecret && secret == "" && item.ClientSecretConfigured {
+			secret = ""
+		}
+		normalized = append(normalized, EmailOAuthClientSetting{
+			ID:                     strings.TrimSpace(item.ID),
+			Provider:               provider,
+			Name:                   strings.TrimSpace(item.Name),
+			Origin:                 origin,
+			Enabled:                item.Enabled,
+			ClientID:               strings.TrimSpace(item.ClientID),
+			ClientSecret:           secret,
+			ClientSecretConfigured: item.ClientSecretConfigured || secret != "",
+			RedirectURL:            strings.TrimSpace(item.RedirectURL),
+			FrontendRedirectURL:    strings.TrimSpace(item.FrontendRedirectURL),
+			SortOrder:              item.SortOrder,
+		})
+	}
+	sort.SliceStable(normalized, func(i, j int) bool {
+		if normalized[i].SortOrder == normalized[j].SortOrder {
+			if normalized[i].Provider == normalized[j].Provider {
+				return normalized[i].Origin < normalized[j].Origin
+			}
+			return normalized[i].Provider < normalized[j].Provider
+		}
+		return normalized[i].SortOrder < normalized[j].SortOrder
+	})
+	return normalized
+}
+
+func emailOAuthClientsForProvider(items []EmailOAuthClientSetting, provider string) []EmailOAuthClientSetting {
+	provider = normalizeEmailOAuthProvider(provider)
+	if provider == "" || len(items) == 0 {
+		return nil
+	}
+	out := make([]EmailOAuthClientSetting, 0, len(items))
+	for _, item := range items {
+		if normalizeEmailOAuthProvider(item.Provider) == provider {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func legacyEmailOAuthClient(settings map[string]string, provider string, cfg config.EmailOAuthProviderConfig) (EmailOAuthClientSetting, bool) {
+	provider = normalizeEmailOAuthProvider(provider)
+	if provider == "" {
+		return EmailOAuthClientSetting{}, false
+	}
+	origin := ""
+	if u, err := url.Parse(strings.TrimSpace(cfg.RedirectURL)); err == nil && u.Scheme != "" && u.Host != "" {
+		origin = emailOAuthClientOrigin(u.Scheme + "://" + u.Host)
+	}
+	if origin == "" && len(cfg.AllowedRedirectOrigins) > 0 {
+		origin = emailOAuthClientOrigin(cfg.AllowedRedirectOrigins[0])
+	}
+	if strings.TrimSpace(cfg.ClientID) == "" && strings.TrimSpace(cfg.ClientSecret) == "" && strings.TrimSpace(cfg.RedirectURL) == "" {
+		return EmailOAuthClientSetting{}, false
+	}
+	name := "GitHub"
+	if provider == "google" {
+		name = "Google"
+	}
+	return EmailOAuthClientSetting{
+		ID:                     provider + "-default",
+		Provider:               provider,
+		Name:                   name,
+		Origin:                 origin,
+		Enabled:                cfg.Enabled,
+		ClientID:               strings.TrimSpace(cfg.ClientID),
+		ClientSecret:           strings.TrimSpace(cfg.ClientSecret),
+		ClientSecretConfigured: strings.TrimSpace(cfg.ClientSecret) != "",
+		RedirectURL:            strings.TrimSpace(cfg.RedirectURL),
+		FrontendRedirectURL:    strings.TrimSpace(cfg.FrontendRedirectURL),
+	}, true
+}
+
+func (s *SettingService) emailOAuthClientsFromSettings(settings map[string]string) []EmailOAuthClientSetting {
+	clients := parseEmailOAuthClients(settings[SettingKeyEmailOAuthClients])
+	if len(clients) > 0 {
+		return clients
+	}
+	out := make([]EmailOAuthClientSetting, 0, 2)
+	if item, ok := legacyEmailOAuthClient(settings, "github", s.effectiveEmailOAuthConfig(settings, "github")); ok {
+		out = append(out, item)
+	}
+	if item, ok := legacyEmailOAuthClient(settings, "google", s.effectiveEmailOAuthConfig(settings, "google")); ok {
+		out = append(out, item)
+	}
+	return normalizeEmailOAuthClients(out, true)
+}
+
+func mergeEmailOAuthClientSecrets(next, previous []EmailOAuthClientSetting) []EmailOAuthClientSetting {
+	if len(next) == 0 {
+		return nil
+	}
+	previousByKey := make(map[string]EmailOAuthClientSetting, len(previous))
+	for _, item := range previous {
+		key := normalizeEmailOAuthProvider(item.Provider) + "|" + emailOAuthClientOrigin(item.Origin) + "|" + strings.TrimSpace(item.ClientID)
+		previousByKey[key] = item
+	}
+	for i := range next {
+		if strings.TrimSpace(next[i].ClientSecret) != "" {
+			next[i].ClientSecretConfigured = true
+			continue
+		}
+		key := normalizeEmailOAuthProvider(next[i].Provider) + "|" + emailOAuthClientOrigin(next[i].Origin) + "|" + strings.TrimSpace(next[i].ClientID)
+		if prev, ok := previousByKey[key]; ok && strings.TrimSpace(prev.ClientSecret) != "" {
+			next[i].ClientSecret = strings.TrimSpace(prev.ClientSecret)
+			next[i].ClientSecretConfigured = true
+		}
+	}
+	return next
+}
+
+func applyEmailOAuthClientsToConfig(cfg config.EmailOAuthProviderConfig, clients []EmailOAuthClientSetting, provider string) config.EmailOAuthProviderConfig {
+	providerClients := emailOAuthClientsForProvider(clients, provider)
+	if len(providerClients) == 0 {
+		return cfg
+	}
+	cfg.Enabled = false
+	origins := make([]string, 0, len(providerClients))
+	overrides := make([]config.EmailOAuthOriginOverride, 0, len(providerClients))
+	defaultApplied := false
+	for _, item := range providerClients {
+		if !item.Enabled {
+			continue
+		}
+		origin := emailOAuthClientOrigin(item.Origin)
+		if origin != "" {
+			origins = append(origins, origin)
+		}
+		if !defaultApplied {
+			cfg.Enabled = true
+			cfg.ClientID = item.ClientID
+			cfg.ClientSecret = item.ClientSecret
+			cfg.RedirectURL = item.RedirectURL
+			cfg.FrontendRedirectURL = firstNonEmpty(item.FrontendRedirectURL, cfg.FrontendRedirectURL)
+			defaultApplied = true
+		}
+		if origin != "" {
+			overrides = append(overrides, config.EmailOAuthOriginOverride{
+				Origin:       origin,
+				ClientID:     item.ClientID,
+				ClientSecret: item.ClientSecret,
+				RedirectURL:  item.RedirectURL,
+			})
+		}
+	}
+	if defaultApplied {
+		cfg.AllowedRedirectOrigins = origins
+		cfg.OriginOverrides = overrides
+	}
+	return cfg
+}
+
 func (s *SettingService) emailOAuthPublicEnabled(settings map[string]string, provider string) bool {
 	cfg := s.effectiveEmailOAuthConfig(settings, provider)
 	return cfg.Enabled && strings.TrimSpace(cfg.ClientID) != "" && strings.TrimSpace(cfg.ClientSecret) != ""
@@ -1579,6 +1795,7 @@ func (s *SettingService) effectiveEmailOAuthConfig(settings map[string]string, p
 		cfg.RedirectURL = firstNonEmpty(settings[SettingKeyGoogleOAuthRedirectURL], cfg.RedirectURL)
 		cfg.FrontendRedirectURL = firstNonEmpty(settings[SettingKeyGoogleOAuthFrontendRedirectURL], cfg.FrontendRedirectURL, defaultGoogleOAuthFrontend)
 	}
+	cfg = applyEmailOAuthClientsToConfig(cfg, parseEmailOAuthClients(settings[SettingKeyEmailOAuthClients]), provider)
 	return cfg
 }
 
@@ -1840,6 +2057,27 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	if settings.GoogleOAuthFrontendRedirectURL == "" {
 		settings.GoogleOAuthFrontendRedirectURL = defaultGoogleOAuthFrontend
 	}
+	previousRaw, _ := s.settingRepo.GetMultiple(ctx, []string{
+		SettingKeyEmailOAuthClients,
+		SettingKeyGitHubOAuthEnabled,
+		SettingKeyGitHubOAuthClientID,
+		SettingKeyGitHubOAuthClientSecret,
+		SettingKeyGitHubOAuthRedirectURL,
+		SettingKeyGitHubOAuthFrontendRedirectURL,
+		SettingKeyGoogleOAuthEnabled,
+		SettingKeyGoogleOAuthClientID,
+		SettingKeyGoogleOAuthClientSecret,
+		SettingKeyGoogleOAuthRedirectURL,
+		SettingKeyGoogleOAuthFrontendRedirectURL,
+	})
+	settings.EmailOAuthClients = mergeEmailOAuthClientSecrets(
+		normalizeEmailOAuthClients(settings.EmailOAuthClients, true),
+		s.emailOAuthClientsFromSettings(previousRaw),
+	)
+	emailOAuthClientsJSON, err := json.Marshal(settings.EmailOAuthClients)
+	if err != nil {
+		return nil, fmt.Errorf("marshal email oauth clients: %w", err)
+	}
 
 	updates := make(map[string]string)
 
@@ -1944,6 +2182,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	}
 
 	// GitHub / Google 邮箱快捷登录
+	updates[SettingKeyEmailOAuthClients] = string(emailOAuthClientsJSON)
 	updates[SettingKeyGitHubOAuthEnabled] = strconv.FormatBool(settings.GitHubOAuthEnabled)
 	updates[SettingKeyGitHubOAuthClientID] = strings.TrimSpace(settings.GitHubOAuthClientID)
 	updates[SettingKeyGitHubOAuthRedirectURL] = settings.GitHubOAuthRedirectURL
@@ -2354,6 +2593,7 @@ func (s *SettingService) GetEmailOAuthProviderConfig(ctx context.Context, provid
 		SettingKeyGitHubOAuthClientSecret,
 		SettingKeyGitHubOAuthRedirectURL,
 		SettingKeyGitHubOAuthFrontendRedirectURL,
+		SettingKeyEmailOAuthClients,
 		SettingKeyGoogleOAuthEnabled,
 		SettingKeyGoogleOAuthClientID,
 		SettingKeyGoogleOAuthClientSecret,
@@ -2954,6 +3194,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyWeChatConnectScopes:                       "snsapi_login",
 		SettingKeyWeChatConnectRedirectURL:                  "",
 		SettingKeyWeChatConnectFrontendRedirectURL:          defaultWeChatConnectFrontend,
+		SettingKeyEmailOAuthClients:                         "[]",
 		SettingKeyGitHubOAuthEnabled:                        "false",
 		SettingKeyGitHubOAuthClientID:                       "",
 		SettingKeyGitHubOAuthClientSecret:                   "",
@@ -3489,6 +3730,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.OIDCConnectClientSecretConfigured = result.OIDCConnectClientSecret != ""
 
 	gitHubEffective := s.effectiveEmailOAuthConfig(settings, "github")
+	result.EmailOAuthClients = s.emailOAuthClientsFromSettings(settings)
 	result.GitHubOAuthEnabled = gitHubEffective.Enabled
 	result.GitHubOAuthClientID = strings.TrimSpace(gitHubEffective.ClientID)
 	result.GitHubOAuthClientSecret = strings.TrimSpace(gitHubEffective.ClientSecret)

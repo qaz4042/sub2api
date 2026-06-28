@@ -149,6 +149,60 @@ func TestEmailOAuthConfigForRequestSelectsSameOriginCallback(t *testing.T) {
 	}
 }
 
+func TestEmailOAuthConfigForRequestAppliesOriginOverride(t *testing.T) {
+	tests := []struct {
+		name              string
+		host              string
+		wantClientID      string
+		wantClientSecret  string
+		wantRedirectURL   string
+	}{
+		{
+			name:             "default portal app",
+			host:             "portal.lizubin.online",
+			wantClientID:     "portal-client",
+			wantClientSecret: "portal-secret",
+			wantRedirectURL:  "https://portal.lizubin.online/api/v1/auth/oauth/github/callback",
+		},
+		{
+			name:             "codex app override",
+			host:             "codex.lizubin.online",
+			wantClientID:     "codex-client",
+			wantClientSecret: "codex-secret",
+			wantRedirectURL:  "https://codex.lizubin.online/api/v1/auth/oauth/github/callback",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/oauth/github/start", nil)
+			c.Request.Host = tt.host
+			c.Request.Header.Set("X-Forwarded-Proto", "https")
+
+			cfg, err := emailOAuthConfigForRequest(c, config.EmailOAuthProviderConfig{
+				ClientID:               "portal-client",
+				ClientSecret:           "portal-secret",
+				RedirectURL:            "https://portal.lizubin.online/api/v1/auth/oauth/github/callback",
+				AllowedRedirectOrigins: []string{"https://portal.lizubin.online", "https://codex.lizubin.online"},
+				OriginOverrides: []config.EmailOAuthOriginOverride{
+					{
+						Origin:       "https://codex.lizubin.online",
+						ClientID:     "codex-client",
+						ClientSecret: "codex-secret",
+						RedirectURL:  "https://codex.lizubin.online/api/v1/auth/oauth/github/callback",
+					},
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.wantClientID, cfg.ClientID)
+			require.Equal(t, tt.wantClientSecret, cfg.ClientSecret)
+			require.Equal(t, tt.wantRedirectURL, cfg.RedirectURL)
+		})
+	}
+}
+
 func TestEmailOAuthCallbackExistingEmailLogsInWhenInvitationEnabled(t *testing.T) {
 	handler, client := newOAuthPendingFlowTestHandler(t, true)
 	ctx := context.Background()

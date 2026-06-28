@@ -84,6 +84,13 @@ google_oauth:
   allowed_redirect_origins: []
 github_oauth:
   allowed_redirect_origins: []
+  # GitHub OAuth Apps do not reliably accept sibling subdomain callbacks from one app.
+  # Configure per-origin apps here when multiple domains need GitHub login.
+  origin_overrides: []
+  # - origin: "https://app.example.com"
+  #   client_id: "Ov23..."
+  #   client_secret: "..."
+  #   redirect_url: "https://app.example.com/api/v1/auth/oauth/github/callback"
 
 # =============================================================================
 # Security Configuration
