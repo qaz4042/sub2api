@@ -9398,6 +9398,8 @@ async function saveSettings() {
       origin: client.origin.trim().replace(/\/+$/, ""),
       client_id: client.client_id.trim(),
       client_secret: (client.client_secret || "").trim() || undefined,
+      client_secret_configured:
+        client.client_secret_configured || Boolean((client.client_secret || "").trim()),
       redirect_url: client.redirect_url.trim(),
       frontend_redirect_url:
         client.frontend_redirect_url.trim() || "/auth/oauth/callback",
@@ -9691,6 +9693,7 @@ async function saveSettings() {
     form.dingtalk_connect_client_secret = "";
     form.github_oauth_client_secret = "";
     form.google_oauth_client_secret = "";
+    form.email_oauth_clients = normalizeEmailOAuthClients(updated);
     form.wechat_connect_app_secret = "";
     form.wechat_connect_open_app_secret = "";
     form.wechat_connect_mp_app_secret = "";

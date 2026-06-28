@@ -76,11 +76,18 @@ func emailOAuthClientsToDTO(items []service.EmailOAuthClientSetting) []dto.Email
 	return out
 }
 
+func emailOAuthClientSecretKey(item service.EmailOAuthClientSetting) string {
+	provider := strings.ToLower(strings.TrimSpace(item.Provider))
+	origin := strings.TrimRight(strings.ToLower(strings.TrimSpace(item.Origin)), "/")
+	clientID := strings.TrimSpace(item.ClientID)
+	return provider + "|" + origin + "|" + clientID
+}
+
 func validateEmailOAuthClientSettings(items, previous []service.EmailOAuthClientSetting) error {
 	previousSecrets := make(map[string]bool, len(previous))
 	for _, item := range previous {
-		key := strings.ToLower(strings.TrimSpace(item.Provider)) + "|" + strings.TrimSpace(item.Origin) + "|" + strings.TrimSpace(item.ClientID)
-		previousSecrets[key] = strings.TrimSpace(item.ClientSecret) != ""
+		previousSecrets[emailOAuthClientSecretKey(item)] =
+			strings.TrimSpace(item.ClientSecret) != "" || item.ClientSecretConfigured
 	}
 	seen := make(map[string]struct{}, len(items))
 	for _, item := range items {
@@ -118,7 +125,7 @@ func validateEmailOAuthClientSettings(items, previous []service.EmailOAuthClient
 		if strings.TrimSpace(item.ClientID) == "" {
 			return fmt.Errorf("Email OAuth Client ID is required when enabled")
 		}
-		secretKey := provider + "|" + origin + "|" + strings.TrimSpace(item.ClientID)
+		secretKey := emailOAuthClientSecretKey(item)
 		if strings.TrimSpace(item.ClientSecret) == "" && !previousSecrets[secretKey] {
 			return fmt.Errorf("Email OAuth Client Secret is required when enabled")
 		}

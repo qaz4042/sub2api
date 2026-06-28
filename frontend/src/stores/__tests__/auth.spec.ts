@@ -187,6 +187,7 @@ describe('useAuthStore', () => {
       expect(store.token).toBeNull()
       expect(store.user).toBeNull()
       expect(store.isAuthenticated).toBe(false)
+      expect(mockRefreshToken).not.toHaveBeenCalled()
     })
 
     it('localStorage 中用户数据损坏时清除状态', async () => {

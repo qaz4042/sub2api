@@ -79,7 +79,7 @@
         </div>
 
         <!-- Turnstile Widget -->
-        <div v-if="turnstileRequired">
+        <div v-if="showTurnstileWidget">
           <TurnstileWidget
             ref="turnstileRef"
             :site-key="turnstileSiteKey"
@@ -92,7 +92,7 @@
         <!-- Submit Button -->
         <button
           type="submit"
-          :disabled="authActionDisabled || (turnstileRequired && !turnstileToken)"
+          :disabled="authActionDisabled || (showTurnstileWidget && !turnstileToken)"
           class="btn btn-primary w-full"
         >
           <svg
@@ -306,9 +306,24 @@ const turnstileRequired = computed(
   () => turnstileEnabled.value && Boolean(turnstileSiteKey.value)
 )
 
+const loginCredentialsReady = computed(
+  () => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim()) && formData.password.length >= 6
+)
+
+const showTurnstileWidget = computed(
+  () => turnstileRequired.value && loginCredentialsReady.value
+)
+
 watch(validationToastMessage, (value, previousValue) => {
   if (value && value !== previousValue) {
     appStore.showError(value)
+  }
+})
+
+watch(loginCredentialsReady, (ready) => {
+  if (!ready) {
+    turnstileToken.value = ''
+    errors.turnstile = ''
   }
 })
 
@@ -463,7 +478,7 @@ function validateForm(): boolean {
   }
 
   // Turnstile validation
-  if (turnstileRequired.value && !turnstileToken.value) {
+  if (turnstileRequired.value && loginCredentialsReady.value && !turnstileToken.value) {
     errors.turnstile = t('auth.completeVerification')
     isValid = false
   }

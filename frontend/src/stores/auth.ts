@@ -73,6 +73,15 @@ function clearPendingAuthSessionStorage(): void {
   localStorage.removeItem(PENDING_AUTH_SESSION_KEY)
 }
 
+function hasPersistedAuthSessionHint(savedUser: string | null): boolean {
+  return Boolean(
+    savedUser
+      || localStorage.getItem('auth_token')
+      || localStorage.getItem('token_expires_at')
+      || getLegacyRefreshToken()
+  )
+}
+
 export const useAuthStore = defineStore('auth', () => {
   // ==================== State ====================
 
@@ -116,14 +125,16 @@ export const useAuthStore = defineStore('auth', () => {
       return
     }
 
-    try {
-      await performTokenRefresh({ silent: true })
-      await refreshUser()
-      startAutoRefresh()
-      return
-    } catch {
-      // Silent refresh failed; fall back to legacy access token only for old sessions
-      // that have not expired yet, then clear persisted token secrets.
+    if (hasPersistedAuthSessionHint(savedUser)) {
+      try {
+        await performTokenRefresh({ silent: true })
+        await refreshUser()
+        startAutoRefresh()
+        return
+      } catch {
+        // Silent refresh failed; fall back to legacy access token only for old sessions
+        // that have not expired yet, then clear persisted token secrets.
+      }
     }
 
     const legacyToken = localStorage.getItem('auth_token')

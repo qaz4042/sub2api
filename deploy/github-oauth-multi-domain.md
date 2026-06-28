@@ -60,3 +60,32 @@ GITHUB_OAUTH_ORIGIN_OVERRIDES='[{"origin":"https://codex.lizubin.online","client
 
 注意：`client_secret` 只写入服务器环境，不写入文档和仓库。
 
+## 2026-06-28 落地状态
+
+已改为后台“邮箱快捷登录”列表配置，数据库只需要维护一组列表 `email_oauth_clients`，列表里可放多条 GitHub / Google 配置，每条按 `provider + origin` 区分。
+
+当前线上配置：
+
+- GitHub `portal.lizubin.online`：已启用，Client Secret 已配置。
+- GitHub `codex.lizubin.online`：配置已建但禁用，当前缺少 Client Secret。
+- Google `portal.lizubin.online` / `codex.lizubin.online`：均已启用，复用同一套 Google Client。
+
+前后端行为：
+
+- GitHub / Google 授权 start / callback 会按当前请求域名选择对应 OAuth 配置。
+- 公开设置 `/api/v1/settings/public` 也会按当前请求域名过滤登录按钮。
+- 当 `email_oauth_clients` 为空时，保持旧的全局配置兼容逻辑。
+- 当列表存在时，某个 provider 只有在当前 `origin` 下启用且 `client_id` / `client_secret` 都存在，才会对前端返回 enabled。
+
+已部署到 `my4g`：
+
+```text
+/opt/sub2api/releases/20260628-224646-public-oauth-origin
+```
+
+验证结果：
+
+- `portal.lizubin.online`：GitHub `true`，Google `true`。
+- `codex.lizubin.online`：GitHub `false`，Google `true`。
+
+补充：`codex.lizubin.online` 外部 HTTPS 入口曾出现 TLS reset，本次应用层验证使用 `my4g` 本机 Host 头完成；该问题属于入口层，不属于 OAuth 配置选择逻辑。

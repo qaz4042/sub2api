@@ -1,4 +1,4 @@
-.PHONY: dev-backend build build-backend build-frontend test test-backend test-frontend test-frontend-critical check-entrypoints secret-scan deploy-my4g deploy-my4g-backend-only
+.PHONY: dev-backend build build-backend build-frontend test test-backend test-frontend test-frontend-critical check-entrypoints secret-scan export-my4g-debug-snapshot deploy-my4g deploy-my4g-backend-only
 
 -include .dev.env
 
@@ -75,6 +75,10 @@ check-entrypoints:
 
 secret-scan:
 	@python3 tools/secret_scan.py
+
+# 从生产 my4g 只读导出脱敏小样本，默认 DRY_RUN=1，不复制生产 env 或完整数据库。
+export-my4g-debug-snapshot:
+	@./deploy/export-my4g-debug-snapshot.sh
 
 # 在当前 Mac 构建前后端一体 linux/amd64 二进制，并发布到香港 my4g。
 deploy-my4g:

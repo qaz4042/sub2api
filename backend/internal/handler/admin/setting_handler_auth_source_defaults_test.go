@@ -159,6 +159,28 @@ func TestSettingHandler_GetSettings_InjectsAuthSourceDefaults(t *testing.T) {
 	require.Len(t, subscriptions, 1)
 }
 
+func TestValidateEmailOAuthClientSettings_AllowsConfiguredSecretPlaceholder(t *testing.T) {
+	previous := []service.EmailOAuthClientSetting{{
+		Provider:               "github",
+		Origin:                 "https://portal.example.com",
+		Enabled:                true,
+		ClientID:               "portal-client",
+		ClientSecretConfigured: true,
+		RedirectURL:            "https://portal.example.com/api/v1/auth/oauth/github/callback",
+		FrontendRedirectURL:    "/auth/oauth/callback",
+	}}
+	next := []service.EmailOAuthClientSetting{{
+		Provider:            "github",
+		Origin:              "https://portal.example.com",
+		Enabled:             true,
+		ClientID:            "portal-client",
+		RedirectURL:         "https://portal.example.com/api/v1/auth/oauth/github/callback",
+		FrontendRedirectURL: "/auth/oauth/callback",
+	}}
+
+	require.NoError(t, validateEmailOAuthClientSettings(next, previous))
+}
+
 func TestSettingHandler_UpdateSettings_PreservesOmittedAuthSourceDefaults(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := &settingHandlerRepoStub{
