@@ -1373,6 +1373,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		req.EmailOAuthClients = previousSettings.EmailOAuthClients
 	}
 	if emailOAuthProvided {
+		req.EmailOAuthClients = service.MergeEmailOAuthClientSecrets(req.EmailOAuthClients, previousSettings.EmailOAuthClients)
 		if err := validateEmailOAuthClientSettings(req.EmailOAuthClients, previousSettings.EmailOAuthClients); err != nil {
 			response.BadRequest(c, err.Error())
 			return

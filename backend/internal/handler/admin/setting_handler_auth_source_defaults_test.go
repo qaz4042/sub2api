@@ -124,6 +124,58 @@ func (s *failingAuthSourceSettingsRepoStub) Delete(ctx context.Context, key stri
 	panic("unexpected Delete call")
 }
 
+func emailOAuthClientSettingJSON(clientID, secret string, enabled bool) string {
+	raw, err := json.Marshal([]map[string]any{{
+		"id":                       "github-codex",
+		"provider":                 "github",
+		"name":                     "Codex GitHub",
+		"origin":                   "https://codex.example.com",
+		"enabled":                  enabled,
+		"client_id":                clientID,
+		"client_secret":            secret,
+		"client_secret_configured": secret != "",
+		"redirect_url":             "https://codex.example.com/api/v1/auth/oauth/github/callback",
+		"frontend_redirect_url":    "/auth/oauth/callback",
+		"sort_order":               0,
+	}})
+	if err != nil {
+		panic(err)
+	}
+	return string(raw)
+}
+
+func emailOAuthUpdateBody(clientID string, enabled bool) map[string]any {
+	return map[string]any{
+		"update_email_oauth_clients": true,
+		"email_oauth_clients": []map[string]any{{
+			"id":                       "github-codex",
+			"provider":                 "github",
+			"name":                     "Codex GitHub",
+			"origin":                   "https://codex.example.com",
+			"enabled":                  enabled,
+			"client_id":                clientID,
+			"client_secret_configured": false,
+			"redirect_url":             "https://codex.example.com/api/v1/auth/oauth/github/callback",
+			"frontend_redirect_url":    "/auth/oauth/callback",
+			"sort_order":               0,
+		}},
+	}
+}
+
+func performSettingsUpdate(t *testing.T, handler *SettingHandler, body map[string]any) *httptest.ResponseRecorder {
+	t.Helper()
+	rawBody, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/admin/settings", bytes.NewReader(rawBody))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.UpdateSettings(c)
+	return rec
+}
+
 func TestSettingHandler_GetSettings_InjectsAuthSourceDefaults(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := &settingHandlerRepoStub{
@@ -179,6 +231,57 @@ func TestValidateEmailOAuthClientSettings_AllowsConfiguredSecretPlaceholder(t *t
 	}}
 
 	require.NoError(t, validateEmailOAuthClientSettings(next, previous))
+}
+
+func TestUpdateSettings_EmailOAuthClientKeepsPreviousSecretBeforeValidation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &settingHandlerRepoStub{
+		values: map[string]string{
+			service.SettingKeyEmailOAuthClients: emailOAuthClientSettingJSON("codex-client", "previous-secret", true),
+		},
+	}
+	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil, nil)
+
+	rec := performSettingsUpdate(t, handler, emailOAuthUpdateBody("codex-client", true))
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, repo.lastUpdates, service.SettingKeyEmailOAuthClients)
+	require.Contains(t, repo.values[service.SettingKeyEmailOAuthClients], `"client_secret":"previous-secret"`)
+	require.Contains(t, repo.values[service.SettingKeyEmailOAuthClients], `"client_secret_configured":true`)
+}
+
+func TestUpdateSettings_EmailOAuthClientChangedClientIDRequiresNewSecret(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &settingHandlerRepoStub{
+		values: map[string]string{
+			service.SettingKeyEmailOAuthClients: emailOAuthClientSettingJSON("codex-client", "previous-secret", true),
+		},
+	}
+	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil, nil)
+
+	rec := performSettingsUpdate(t, handler, emailOAuthUpdateBody("changed-client", true))
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Contains(t, rec.Body.String(), "Email OAuth Client Secret is required when enabled")
+}
+
+func TestUpdateSettings_EmailOAuthClientDisabledAllowsMissingSecret(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &settingHandlerRepoStub{
+		values: map[string]string{
+			service.SettingKeyEmailOAuthClients: emailOAuthClientSettingJSON("codex-client", "", false),
+		},
+	}
+	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil, nil)
+
+	rec := performSettingsUpdate(t, handler, emailOAuthUpdateBody("codex-client", false))
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, repo.lastUpdates, service.SettingKeyEmailOAuthClients)
+	require.Contains(t, repo.values[service.SettingKeyEmailOAuthClients], `"client_secret_configured":false`)
 }
 
 func TestSettingHandler_UpdateSettings_SkipsEmailOAuthValidationWhenFieldsOmitted(t *testing.T) {

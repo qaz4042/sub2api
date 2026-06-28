@@ -420,7 +420,6 @@ const validationToastMessage = computed(() =>
 
 const showOAuthLogin = computed(
   () =>
-    !turnstileRequired.value &&
     (linuxdoOAuthEnabled.value ||
       wechatOAuthEnabled.value ||
       oidcOAuthEnabled.value ||

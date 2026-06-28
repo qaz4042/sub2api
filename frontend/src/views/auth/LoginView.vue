@@ -292,7 +292,6 @@ const authActionDisabled = computed(
 
 const showOAuthLogin = computed(
   () =>
-    !turnstileRequired.value &&
     !backendModeEnabled.value &&
     (linuxdoOAuthEnabled.value ||
       dingtalkOAuthEnabled.value ||

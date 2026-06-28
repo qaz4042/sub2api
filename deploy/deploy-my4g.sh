@@ -38,7 +38,7 @@ run_quiet() {
   fi
 }
 
-for command in git go pnpm ssh scp rsync curl mktemp; do
+for command in git go pnpm ssh scp rsync curl mktemp gzip; do
   if ! command -v "${command}" >/dev/null 2>&1; then
     echo "缺少本地命令: ${command}" >&2
     exit 1
@@ -77,6 +77,7 @@ REMOTE_RELEASE="${REMOTE_DIR}/releases/${TAG}"
 REMOTE_INCOMING="${REMOTE_DIR}/releases/.incoming-${TAG}"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/sub2api-deploy.XXXXXX")"
 ARTIFACT="${TMP_DIR}/sub2api"
+COMPRESSED_ARTIFACT="${TMP_DIR}/sub2api.gz"
 REMOTE_PREPARED=false
 
 cleanup() {
@@ -100,7 +101,7 @@ ssh "${SSH_TARGET}" bash -s -- "${REMOTE_DIR}" "${REMOTE_RELEASE}" <<'REMOTE_PRE
 set -Eeuo pipefail
 remote_dir="$1"
 remote_release="$2"
-for command in systemctl curl rsync readlink; do
+for command in systemctl curl rsync readlink gzip; do
   command -v "${command}" >/dev/null
 done
 test -d "${remote_dir}/releases"
@@ -139,7 +140,8 @@ step_done
 step_start "4/5 上传 release"
 ssh "${SSH_TARGET}" "mkdir -p '${REMOTE_INCOMING}/resources'"
 REMOTE_PREPARED=true
-scp -q "${ARTIFACT}" "${SSH_TARGET}:${REMOTE_INCOMING}/sub2api"
+gzip -1 -c "${ARTIFACT}" >"${COMPRESSED_ARTIFACT}"
+scp -q "${COMPRESSED_ARTIFACT}" "${SSH_TARGET}:${REMOTE_INCOMING}/sub2api.gz"
 rsync -a --delete "${ROOT_DIR}/backend/resources/" "${SSH_TARGET}:${REMOTE_INCOMING}/resources/"
 step_done
 
@@ -185,8 +187,10 @@ rollback() {
 }
 trap rollback ERR
 
-test -f "${incoming}/sub2api"
+test -f "${incoming}/sub2api.gz"
 test -d "${incoming}/resources"
+gzip -dc "${incoming}/sub2api.gz" >"${incoming}/sub2api"
+rm -f "${incoming}/sub2api.gz"
 chmod 0755 "${incoming}/sub2api"
 chown -R root:root "${incoming}"
 mv "${incoming}" "${release}"

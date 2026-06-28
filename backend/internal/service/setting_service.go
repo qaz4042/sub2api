@@ -1715,7 +1715,7 @@ func (s *SettingService) emailOAuthClientsFromSettings(settings map[string]strin
 	return normalizeEmailOAuthClients(out, true)
 }
 
-func mergeEmailOAuthClientSecrets(next, previous []EmailOAuthClientSetting) []EmailOAuthClientSetting {
+func MergeEmailOAuthClientSecrets(next, previous []EmailOAuthClientSetting) []EmailOAuthClientSetting {
 	if len(next) == 0 {
 		return nil
 	}
@@ -2097,7 +2097,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 		SettingKeyGoogleOAuthFrontendRedirectURL,
 	})
 	if settings.UpdateEmailOAuthClients {
-		settings.EmailOAuthClients = mergeEmailOAuthClientSecrets(
+		settings.EmailOAuthClients = MergeEmailOAuthClientSecrets(
 			normalizeEmailOAuthClients(settings.EmailOAuthClients, true),
 			s.emailOAuthClientsFromSettings(previousRaw),
 		)
