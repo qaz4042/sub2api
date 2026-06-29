@@ -818,8 +818,8 @@ export default {
         rawResponse: '原始响应',
         emptyResponse: '请求成功，但响应为空。',
         requestFailed: '请求失败',
-        displayEndpoint: '展示/复制端点：{url}',
-        actualRequestEndpoint: '页面实际请求：{url}',
+        displayEndpoint: '高速端点：{url}',
+        actualRequestEndpoint: '临时端点：{url}',
         corsBlockedTitle: '浏览器 CORS 限制',
         corsBlocked:
           '当前请求网关与页面不同源，浏览器会因 CORS 预检限制拦截此测试。curl 或服务端请求不受此限制。',
