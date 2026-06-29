@@ -436,8 +436,13 @@ const healthScoreValue = computed<number | null>(() => {
   return typeof v === 'number' && Number.isFinite(v) ? v : null
 })
 
+const healthScoreMeta = computed(() => overview.value?.health_score_meta ?? null)
+const isLowSampleHealthScore = computed(() => healthScoreMeta.value?.low_sample === true)
+const isUpstreamExperienceSignal = computed(() => healthScoreMeta.value?.primary_signal === 'upstream_experience')
+
 const healthScoreColor = computed(() => {
   if (isSystemIdle.value) return '#9ca3af' // gray-400
+  if (isLowSampleHealthScore.value) return '#3b82f6' // blue-500
   const score = healthScoreValue.value
   if (score == null) return '#9ca3af'
   if (score >= 90) return '#10b981' // green
@@ -447,6 +452,7 @@ const healthScoreColor = computed(() => {
 
 const healthScoreClass = computed(() => {
   if (isSystemIdle.value) return 'text-gray-400'
+  if (isLowSampleHealthScore.value) return 'text-blue-500'
   const score = healthScoreValue.value
   if (score == null) return 'text-gray-400'
   if (score >= 90) return 'text-green-500'
@@ -485,6 +491,15 @@ const diagnosisReport = computed<DiagnosisItem[]>(() => {
       impact: t('admin.ops.diagnosis.idleImpact')
     })
     return report
+  }
+
+  if (isLowSampleHealthScore.value) {
+    report.push({
+      type: 'info',
+      message: t('admin.ops.diagnosis.lowSample', { count: healthScoreMeta.value?.sample_size ?? 0 }),
+      impact: t('admin.ops.diagnosis.lowSampleImpact'),
+      action: t('admin.ops.diagnosis.lowSampleAction')
+    })
   }
 
   // Resource diagnostics (highest priority)
@@ -552,6 +567,18 @@ const diagnosisReport = computed<DiagnosisItem[]>(() => {
     })
   }
 
+  if (isUpstreamExperienceSignal.value && healthScoreMeta.value?.ttft_reference_ms) {
+    report.push({
+      type: 'warning',
+      message: t('admin.ops.diagnosis.upstreamExperienceHigh', {
+        percentile: healthScoreMeta.value.ttft_reference_percentile || 'p95',
+        ttft: healthScoreMeta.value.ttft_reference_ms.toFixed(0)
+      }),
+      impact: t('admin.ops.diagnosis.upstreamExperienceHighImpact'),
+      action: t('admin.ops.diagnosis.upstreamExperienceHighAction')
+    })
+  }
+
   // Error rate diagnostics (adjusted thresholds)
   const upstreamRatePct = (ov.upstream_error_rate ?? 0) * 100
   if (upstreamRatePct > 5) {
@@ -607,7 +634,9 @@ const diagnosisReport = computed<DiagnosisItem[]>(() => {
 
   // Health score diagnostics (lowest priority)
   if (healthScoreValue.value != null) {
-    if (healthScoreValue.value < 60) {
+    if (isLowSampleHealthScore.value) {
+      // Low sample already has a dedicated diagnostic above; do not escalate it as a system failure.
+    } else if (healthScoreValue.value < 60) {
       report.push({
         type: 'critical',
         message: t('admin.ops.diagnosis.healthCritical', { score: healthScoreValue.value }),
@@ -633,6 +662,13 @@ const diagnosisReport = computed<DiagnosisItem[]>(() => {
   }
 
   return report
+})
+
+const healthConditionLabel = computed(() => {
+  if (isSystemIdle.value) return t('admin.ops.idleStatus')
+  if (isLowSampleHealthScore.value) return t('admin.ops.observingStatus')
+  if (healthScoreValue.value == null) return '--'
+  return healthScoreValue.value >= 90 ? t('admin.ops.healthyStatus') : t('admin.ops.riskyStatus')
 })
 
 // --- System health (secondary) ---
@@ -1090,13 +1126,7 @@ function handleToolbarRefresh() {
                 <HelpTooltip :content="t('admin.ops.healthHelp')" />
               </div>
               <div class="mt-1 text-xs font-bold" :class="healthScoreClass">
-                {{
-                  isSystemIdle
-                    ? t('admin.ops.idleStatus')
-                    : typeof overview.health_score === 'number' && overview.health_score >= 90
-                      ? t('admin.ops.healthyStatus')
-                      : t('admin.ops.riskyStatus')
-                }}
+                {{ healthConditionLabel }}
               </div>
             </div>
           </div>

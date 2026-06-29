@@ -29,6 +29,18 @@ type OpsPercentiles struct {
 	Max *int `json:"max_ms"`
 }
 
+type OpsHealthScoreMeta struct {
+	Confidence        string   `json:"confidence"`
+	PrimarySignal     string   `json:"primary_signal"`
+	Reasons           []string `json:"reasons"`
+	SampleSize        int64    `json:"sample_size"`
+	LowSample         bool     `json:"low_sample"`
+	BusinessScore     int      `json:"business_score"`
+	InfraScore        int      `json:"infra_score"`
+	TTFTReferenceMs   *int     `json:"ttft_reference_ms,omitempty"`
+	TTFTReferencePctl string   `json:"ttft_reference_percentile,omitempty"`
+}
+
 type OpsDashboardOverview struct {
 	StartTime time.Time `json:"start_time"`
 	EndTime   time.Time `json:"end_time"`
@@ -37,7 +49,8 @@ type OpsDashboardOverview struct {
 
 	// HealthScore is a backend-computed overall health score (0-100).
 	// It is derived from the monitored metrics in this overview, plus best-effort system metrics/job heartbeats.
-	HealthScore int `json:"health_score"`
+	HealthScore     int                 `json:"health_score"`
+	HealthScoreMeta *OpsHealthScoreMeta `json:"health_score_meta,omitempty"`
 
 	// Latest system-level snapshot (window=1m, global).
 	SystemMetrics *OpsSystemMetricsSnapshot `json:"system_metrics"`
