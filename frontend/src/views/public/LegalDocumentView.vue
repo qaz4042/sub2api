@@ -94,8 +94,8 @@ import { getPublicSettings } from '@/api/auth'
 import { getLocale } from '@/i18n'
 import { sanitizeUrl } from '@/utils/url'
 import type { LoginAgreementDocument, PublicSettings } from '@/types'
-import zhAdminCompliance from '../../../../docs/public/legal/admin-compliance.zh.md?raw'
-import enAdminCompliance from '../../../../docs/public/legal/admin-compliance.en.md?raw'
+import zhAdminCompliance from '../../../../docs/platform/public/legal/admin-compliance.zh.md?raw'
+import enAdminCompliance from '../../../../docs/platform/public/legal/admin-compliance.en.md?raw'
 
 type LegalDocumentIcon = 'document' | 'shield' | 'globe' | 'cog'
 

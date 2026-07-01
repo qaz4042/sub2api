@@ -158,8 +158,8 @@ describe('API Client', () => {
             message: 'administrator compliance acknowledgement is required',
             metadata: {
               version: 'v2026.06.10',
-              document_path_zh: 'docs/public/legal/admin-compliance.zh.md',
-              document_path_en: 'docs/public/legal/admin-compliance.en.md',
+              document_path_zh: 'docs/platform/public/legal/admin-compliance.zh.md',
+              document_path_en: 'docs/platform/public/legal/admin-compliance.en.md',
             },
           },
         },

@@ -29,11 +29,11 @@ RUN pnpm install --frozen-lockfile
 
 # Copy frontend source and build.
 # LegalDocumentView.vue (admin-compliance gate) build-time imports
-# ../../../../docs/public/legal/*.md?raw, so docs/public/legal/ must sit beside frontend/
-# in the image (WORKDIR /app/frontend -> resolves to /app/docs/public/legal/*.md).
+# ../../../../docs/platform/public/legal/*.md?raw, so that subtree must sit beside
+# frontend/ in the image (WORKDIR /app/frontend -> resolves to /app/docs/...).
 # Copy only that subtree to keep the build dependency minimal.
 COPY frontend/ ./
-COPY docs/public/legal/ /app/docs/public/legal/
+COPY docs/platform/public/legal/ /app/docs/platform/public/legal/
 RUN pnpm run build
 
 # -----------------------------------------------------------------------------
