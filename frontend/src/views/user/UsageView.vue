@@ -130,10 +130,11 @@
 
             <!-- Date Range Filter -->
             <div>
-              <label class="input-label">{{ t('usage.timeRange') }}</label>
-              <DateRangePicker
+              <UsageDateRangeRadios
+                v-model="dateRangePreset"
                 v-model:start-date="startDate"
                 v-model:end-date="endDate"
+                :label="t('usage.timeRange')"
                 @change="onDateRangeChange"
               />
             </div>
@@ -629,7 +630,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Select from '@/components/common/Select.vue'
-import DateRangePicker from '@/components/common/DateRangePicker.vue'
+import UsageDateRangeRadios from '@/components/common/UsageDateRangeRadios.vue'
 import Icon from '@/components/icons/Icon.vue'
 import UserErrorRequestsTable from '@/components/user/UserErrorRequestsTable.vue'
 import UserApiKeyRankingCard from '@/components/user/UserApiKeyRankingCard.vue'
@@ -649,6 +650,11 @@ import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
 import { resolveUsageRequestType } from '@/utils/usageRequestType'
+import {
+  getUsageDateRangePreset,
+  type UsageDateRangeMode,
+  type UsageDateRangePreset,
+} from '@/utils/usageDateRange'
 import {
   BILLING_MODE_IMAGE,
   getBillingModeBadgeClass,
@@ -742,19 +748,14 @@ const apiKeyOptions = computed(() => {
   ]
 })
 
-// Helper function to format date in local timezone
-const formatLocalDate = (date: Date): string => {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
-
 // Initialize date range immediately
-const now = new Date()
-const weekAgo = new Date(now)
-weekAgo.setDate(weekAgo.getDate() - 6)
+const defaultDateRangePreset: UsageDateRangePreset = 'today'
+const defaultDateRange = getUsageDateRangePreset(defaultDateRangePreset)
 
 // Date range state
-const startDate = ref(formatLocalDate(weekAgo))
-const endDate = ref(formatLocalDate(now))
+const dateRangePreset = ref<UsageDateRangeMode | null>(defaultDateRangePreset)
+const startDate = ref(defaultDateRange.start)
+const endDate = ref(defaultDateRange.end)
 
 const filters = ref<UsageQueryParams>({
   api_key_id: undefined,
@@ -770,8 +771,11 @@ filters.value.end_date = endDate.value
 const onDateRangeChange = (range: {
   startDate: string
   endDate: string
-  preset: string | null
+  preset: UsageDateRangeMode
 }) => {
+  dateRangePreset.value = range.preset
+  startDate.value = range.startDate
+  endDate.value = range.endDate
   filters.value.start_date = range.startDate
   filters.value.end_date = range.endDate
   applyFilters()
@@ -992,12 +996,10 @@ const resetFilters = () => {
     start_date: undefined,
     end_date: undefined
   }
-  // Reset date range to default (last 7 days)
-  const now = new Date()
-  const weekAgo = new Date(now)
-  weekAgo.setDate(weekAgo.getDate() - 6)
-  startDate.value = formatLocalDate(weekAgo)
-  endDate.value = formatLocalDate(now)
+  const range = getUsageDateRangePreset(defaultDateRangePreset)
+  dateRangePreset.value = defaultDateRangePreset
+  startDate.value = range.start
+  endDate.value = range.end
   filters.value.start_date = startDate.value
   filters.value.end_date = endDate.value
   pagination.page = 1
