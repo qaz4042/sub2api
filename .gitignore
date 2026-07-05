@@ -52,6 +52,7 @@ pnpm-debug.log*
 .env.local
 .env.*.local
 *.env
+frontend/.env.production
 !.env.example
 docker-compose.override.yml
 
@@ -104,6 +105,7 @@ backend/internal/web/dist/*
 
 # 后端运行时缓存数据
 backend/data/
+.local-data/
 .dev-data/
 .local-data/logs/
 .local-data/debug-snapshots/
