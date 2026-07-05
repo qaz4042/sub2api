@@ -59,7 +59,16 @@ type AccountHandler struct {
 	sessionLimitCache       service.SessionLimitCache
 	rpmCache                service.RPMCache
 	tokenCacheInvalidator   service.TokenCacheInvalidator
+	subscriptionRefreshMu   sync.Mutex
+	subscriptionRefreshAt   map[int64]time.Time
 }
+
+const (
+	openAISubscriptionAutoRefreshCooldown = 12 * time.Hour
+	openAISubscriptionAutoRefreshLead     = 7 * 24 * time.Hour
+	openAISubscriptionAutoRefreshLimit    = 5
+	openAISubscriptionAutoRefreshTimeout  = 45 * time.Second
+)
 
 // NewAccountHandler creates a new admin account handler
 func NewAccountHandler(
@@ -93,6 +102,7 @@ func NewAccountHandler(
 		sessionLimitCache:       sessionLimitCache,
 		rpmCache:                rpmCache,
 		tokenCacheInvalidator:   tokenCacheInvalidator,
+		subscriptionRefreshAt:   make(map[int64]time.Time),
 	}
 }
 
@@ -383,6 +393,8 @@ func (h *AccountHandler) List(c *gin.Context) {
 		result[i] = item
 	}
 
+	h.scheduleOpenAISubscriptionAutoRefresh(accounts)
+
 	etag := buildAccountsListETag(result, total, page, pageSize, platform, accountType, status, search, lite)
 	if etag != "" {
 		c.Header("ETag", etag)
@@ -394,6 +406,118 @@ func (h *AccountHandler) List(c *gin.Context) {
 	}
 
 	response.Paginated(c, result, total, page, pageSize)
+}
+
+func shouldAutoRefreshOpenAISubscription(account *service.Account, now time.Time) bool {
+	if account == nil || !account.IsOpenAIOAuth() {
+		return false
+	}
+	if strings.TrimSpace(account.GetCredential("access_token")) == "" {
+		return false
+	}
+	planType := strings.TrimSpace(account.GetCredential("plan_type"))
+	expiresAtRaw := strings.TrimSpace(account.GetCredential("subscription_expires_at"))
+	if expiresAtRaw == "" {
+		return !strings.EqualFold(planType, "free")
+	}
+	expiresAt := parseSubscriptionExpiresAt(expiresAtRaw)
+	if expiresAt == nil {
+		return !strings.EqualFold(planType, "free")
+	}
+	return !expiresAt.After(now.Add(openAISubscriptionAutoRefreshLead))
+}
+
+func parseSubscriptionExpiresAt(raw string) *time.Time {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	if ts, err := strconv.ParseInt(raw, 10, 64); err == nil {
+		if ts > 10_000_000_000 {
+			ts = ts / 1000
+		}
+		t := time.Unix(ts, 0).UTC()
+		return &t
+	}
+	if t, err := time.Parse(time.RFC3339, raw); err == nil {
+		return &t
+	}
+	return nil
+}
+
+func (h *AccountHandler) scheduleOpenAISubscriptionAutoRefresh(accounts []service.Account) {
+	if h.openaiOAuthService == nil || h.adminService == nil {
+		return
+	}
+	now := time.Now()
+	candidates := make([]service.Account, 0, openAISubscriptionAutoRefreshLimit)
+	for i := range accounts {
+		if len(candidates) >= openAISubscriptionAutoRefreshLimit {
+			break
+		}
+		account := &accounts[i]
+		if !shouldAutoRefreshOpenAISubscription(account, now) {
+			continue
+		}
+		if !h.tryMarkSubscriptionRefresh(account.ID, now) {
+			continue
+		}
+		candidates = append(candidates, *account)
+	}
+	if len(candidates) == 0 {
+		return
+	}
+
+	go h.refreshOpenAISubscriptionsInBackground(candidates)
+}
+
+func (h *AccountHandler) tryMarkSubscriptionRefresh(accountID int64, now time.Time) bool {
+	h.subscriptionRefreshMu.Lock()
+	defer h.subscriptionRefreshMu.Unlock()
+	if h.subscriptionRefreshAt == nil {
+		h.subscriptionRefreshAt = make(map[int64]time.Time)
+	}
+	if last, ok := h.subscriptionRefreshAt[accountID]; ok && now.Sub(last) < openAISubscriptionAutoRefreshCooldown {
+		return false
+	}
+	h.subscriptionRefreshAt[accountID] = now
+	return true
+}
+
+func (h *AccountHandler) refreshOpenAISubscriptionsInBackground(accounts []service.Account) {
+	ctx, cancel := context.WithTimeout(context.Background(), openAISubscriptionAutoRefreshTimeout)
+	defer cancel()
+	for i := range accounts {
+		account := accounts[i]
+		subscription, err := h.openaiOAuthService.RefreshAccountSubscription(ctx, &account)
+		if err != nil {
+			slog.Debug("openai_subscription_auto_refresh_failed", "account_id", account.ID, "error", err)
+			continue
+		}
+		credentials := buildOpenAISubscriptionCredentialUpdate(subscription)
+		if len(credentials) == 0 {
+			continue
+		}
+		if _, err := h.adminService.UpdateAccount(ctx, account.ID, &service.UpdateAccountInput{Credentials: credentials}); err != nil {
+			slog.Debug("openai_subscription_auto_refresh_update_failed", "account_id", account.ID, "error", err)
+		}
+	}
+}
+
+func buildOpenAISubscriptionCredentialUpdate(subscription *service.OpenAISubscriptionInfo) map[string]any {
+	if subscription == nil {
+		return nil
+	}
+	credentials := map[string]any{}
+	if strings.TrimSpace(subscription.PlanType) != "" {
+		credentials["plan_type"] = strings.TrimSpace(subscription.PlanType)
+	}
+	if strings.TrimSpace(subscription.SubscriptionExpiresAt) != "" {
+		credentials["subscription_expires_at"] = strings.TrimSpace(subscription.SubscriptionExpiresAt)
+	} else {
+		credentials["subscription_expires_at"] = ""
+	}
+	return credentials
 }
 
 func buildAccountsListETag(
@@ -1014,15 +1138,7 @@ func (h *AccountHandler) RefreshSubscription(c *gin.Context) {
 		return
 	}
 
-	credentials := map[string]any{}
-	if strings.TrimSpace(subscription.PlanType) != "" {
-		credentials["plan_type"] = strings.TrimSpace(subscription.PlanType)
-	}
-	if strings.TrimSpace(subscription.SubscriptionExpiresAt) != "" {
-		credentials["subscription_expires_at"] = strings.TrimSpace(subscription.SubscriptionExpiresAt)
-	} else {
-		credentials["subscription_expires_at"] = ""
-	}
+	credentials := buildOpenAISubscriptionCredentialUpdate(subscription)
 
 	updatedAccount, err := h.adminService.UpdateAccount(ctx, accountID, &service.UpdateAccountInput{
 		Credentials: credentials,
