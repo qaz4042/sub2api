@@ -229,6 +229,42 @@ func TestNormalizeCodexImportRejectsExpiredAccessToken(t *testing.T) {
 	}
 }
 
+func TestNormalizeCodexImportAllowsExpiredAccessTokenWithRefreshToken(t *testing.T) {
+	expiredToken := buildCodexImportTestJWT(t, time.Now().Add(-time.Hour), map[string]any{
+		"email": "expired-with-refresh@example.com",
+	})
+	raw := map[string]any{
+		"tokens": map[string]any{
+			"access_token":  expiredToken,
+			"refresh_token": "refresh-token",
+		},
+	}
+
+	item, err := normalizeCodexImportEntry(codexImportEntry{Index: 1, Value: raw})
+	if err != nil {
+		t.Fatalf("normalizeCodexImportEntry error = %v, want nil", err)
+	}
+	if item.Credentials["access_token"] != expiredToken {
+		t.Fatalf("access_token not stored")
+	}
+	if item.Credentials["refresh_token"] != "refresh-token" {
+		t.Fatalf("refresh_token = %v, want refresh-token", item.Credentials["refresh_token"])
+	}
+	if item.Credentials["client_id"] == "" {
+		t.Fatalf("client_id should be stored for refreshable import")
+	}
+	foundWarning := false
+	for _, warning := range item.WarningTexts {
+		if strings.Contains(warning, "依赖 refresh_token 刷新") {
+			foundWarning = true
+			break
+		}
+	}
+	if !foundWarning {
+		t.Fatalf("warnings = %v, want refresh_token warning", item.WarningTexts)
+	}
+}
+
 func TestResolveCodexImportExpiryForNoRefreshTokenUsesTokenExpiry(t *testing.T) {
 	tokenExpiresAt := time.Now().Add(time.Hour).UTC()
 	item := &codexImportAccount{

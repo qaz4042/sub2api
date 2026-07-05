@@ -539,7 +539,10 @@ func normalizeCodexImportEntry(entry codexImportEntry) (*codexImportAccount, err
 			[]string{"expiresAt"},
 		); ok {
 			if tokenExpiresAt.Unix() <= now.Unix()-codexImportClockSkewSeconds {
-				return nil, fmt.Errorf("access_token 已过期: %s", tokenExpiresAt.Format(time.RFC3339))
+				if item.RefreshToken == "" {
+					return nil, fmt.Errorf("access_token 已过期: %s", tokenExpiresAt.Format(time.RFC3339))
+				}
+				appendCodexImportWarning(item, "accessToken 已过期，导入后将依赖 refresh_token 刷新")
 			}
 			item.TokenExpiresAt = &tokenExpiresAt
 			item.Credentials["expires_at"] = tokenExpiresAt.Format(time.RFC3339)
@@ -599,11 +602,19 @@ func enrichCodexImportAccountFromJWT(item *codexImportAccount, token string, val
 	}
 	if validateExpiry && claims.Exp > 0 {
 		if now.Unix() > claims.Exp+codexImportClockSkewSeconds {
-			return fmt.Errorf("access_token 已过期: %s", time.Unix(claims.Exp, 0).UTC().Format(time.RFC3339))
+			expiresAt := time.Unix(claims.Exp, 0).UTC()
+			item.TokenExpiresAt = &expiresAt
+			item.Credentials["expires_at"] = expiresAt.Format(time.RFC3339)
+			if item.RefreshToken != "" {
+				appendCodexImportWarning(item, "accessToken 已过期，导入后将依赖 refresh_token 刷新")
+			} else {
+				return fmt.Errorf("access_token 已过期: %s", expiresAt.Format(time.RFC3339))
+			}
+		} else {
+			expiresAt := time.Unix(claims.Exp, 0).UTC()
+			item.TokenExpiresAt = &expiresAt
+			item.Credentials["expires_at"] = expiresAt.Format(time.RFC3339)
 		}
-		expiresAt := time.Unix(claims.Exp, 0).UTC()
-		item.TokenExpiresAt = &expiresAt
-		item.Credentials["expires_at"] = expiresAt.Format(time.RFC3339)
 	}
 	if item.Email == "" {
 		item.Email = strings.TrimSpace(claims.Email)
@@ -644,6 +655,18 @@ func enrichCodexImportAccountFromJWT(item *codexImportAccount, token string, val
 		item.UserID = strings.TrimSpace(claims.Sub)
 	}
 	return nil
+}
+
+func appendCodexImportWarning(item *codexImportAccount, warning string) {
+	if item == nil || warning == "" {
+		return
+	}
+	for _, existing := range item.WarningTexts {
+		if existing == warning {
+			return
+		}
+	}
+	item.WarningTexts = append(item.WarningTexts, warning)
 }
 
 func decodeCodexJWTClaims(token string) (*codexJWTClaims, error) {

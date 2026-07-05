@@ -984,6 +984,57 @@ func (h *AccountHandler) Refresh(c *gin.Context) {
 	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), updatedAccount))
 }
 
+// RefreshSubscription refreshes OpenAI subscription metadata without refreshing OAuth tokens.
+// POST /api/v1/admin/accounts/:id/refresh-subscription
+func (h *AccountHandler) RefreshSubscription(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	if h.openaiOAuthService == nil {
+		response.ErrorFrom(c, infraerrors.ServiceUnavailable("OPENAI_OAUTH_UNAVAILABLE", "OpenAI OAuth service is unavailable"))
+		return
+	}
+
+	ctx := c.Request.Context()
+	account, err := h.adminService.GetAccount(ctx, accountID)
+	if err != nil {
+		response.NotFound(c, "Account not found")
+		return
+	}
+	if account.Platform != service.PlatformOpenAI || account.Type != service.AccountTypeOAuth {
+		response.ErrorFrom(c, infraerrors.BadRequest("OPENAI_OAUTH_INVALID_ACCOUNT", "only OpenAI OAuth accounts support subscription refresh"))
+		return
+	}
+
+	subscription, err := h.openaiOAuthService.RefreshAccountSubscription(ctx, account)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	credentials := map[string]any{}
+	if strings.TrimSpace(subscription.PlanType) != "" {
+		credentials["plan_type"] = strings.TrimSpace(subscription.PlanType)
+	}
+	if strings.TrimSpace(subscription.SubscriptionExpiresAt) != "" {
+		credentials["subscription_expires_at"] = strings.TrimSpace(subscription.SubscriptionExpiresAt)
+	} else {
+		credentials["subscription_expires_at"] = ""
+	}
+
+	updatedAccount, err := h.adminService.UpdateAccount(ctx, accountID, &service.UpdateAccountInput{
+		Credentials: credentials,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, h.buildAccountResponseWithRuntime(ctx, updatedAccount))
+}
+
 // ApplyOAuthCredentialsRequest is the payload for persisting re-authorized OAuth credentials.
 type ApplyOAuthCredentialsRequest struct {
 	Type        string         `json:"type" binding:"required,oneof=oauth setup-token"`

@@ -127,6 +127,11 @@ type OpenAITokenInfo struct {
 	PrivacyMode           string `json:"privacy_mode,omitempty"`
 }
 
+type OpenAISubscriptionInfo struct {
+	PlanType              string `json:"plan_type,omitempty"`
+	SubscriptionExpiresAt string `json:"subscription_expires_at,omitempty"`
+}
+
 // ExchangeCode exchanges authorization code for tokens
 func (s *OpenAIOAuthService) ExchangeCode(ctx context.Context, input *OpenAIExchangeCodeInput) (*OpenAITokenInfo, error) {
 	// Get session
@@ -299,6 +304,64 @@ func resolveChatGPTSubscriptionAccountID(tokenInfo *OpenAITokenInfo, orgID strin
 		}
 	}
 	return ""
+}
+
+// RefreshAccountSubscription refreshes ChatGPT plan metadata without refreshing OAuth tokens.
+func (s *OpenAIOAuthService) RefreshAccountSubscription(ctx context.Context, account *Account) (*OpenAISubscriptionInfo, error) {
+	if account.Platform != PlatformOpenAI {
+		return nil, infraerrors.New(http.StatusBadRequest, "OPENAI_OAUTH_INVALID_ACCOUNT", "account is not an OpenAI account")
+	}
+	if account.Type != AccountTypeOAuth {
+		return nil, infraerrors.New(http.StatusBadRequest, "OPENAI_OAUTH_INVALID_ACCOUNT_TYPE", "account is not an OAuth account")
+	}
+
+	accessToken := account.GetCredential("access_token")
+	if strings.TrimSpace(accessToken) == "" {
+		return nil, infraerrors.New(http.StatusBadRequest, "OPENAI_OAUTH_NO_ACCESS_TOKEN", "no access token available")
+	}
+
+	var proxyURL string
+	if account.ProxyID != nil {
+		proxy, err := s.proxyRepo.GetByID(ctx, *account.ProxyID)
+		if err == nil && proxy != nil {
+			proxyURL = proxy.URL()
+		}
+	}
+
+	orgID := account.GetCredential("organization_id")
+	if orgID == "" {
+		if atClaims, err := openai.DecodeIDToken(accessToken); err == nil && atClaims.OpenAIAuth != nil {
+			orgID = atClaims.OpenAIAuth.POID
+		}
+	}
+
+	info := &OpenAISubscriptionInfo{}
+	if accountInfo := fetchChatGPTAccountInfo(ctx, s.privacyClientFactory, accessToken, proxyURL, orgID); accountInfo != nil {
+		info.PlanType = accountInfo.PlanType
+		info.SubscriptionExpiresAt = accountInfo.SubscriptionExpiresAt
+	}
+
+	if strings.TrimSpace(info.SubscriptionExpiresAt) == "" {
+		accountID := strings.TrimSpace(account.GetCredential("chatgpt_account_id"))
+		if accountID == "" {
+			accountID = strings.TrimSpace(account.GetCredential("organization_id"))
+		}
+		if accountID == "" {
+			accountID = orgID
+		}
+		if expiresAt := fetchChatGPTSubscriptionExpiresAt(ctx, s.privacyClientFactory, accessToken, proxyURL, accountID); expiresAt != "" {
+			info.SubscriptionExpiresAt = expiresAt
+		}
+	}
+
+	if strings.TrimSpace(info.SubscriptionExpiresAt) != "" && strings.TrimSpace(info.PlanType) == "" {
+		info.PlanType = strings.TrimSpace(account.GetCredential("plan_type"))
+	}
+	if strings.TrimSpace(info.PlanType) == "" && strings.TrimSpace(info.SubscriptionExpiresAt) == "" {
+		return nil, infraerrors.ServiceUnavailable("OPENAI_SUBSCRIPTION_UNAVAILABLE", "failed to refresh OpenAI subscription information")
+	}
+
+	return info, nil
 }
 
 // RefreshAccountToken refreshes token for an OpenAI OAuth account

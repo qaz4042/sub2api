@@ -39,12 +39,16 @@ describe('useOpenAIOAuth.buildCredentials', () => {
       access_token: 'at',
       refresh_token: 'rt',
       client_id: 'app_test_client',
+      plan_type: 'plus',
+      subscription_expires_at: '2026-06-29T00:00:00Z',
       expires_at: 1700000000
     })
 
     expect(creds.client_id).toBe('app_test_client')
     expect(creds.access_token).toBe('at')
     expect(creds.refresh_token).toBe('rt')
+    expect(creds.plan_type).toBe('plus')
+    expect(creds.subscription_expires_at).toBe('2026-06-29T00:00:00Z')
   })
 
   it('should keep legacy behavior when client_id is missing', () => {
