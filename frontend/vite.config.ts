@@ -2,6 +2,7 @@ import { defineConfig, loadEnv, Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import checker from 'vite-plugin-checker'
 import { resolve } from 'path'
+import { existsSync, readFileSync } from 'fs'
 
 /**
  * Vite 插件：开发模式下注入公开配置到 index.html
@@ -38,7 +39,65 @@ export default defineConfig(({ mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, process.cwd(), '')
   const backendUrl = env.VITE_DEV_PROXY_TARGET
+  const devHost = env.VITE_DEV_HOST || '0.0.0.0'
   const devPort = Number(env.VITE_DEV_PORT || 3000)
+  const allowedHosts = devHost === '0.0.0.0' ? [] : [devHost]
+  const httpsConfig =
+    env.VITE_DEV_HTTPS === 'true' &&
+    env.VITE_DEV_HTTPS_CERT &&
+    env.VITE_DEV_HTTPS_KEY &&
+    existsSync(env.VITE_DEV_HTTPS_CERT) &&
+    existsSync(env.VITE_DEV_HTTPS_KEY)
+      ? {
+          cert: readFileSync(env.VITE_DEV_HTTPS_CERT),
+          key: readFileSync(env.VITE_DEV_HTTPS_KEY)
+        }
+      : undefined
+  const proxyConfig = {
+    '/api': {
+      target: backendUrl,
+      changeOrigin: true,
+      ws: true
+    },
+    '/v1': {
+      target: backendUrl,
+      changeOrigin: true
+    },
+    '/v1beta': {
+      target: backendUrl,
+      changeOrigin: true
+    },
+    '/responses': {
+      target: backendUrl,
+      changeOrigin: true,
+      ws: true
+    },
+    '/backend-api': {
+      target: backendUrl,
+      changeOrigin: true,
+      ws: true
+    },
+    '/antigravity': {
+      target: backendUrl,
+      changeOrigin: true
+    },
+    '/images': {
+      target: backendUrl,
+      changeOrigin: true
+    },
+    '/chat': {
+      target: backendUrl,
+      changeOrigin: true
+    },
+    '/embeddings': {
+      target: backendUrl,
+      changeOrigin: true
+    },
+    '/setup': {
+      target: backendUrl,
+      changeOrigin: true
+    }
+  }
 
   return {
     plugins: [
@@ -107,52 +166,18 @@ export default defineConfig(({ mode }) => {
     }
   },
     server: {
-      host: '0.0.0.0',
+      host: devHost,
       port: devPort,
-      proxy: {
-        '/api': {
-          target: backendUrl,
-          changeOrigin: true
-        },
-        '/v1': {
-          target: backendUrl,
-          changeOrigin: true
-        },
-        '/v1beta': {
-          target: backendUrl,
-          changeOrigin: true
-        },
-        '/responses': {
-          target: backendUrl,
-          changeOrigin: true,
-          ws: true
-        },
-        '/backend-api': {
-          target: backendUrl,
-          changeOrigin: true,
-          ws: true
-        },
-        '/antigravity': {
-          target: backendUrl,
-          changeOrigin: true
-        },
-        '/images': {
-          target: backendUrl,
-          changeOrigin: true
-        },
-        '/chat': {
-          target: backendUrl,
-          changeOrigin: true
-        },
-        '/embeddings': {
-          target: backendUrl,
-          changeOrigin: true
-        },
-        '/setup': {
-          target: backendUrl,
-          changeOrigin: true
-        }
-      }
+      https: httpsConfig,
+      allowedHosts,
+      proxy: proxyConfig
+    },
+    preview: {
+      host: devHost,
+      port: devPort,
+      https: httpsConfig,
+      allowedHosts,
+      proxy: proxyConfig
     }
   }
 })

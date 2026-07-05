@@ -68,6 +68,7 @@ const DataTableStub = {
       <span v-for="column in columns" :key="column.key" data-test="column-key">{{ column.key }}</span>
       <div v-for="row in data" :key="row.id">
         <slot name="cell-created_at" :value="row.created_at" :row="row" />
+        <slot name="cell-expires_at" :value="row.expires_at" :row="row" />
       </div>
     </div>
   `
@@ -223,5 +224,83 @@ describe('admin AccountsView bulk edit scope', () => {
       label: 'admin.accounts.columns.createdAt',
       sortable: true
     })
+  })
+
+  it('renders compact plus subscription expiry in the expires_at column', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-22T00:00:00Z'))
+
+    listAccounts.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          name: 'plus-account',
+          platform: 'openai',
+          type: 'oauth',
+          credentials: {
+            plan_type: 'plus',
+            subscription_expires_at: '2026-06-29T00:00:00Z'
+          },
+          status: 'active',
+          schedulable: true,
+          expires_at: null,
+          created_at: '2026-03-07T10:00:00Z',
+          updated_at: '2026-03-07T10:00:00Z'
+        }
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+
+    try {
+      const wrapper = mount(AccountsView, {
+        global: {
+          stubs: {
+            AppLayout: { template: '<div><slot /></div>' },
+            TablePageLayout: {
+              template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+            },
+            DataTable: DataTableStub,
+            Pagination: true,
+            ConfirmDialog: true,
+            AccountTableActions: { template: '<div><slot name="beforeCreate" /><slot name="after" /></div>' },
+            AccountTableFilters: { template: '<div></div>' },
+            AccountBulkActionsBar: AccountBulkActionsBarStub,
+            AccountActionMenu: true,
+            ImportDataModal: true,
+            ReAuthAccountModal: true,
+            AccountTestModal: true,
+            AccountStatsModal: true,
+            ScheduledTestsPanel: true,
+            SyncFromCrsModal: true,
+            TempUnschedStatusModal: true,
+            ErrorPassthroughRulesModal: true,
+            TLSFingerprintProfilesModal: true,
+            CreateAccountModal: true,
+            EditAccountModal: true,
+            BulkEditAccountModal: BulkEditAccountModalStub,
+            PlatformTypeBadge: true,
+            AccountCapacityCell: true,
+            AccountStatusIndicator: true,
+            AccountTodayStatsCell: true,
+            AccountGroupsCell: true,
+            AccountUsageCell: true,
+            Icon: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      const expiry = wrapper.get('[title="2026-06-29T00:00:00Z"]')
+      expect(expiry.text()).toContain('Plus')
+      expect(expiry.text()).toContain('2026-06-29')
+      expect(expiry.text()).toContain('7d')
+      expect(expiry.classes()).toContain('text-red-600')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

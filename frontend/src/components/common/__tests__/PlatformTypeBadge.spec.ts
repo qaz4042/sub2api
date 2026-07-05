@@ -46,24 +46,28 @@ describe('PlatformTypeBadge subscription expiry', () => {
   it('shows the remaining days and exact expiration date', () => {
     const wrapper = mountBadge('2026-07-02T00:00:00Z')
 
+    expect(wrapper.text()).toContain('Plus')
     expect(wrapper.text()).toContain('到期 2026-07-02')
     expect(wrapper.text()).toContain('套餐剩余 10 天')
   })
 
-  it('highlights plans expiring within three days', () => {
-    const wrapper = mountBadge('2026-06-24T00:00:00Z')
-    const expiry = wrapper.get('[title="2026-06-24T00:00:00Z"]')
+  it('highlights plans expiring within seven days', () => {
+    const wrapper = mountBadge('2026-06-29T00:00:00Z')
+    const expiry = wrapper.get('[title="2026-06-29T00:00:00Z"]')
 
-    expect(expiry.text()).toContain('到期 2026-06-24')
-    expect(expiry.text()).toContain('套餐剩余 2 天')
-    expect(expiry.get('.text-red-600').text()).toBe('套餐剩余 2 天')
+    expect(expiry.text()).toContain('Plus')
+    expect(expiry.text()).toContain('到期 2026-06-29')
+    expect(expiry.text()).toContain('套餐剩余 7 天')
+    expect(expiry.classes()).toContain('text-red-600')
   })
 
   it('shows an expired state', () => {
     const wrapper = mountBadge('2026-06-21T00:00:00Z')
+    const expiry = wrapper.get('[title="2026-06-21T00:00:00Z"]')
 
     expect(wrapper.text()).toContain('到期 2026-06-21')
     expect(wrapper.text()).toContain('套餐已到期')
+    expect(expiry.classes()).toContain('text-red-600')
   })
 
   it('does not show expiration for free plans', () => {

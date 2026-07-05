@@ -49,11 +49,17 @@
     <!-- Row 3: Subscription expiration (non-free paid accounts only) -->
     <div
       v-if="subscriptionExpiry"
-      class="flex flex-wrap items-center gap-x-1 pl-0.5 text-[10px] font-medium leading-tight"
+      :class="[
+        'inline-flex w-fit max-w-full items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium leading-4',
+        subscriptionExpiry.containerClass
+      ]"
       :title="subscriptionExpiry.title"
     >
-      <span class="text-gray-500 dark:text-gray-400">{{ subscriptionExpiry.dateLabel }}</span>
-      <span :class="subscriptionExpiry.statusClass">{{ subscriptionExpiry.statusLabel }}</span>
+      <span>{{ subscriptionExpiry.planLabel }}</span>
+      <span class="text-current/50">·</span>
+      <span>{{ subscriptionExpiry.dateLabel }}</span>
+      <span class="text-current/50">·</span>
+      <span>{{ subscriptionExpiry.statusLabel }}</span>
     </div>
   </div>
 </template>
@@ -170,22 +176,22 @@ const subscriptionExpiry = computed(() => {
 
   if (remainingMs <= 0) {
     return {
+      planLabel: planLabel.value,
       dateLabel: `${t('admin.accounts.subscriptionExpires')} ${dateLabel}`,
       statusLabel: t('admin.accounts.subscriptionExpired'),
-      statusClass: 'text-red-600 dark:text-red-400',
+      containerClass: 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-300',
       title: props.subscriptionExpiresAt
     }
   }
 
   const remainingDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000))
   return {
+    planLabel: planLabel.value,
     dateLabel: `${t('admin.accounts.subscriptionExpires')} ${dateLabel}`,
     statusLabel: t('admin.accounts.subscriptionRemainingDays', { days: remainingDays }),
-    statusClass: remainingDays <= 3
-      ? 'text-red-600 dark:text-red-400'
-      : remainingDays <= 7
-        ? 'text-amber-600 dark:text-amber-400'
-        : 'text-gray-500 dark:text-gray-400',
+    containerClass: remainingDays <= 7
+      ? 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-300'
+      : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400',
     title: props.subscriptionExpiresAt
   }
 })

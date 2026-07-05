@@ -232,7 +232,7 @@
           <template #cell-platform_type="{ row }">
             <div class="flex min-w-0 flex-col gap-1">
               <div class="flex flex-wrap items-center gap-1">
-                <PlatformTypeBadge :platform="row.platform" :type="row.type" :plan-type="row.credentials?.plan_type" :privacy-mode="row.extra?.privacy_mode" :subscription-expires-at="row.credentials?.subscription_expires_at" />
+                <PlatformTypeBadge :platform="row.platform" :type="row.type" :plan-type="row.credentials?.plan_type" :privacy-mode="row.extra?.privacy_mode" />
                 <span
                   v-if="getAntigravityTierLabel(row)"
                   :class="['inline-block rounded px-1.5 py-0.5 text-[10px] font-medium', getAntigravityTierClass(row)]"
@@ -326,8 +326,13 @@
             <span class="text-sm text-gray-500 dark:text-dark-400">{{ formatDateTime(value) }}</span>
           </template>
           <template #cell-expires_at="{ row, value }">
-            <div class="flex flex-col items-start gap-1">
-              <span class="text-sm text-gray-500 dark:text-dark-400">{{ formatExpiresAt(value) }}</span>
+            <div class="flex flex-col items-start gap-1.5">
+              <div class="flex items-center gap-1 text-xs text-gray-500 dark:text-dark-400">
+                <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                  {{ t('admin.accounts.account') }}
+                </span>
+                <span>{{ formatExpiresAt(value) }}</span>
+              </div>
               <div v-if="isExpired(value) || (row.auto_pause_on_expired && value)" class="flex items-center gap-1">
                 <span
                   v-if="isExpired(value)"
@@ -341,6 +346,20 @@
                 >
                   {{ t('admin.accounts.autoPauseOnExpired') }}
                 </span>
+              </div>
+              <div
+                v-if="getSubscriptionExpiry(row)"
+                :class="[
+                  'inline-flex max-w-[150px] items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium leading-4',
+                  getSubscriptionExpiry(row)?.className
+                ]"
+                :title="getSubscriptionExpiry(row)?.title"
+              >
+                <span>{{ getSubscriptionExpiry(row)?.planLabel }}</span>
+                <span class="text-current/50">·</span>
+                <span>{{ getSubscriptionExpiry(row)?.dateLabel }}</span>
+                <span class="text-current/50">·</span>
+                <span>{{ getSubscriptionExpiry(row)?.statusLabel }}</span>
               </div>
             </div>
           </template>
@@ -1671,6 +1690,82 @@ const handleTempUnschedReset = async (updated: Account) => {
   tempUnschedAcc.value = null
   patchAccountInList(updated)
   enterAutoRefreshSilentWindow()
+}
+const getCredentialString = (account: Account, key: string): string => {
+  const value = account.credentials?.[key]
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return ''
+}
+const getPlanLabel = (planType: string): string => {
+  const lower = planType.trim().toLowerCase()
+  switch (lower) {
+    case 'plus':
+      return 'Plus'
+    case 'team':
+      return 'Team'
+    case 'chatgptpro':
+    case 'pro':
+      return 'Pro'
+    case 'free':
+      return 'Free'
+    case 'abnormal':
+      return t('admin.accounts.subscriptionAbnormal')
+    default:
+      return planType
+  }
+}
+const parseCredentialDate = (value: string): Date | null => {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (/^\d+$/.test(trimmed)) {
+    const timestamp = Number(trimmed)
+    const milliseconds = timestamp > 10_000_000_000 ? timestamp : timestamp * 1000
+    const date = new Date(milliseconds)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+  const date = new Date(trimmed)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+const formatCompactDate = (date: Date): string => formatDateTime(
+  date,
+  {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  },
+  'sv-SE'
+)
+const getSubscriptionExpiry = (account: Account) => {
+  const planType = getCredentialString(account, 'plan_type')
+  const lowerPlanType = planType.toLowerCase()
+  if (!planType || lowerPlanType === 'free') return null
+
+  const rawExpiresAt = getCredentialString(account, 'subscription_expires_at')
+  const expiresAt = parseCredentialDate(rawExpiresAt)
+  if (!expiresAt) return null
+
+  const remainingMs = expiresAt.getTime() - Date.now()
+  if (remainingMs <= 0) {
+    return {
+      planLabel: getPlanLabel(planType),
+      dateLabel: formatCompactDate(expiresAt),
+      statusLabel: t('admin.accounts.subscriptionExpired'),
+      className: 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-300',
+      title: rawExpiresAt
+    }
+  }
+
+  const remainingDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000))
+  return {
+    planLabel: getPlanLabel(planType),
+    dateLabel: formatCompactDate(expiresAt),
+    statusLabel: `${remainingDays}d`,
+    className: remainingDays <= 7
+      ? 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-300'
+      : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400',
+    title: rawExpiresAt
+  }
 }
 const formatExpiresAt = (value: number | null) => {
   if (!value) return '-'
