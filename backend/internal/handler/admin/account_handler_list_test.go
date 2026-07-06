@@ -150,3 +150,18 @@ func TestAccountHandlerTryMarkSubscriptionRefreshCooldown(t *testing.T) {
 	require.False(t, handler.tryMarkSubscriptionRefresh(42, now.Add(time.Hour)))
 	require.True(t, handler.tryMarkSubscriptionRefresh(42, now.Add(openAISubscriptionAutoRefreshCooldown+time.Second)))
 }
+
+func TestExistingOpenAISubscriptionInfo(t *testing.T) {
+	info := existingOpenAISubscriptionInfo(&service.Account{
+		Credentials: map[string]any{
+			"plan_type":               " plus ",
+			"subscription_expires_at": " 2026-07-29T20:17:05+00:00 ",
+		},
+	})
+
+	require.NotNil(t, info)
+	require.Equal(t, "plus", info.PlanType)
+	require.Equal(t, "2026-07-29T20:17:05+00:00", info.SubscriptionExpiresAt)
+	require.Nil(t, existingOpenAISubscriptionInfo(&service.Account{Credentials: map[string]any{}}))
+	require.Nil(t, existingOpenAISubscriptionInfo(nil))
+}

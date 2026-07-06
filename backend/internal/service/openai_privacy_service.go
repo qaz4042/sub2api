@@ -125,12 +125,12 @@ func fetchChatGPTAccountInfo(ctx context.Context, clientFactory PrivacyClientFac
 		Get(chatGPTAccountsCheckURL)
 
 	if err != nil {
-		slog.Debug("chatgpt_account_check_request_error", "error", err.Error())
+		slog.Warn("chatgpt_account_check_request_error", "error", err.Error())
 		return nil
 	}
 
 	if !resp.IsSuccessState() {
-		slog.Debug("chatgpt_account_check_failed", "status", resp.StatusCode, "body", truncate(resp.String(), 200))
+		slog.Warn("chatgpt_account_check_failed", "status", resp.StatusCode, "body", truncate(resp.String(), 200))
 		return nil
 	}
 
@@ -192,7 +192,7 @@ func fetchChatGPTAccountInfo(ctx context.Context, clientFactory PrivacyClientFac
 	}
 
 	if info.PlanType == "" {
-		slog.Debug("chatgpt_account_check_no_plan_type", "body", truncate(resp.String(), 300))
+		slog.Warn("chatgpt_account_check_no_plan_type", "body", truncate(resp.String(), 300))
 		return nil
 	}
 
@@ -234,21 +234,21 @@ func fetchChatGPTSubscriptionExpiresAt(ctx context.Context, clientFactory Privac
 		SetQueryParam("account_id", accountID).
 		Get(chatGPTSubscriptionsURL)
 	if err != nil {
-		slog.Debug("chatgpt_subscription_request_error", "error", err.Error())
+		slog.Warn("chatgpt_subscription_request_error", "error", err.Error())
 		return ""
 	}
 	if !resp.IsSuccessState() {
-		slog.Debug("chatgpt_subscription_failed", "status", resp.StatusCode, "body", truncate(resp.String(), 200))
+		slog.Warn("chatgpt_subscription_failed", "status", resp.StatusCode, "body", truncate(resp.String(), 200))
 		return ""
 	}
 
 	activeUntil := strings.TrimSpace(result.ActiveUntil)
 	if activeUntil == "" {
-		slog.Debug("chatgpt_subscription_no_active_until", "plan_type", result.PlanType, "has_subscription_id", strings.TrimSpace(result.ID) != "", "will_renew", result.WillRenew)
+		slog.Warn("chatgpt_subscription_no_active_until", "plan_type", result.PlanType, "has_subscription_id", strings.TrimSpace(result.ID) != "", "will_renew", result.WillRenew)
 		return ""
 	}
 	if _, err := time.Parse(time.RFC3339, activeUntil); err != nil {
-		slog.Debug("chatgpt_subscription_bad_active_until", "active_until", activeUntil, "error", err.Error())
+		slog.Warn("chatgpt_subscription_bad_active_until", "active_until", activeUntil, "error", err.Error())
 		return ""
 	}
 

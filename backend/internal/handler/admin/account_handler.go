@@ -1134,6 +1134,16 @@ func (h *AccountHandler) RefreshSubscription(c *gin.Context) {
 
 	subscription, err := h.openaiOAuthService.RefreshAccountSubscription(ctx, account)
 	if err != nil {
+		if existing := existingOpenAISubscriptionInfo(account); existing != nil {
+			slog.Warn("openai_subscription_refresh_using_existing_metadata",
+				"account_id", accountID,
+				"plan_type_present", strings.TrimSpace(existing.PlanType) != "",
+				"subscription_expires_at_present", strings.TrimSpace(existing.SubscriptionExpiresAt) != "",
+				"error", err,
+			)
+			response.Success(c, h.buildAccountResponseWithRuntime(ctx, account))
+			return
+		}
 		response.ErrorFrom(c, err)
 		return
 	}
@@ -1149,6 +1159,20 @@ func (h *AccountHandler) RefreshSubscription(c *gin.Context) {
 	}
 
 	response.Success(c, h.buildAccountResponseWithRuntime(ctx, updatedAccount))
+}
+
+func existingOpenAISubscriptionInfo(account *service.Account) *service.OpenAISubscriptionInfo {
+	if account == nil {
+		return nil
+	}
+	info := &service.OpenAISubscriptionInfo{
+		PlanType:              strings.TrimSpace(account.GetCredential("plan_type")),
+		SubscriptionExpiresAt: strings.TrimSpace(account.GetCredential("subscription_expires_at")),
+	}
+	if info.PlanType == "" && info.SubscriptionExpiresAt == "" {
+		return nil
+	}
+	return info
 }
 
 // ApplyOAuthCredentialsRequest is the payload for persisting re-authorized OAuth credentials.
