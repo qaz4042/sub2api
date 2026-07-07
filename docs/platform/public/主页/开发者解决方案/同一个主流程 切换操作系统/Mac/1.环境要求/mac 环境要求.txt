@@ -1,0 +1,4 @@
+系统要求
+    支持 Apple Silicon Mac
+    支持 Intel Mac
+    不需要本地 GPU

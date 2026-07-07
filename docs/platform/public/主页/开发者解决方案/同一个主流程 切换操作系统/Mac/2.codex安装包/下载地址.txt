@@ -1,3 +1,6 @@
 官方
-    https://persistent.oaistatic.com/codex-app-prod/Codex.dmg
+    首页
+        https://openai.com/zh-Hans-CN/codex/
+    下载链接
+        https://persistent.oaistatic.com/codex-app-prod/Codex.dmg
 备用

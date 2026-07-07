@@ -1,7 +1,12 @@
+只能下载微软安装器,再进入微软商场下载
 官方
-    https://get.microsoft.com/installer/download/9PLM9XGG6VKS?cid=website_cta_psi
-    https://apps.microsoft.com/detail/9plm9xgg6vks?hl=zh-CN&gl=CN
-    https://chatgpt.com/zh-Hans-CN/codex/
-备用
+    首页
+        https://chatgpt.com/zh-Hans-CN/codex/
+    下载链接1
+        https://apps.microsoft.com/detail/9plm9xgg6vks?hl=zh-CN&gl=CN
+    下载链接2
+        https://get.microsoft.com/installer/download/9PLM9XGG6VKS?cid=website_cta_psi
+备用下载链接
     https://wwarn.lanzouw.com/iMO193td1q4h
-        codex.lizubin.online_Codex Installer.exe
+        文件名
+            codex.lizubin.online_Codex Installer.exe

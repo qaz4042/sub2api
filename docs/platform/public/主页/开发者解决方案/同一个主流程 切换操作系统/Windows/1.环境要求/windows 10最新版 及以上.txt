@@ -1,0 +1,7 @@
+系统要求
+    Windows 10 version 22H2 及以上
+    Windows 11
+    不需要本地 GPU
+备注
+    过旧的 Windows 版本,应用商城找不到也安装不了 Codex
+    Windows 10 旧版升级到 22H2 地址: https://www.microsoft.com/zh-cn/software-download/windows10ISO
