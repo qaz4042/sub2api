@@ -2408,17 +2408,28 @@ func (h *AccountHandler) SetPrivacy(c *gin.Context) {
 		return
 	}
 	var mode string
+	var successMode string
 	switch account.Platform {
 	case service.PlatformOpenAI:
 		mode = h.adminService.ForceOpenAIPrivacy(c.Request.Context(), account)
+		successMode = service.PrivacyModeTrainingOff
 	case service.PlatformAntigravity:
 		mode = h.adminService.ForceAntigravityPrivacy(c.Request.Context(), account)
+		successMode = service.AntigravityPrivacySet
 	default:
 		response.BadRequest(c, "Only OpenAI and Antigravity OAuth accounts support privacy setting")
 		return
 	}
 	if mode == "" {
 		response.BadRequest(c, "Cannot set privacy: missing access_token")
+		return
+	}
+	if mode != successMode {
+		if mode == service.PrivacyModeCFBlocked {
+			response.Error(c, http.StatusBadGateway, "Failed to set privacy: upstream request was blocked; check the account proxy")
+			return
+		}
+		response.Error(c, http.StatusBadGateway, "Failed to set privacy at upstream")
 		return
 	}
 	// 从 DB 重新读取以确保返回最新状态
