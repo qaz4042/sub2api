@@ -1277,6 +1277,19 @@ func resolveOpenAIUpstreamOriginator(c *gin.Context, isOfficialClient bool) stri
 	return "opencode"
 }
 
+func normalizeOpenAIOAuthCodexUpstreamHeaders(req *http.Request) {
+	if req == nil {
+		return
+	}
+	if !openai.IsCodexCLIRequest(req.Header.Get("user-agent")) {
+		req.Header.Set("user-agent", codexCLIUserAgent)
+	}
+	req.Header.Set("originator", "codex_cli_rs")
+	if strings.TrimSpace(req.Header.Get("version")) == "" {
+		req.Header.Set("version", codexCLIVersion)
+	}
+}
+
 // BindStickySession sets session -> account binding with standard TTL.
 func (s *OpenAIGatewayService) BindStickySession(ctx context.Context, groupID *int64, sessionHash string, accountID int64) error {
 	if sessionHash == "" || accountID <= 0 {
@@ -4155,6 +4168,7 @@ func writeOpenAIPassthroughResponseHeaders(dst http.Header, src http.Header, fil
 }
 
 func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, token string, isStream bool, promptCacheKey string, isCodexCLI bool) (*http.Request, error) {
+	compatMessagesBridge := account.Type == AccountTypeOAuth && (isOpenAICompatMessagesBridgeContext(c) || isOpenAICompatMessagesBridgeBody(body))
 	// Determine target URL based on account type
 	var targetURL string
 	switch account.Type {
@@ -4208,7 +4222,6 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 		}
 	}
 	if account.Type == AccountTypeOAuth {
-		compatMessagesBridge := isOpenAICompatMessagesBridgeContext(c) || isOpenAICompatMessagesBridgeBody(body)
 		// 清除客户端透传的 session 头，后续用隔离后的值重新设置，防止跨用户会话碰撞。
 		clientConversationID := strings.TrimSpace(req.Header.Get("conversation_id"))
 		req.Header.Del("conversation_id")
@@ -4251,6 +4264,10 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 	// 用于网关未透传/改写 User-Agent 时，仍能命中 Codex 侧识别逻辑。
 	if s.cfg != nil && s.cfg.Gateway.ForceCodexCLI {
 		req.Header.Set("user-agent", codexCLIUserAgent)
+	}
+
+	if account.Type == AccountTypeOAuth && !compatMessagesBridge {
+		normalizeOpenAIOAuthCodexUpstreamHeaders(req)
 	}
 
 	// 浏览器型 UA 兜底：仅 OAuth（ChatGPT 内部接口）账号生效，若最终 user-agent 仍为浏览器

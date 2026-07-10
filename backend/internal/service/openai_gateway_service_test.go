@@ -2166,14 +2166,15 @@ func TestOpenAIBuildUpstreamRequestOAuthOfficialClientOriginatorCompatibility(t 
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name           string
-		userAgent      string
-		originator     string
-		wantOriginator string
+		name          string
+		userAgent     string
+		originator    string
+		wantUserAgent string
 	}{
-		{name: "desktop originator preserved", originator: "Codex Desktop", wantOriginator: "Codex Desktop"},
-		{name: "vscode originator preserved", originator: "codex_vscode", wantOriginator: "codex_vscode"},
-		{name: "official ua fallback to codex_cli_rs", userAgent: "Codex Desktop/1.2.3", wantOriginator: "codex_cli_rs"},
+		{name: "desktop originator normalized", originator: "Codex Desktop", wantUserAgent: codexCLIUserAgent},
+		{name: "vscode originator normalized", originator: "codex_vscode", wantUserAgent: codexCLIUserAgent},
+		{name: "official ua normalized", userAgent: "Codex Desktop/1.2.3", wantUserAgent: codexCLIUserAgent},
+		{name: "legacy codex cli ua preserved", userAgent: "codex_cli_rs/0.99.0", wantUserAgent: "codex_cli_rs/0.99.0"},
 	}
 
 	for _, tt := range tests {
@@ -2197,7 +2198,9 @@ func TestOpenAIBuildUpstreamRequestOAuthOfficialClientOriginatorCompatibility(t 
 			isCodexCLI := openai.IsCodexOfficialClientByHeaders(c.GetHeader("User-Agent"), c.GetHeader("originator"))
 			req, err := svc.buildUpstreamRequest(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token", false, "", isCodexCLI)
 			require.NoError(t, err)
-			require.Equal(t, tt.wantOriginator, req.Header.Get("originator"))
+			require.Equal(t, "codex_cli_rs", req.Header.Get("originator"))
+			require.Equal(t, tt.wantUserAgent, req.Header.Get("User-Agent"))
+			require.Equal(t, codexCLIVersion, req.Header.Get("Version"))
 		})
 	}
 }

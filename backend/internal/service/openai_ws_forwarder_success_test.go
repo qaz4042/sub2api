@@ -671,14 +671,15 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthOriginatorCompatibility(t *testi
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name           string
-		userAgent      string
-		originator     string
-		wantOriginator string
+		name          string
+		userAgent     string
+		originator    string
+		wantUserAgent string
 	}{
-		{name: "desktop originator preserved", originator: "Codex Desktop", wantOriginator: "Codex Desktop"},
-		{name: "vscode originator preserved", originator: "codex_vscode", wantOriginator: "codex_vscode"},
-		{name: "official ua fallback to codex_cli_rs", userAgent: "Codex Desktop/1.2.3", wantOriginator: "codex_cli_rs"},
+		{name: "desktop originator normalized", originator: "Codex Desktop", wantUserAgent: codexCLIUserAgent},
+		{name: "vscode originator normalized", originator: "codex_vscode", wantUserAgent: codexCLIUserAgent},
+		{name: "official ua normalized", userAgent: "Codex Desktop/1.2.3", wantUserAgent: codexCLIUserAgent},
+		{name: "legacy codex cli ua preserved", userAgent: "codex_cli_rs/0.99.0", wantUserAgent: "codex_cli_rs/0.99.0"},
 	}
 
 	for _, tt := range tests {
@@ -742,7 +743,8 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthOriginatorCompatibility(t *testi
 			result, err := svc.Forward(context.Background(), c, account, body)
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			require.Equal(t, tt.wantOriginator, captureDialer.lastHeaders.Get("originator"))
+			require.Equal(t, "codex_cli_rs", captureDialer.lastHeaders.Get("originator"))
+			require.Equal(t, tt.wantUserAgent, captureDialer.lastHeaders.Get("User-Agent"))
 		})
 	}
 }

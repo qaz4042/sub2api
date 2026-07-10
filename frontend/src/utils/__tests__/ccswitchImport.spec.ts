@@ -20,8 +20,8 @@ describe('ccswitchImport utils', () => {
     usageScript: 'return true'
   }
 
-  it('uses gpt-5.5 as the default Codex model', () => {
-    expect(OPENAI_CC_SWITCH_CODEX_MODEL).toBe('gpt-5.5')
+  it('uses GPT-5.6 Terra as the default Codex model', () => {
+    expect(OPENAI_CC_SWITCH_CODEX_MODEL).toBe('gpt-5.6-terra')
   })
 
   it('prefers the CCS import base URL over the general API base URL', () => {
