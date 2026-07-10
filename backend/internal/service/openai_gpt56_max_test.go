@@ -77,9 +77,9 @@ func TestNormalizeOpenAICodexCompactReasoningEffortForAccountScopesCompatibility
 			want:    "max",
 		},
 		{
-			name:    "Grok OAuth compact 保留",
+			name:    "非 OpenAI OAuth compact 保留",
 			path:    "/openai/v1/responses/compact",
-			account: &Account{Platform: PlatformGrok, Type: AccountTypeOAuth},
+			account: &Account{Platform: PlatformAnthropic, Type: AccountTypeOAuth},
 			want:    "max",
 		},
 	}
