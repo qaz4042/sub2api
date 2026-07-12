@@ -111,6 +111,50 @@
           </nav>
         </div>
 
+        <div v-if="activeClientTab === 'api-example'" class="space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-dark-600 dark:bg-dark-800/70">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+                {{ t('keys.useKeyModal.apiExample.quickTestTitle') }}
+              </h3>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('keys.useKeyModal.apiExample.quickTestDescription') }}
+              </p>
+            </div>
+            <span
+              :class="[
+                'rounded-full px-2.5 py-1 text-xs font-semibold',
+                apiTestStatus === 'success'
+                  ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400'
+                  : apiTestStatus === 'error'
+                    ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
+                    : apiTestStatus === 'connecting'
+                      ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400'
+                      : 'bg-gray-100 text-gray-600 dark:bg-dark-600 dark:text-gray-300'
+              ]"
+            >
+              {{ apiTestStatusLabel }}
+            </span>
+          </div>
+          <p v-if="apiTestErrorMessage" class="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/20 dark:text-red-300">
+            {{ apiTestErrorMessage }}
+          </p>
+          <pre v-if="apiTestResponse" class="max-h-48 overflow-auto rounded-lg bg-gray-900 p-3 text-xs text-green-300"><code>{{ apiTestResponse }}</code></pre>
+          <div class="flex flex-wrap justify-end gap-2">
+            <button type="button" class="btn btn-secondary" @click="resetApiTest">
+              {{ apiTestStatus === 'connecting' ? t('keys.useKeyModal.apiExample.quickTestCancel') : t('keys.useKeyModal.apiExample.quickTestClear') }}
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              :disabled="apiTestStatus === 'connecting' || !apiTestConfig"
+              @click="startApiTest"
+            >
+              {{ apiTestStatus === 'connecting' ? t('keys.useKeyModal.apiExample.quickTestConnecting') : apiTestStatus === 'idle' ? t('keys.useKeyModal.apiExample.quickTestStart') : t('keys.useKeyModal.apiExample.quickTestRetry') }}
+            </button>
+          </div>
+        </div>
+
         <!-- Code Blocks (Stacked for multi-file platforms) -->
         <div class="space-y-4">
           <div
@@ -173,7 +217,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h, watch, type Component } from 'vue'
+import { onBeforeUnmount, ref, computed, h, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -219,6 +263,12 @@ interface FileConfig {
   highlighted?: string
 }
 
+interface ApiTestConfig {
+  url: string
+  headers: Record<string, string>
+  body: Record<string, unknown>
+}
+
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
@@ -228,6 +278,23 @@ const { copyToClipboard: clipboardCopy } = useClipboard()
 const copiedIndex = ref<number | null>(null)
 const activeTab = ref<string>('unix')
 const activeClientTab = ref<string>('claude')
+const apiTestStatus = ref<'idle' | 'connecting' | 'success' | 'error'>('idle')
+const apiTestResponse = ref('')
+const apiTestErrorMessage = ref('')
+let apiTestAbortController: AbortController | null = null
+
+const apiTestStatusLabel = computed(() => {
+  switch (apiTestStatus.value) {
+    case 'connecting':
+      return t('keys.useKeyModal.apiExample.quickTestConnecting')
+    case 'success':
+      return t('keys.useKeyModal.apiExample.quickTestStatusSuccess')
+    case 'error':
+      return t('keys.useKeyModal.apiExample.quickTestStatusError')
+    default:
+      return t('keys.useKeyModal.apiExample.quickTestStatusIdle')
+  }
+})
 
 const apiKeyOptions = computed(() =>
   (props.apiKeys ?? []).map((key) => ({
@@ -616,6 +683,136 @@ function generateGeminiApiExample(baseUrl: string, apiKey: string, label?: strin
     hint: t('keys.useKeyModal.apiExample.copyHint')
   }
 }
+
+function getApiTestConfig(): ApiTestConfig | null {
+  const baseUrl = props.baseUrl || window.location.origin
+  const baseRoot = baseUrl.replace(/\/(?:v1|v1beta)\/?$/, '').replace(/\/+$/, '')
+  const apiBase = `${baseRoot}/v1`
+  const geminiBase = `${baseRoot}/v1beta`
+
+  if (!props.apiKey) return null
+
+  if (props.platform === 'openai') {
+    return {
+      url: `${apiBase}/chat/completions`,
+      headers: {
+        Authorization: `Bearer ${props.apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: {
+        model: 'gpt-5.5',
+        messages: [{ role: 'user', content: 'Reply with one short sentence.' }]
+      }
+    }
+  }
+
+  if (props.platform === 'gemini') {
+    return {
+      url: `${geminiBase}/models/gemini-2.0-flash:generateContent`,
+      headers: {
+        'x-goog-api-key': props.apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: {
+        contents: [{ parts: [{ text: 'Reply with one short sentence.' }] }]
+      }
+    }
+  }
+
+  const anthropicBase = props.platform === 'antigravity' ? `${baseRoot}/antigravity/v1` : apiBase
+  return {
+    url: `${anthropicBase}/messages`,
+    headers: {
+      'x-api-key': props.apiKey,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json'
+    },
+    body: {
+      model: 'claude-sonnet-4-6',
+      max_tokens: 128,
+      messages: [{ role: 'user', content: 'Reply with one short sentence.' }]
+    }
+  }
+}
+
+const apiTestConfig = computed(() => getApiTestConfig())
+
+function truncateApiTestResponse(value: string): string {
+  const maxLength = 2000
+  return value.length > maxLength ? `${value.slice(0, maxLength)}\n...` : value
+}
+
+function apiTestErrorText(response: Response, rawBody: string): string {
+  let message = ''
+  try {
+    const payload = JSON.parse(rawBody) as { error?: { message?: string } | string; message?: string }
+    if (typeof payload.error === 'string') message = payload.error
+    else if (payload.error?.message) message = payload.error.message
+    else if (payload.message) message = payload.message
+  } catch {
+    message = rawBody.trim()
+  }
+  return truncateApiTestResponse(message || `${response.status} ${response.statusText}`)
+}
+
+function resetApiTest() {
+  apiTestAbortController?.abort()
+  apiTestAbortController = null
+  apiTestStatus.value = 'idle'
+  apiTestResponse.value = ''
+  apiTestErrorMessage.value = ''
+}
+
+async function startApiTest() {
+  const config = apiTestConfig.value
+  if (!config || apiTestStatus.value === 'connecting') return
+
+  apiTestAbortController?.abort()
+  const controller = new AbortController()
+  apiTestAbortController = controller
+  apiTestStatus.value = 'connecting'
+  apiTestResponse.value = ''
+  apiTestErrorMessage.value = ''
+
+  try {
+    const response = await fetch(config.url, {
+      method: 'POST',
+      headers: config.headers,
+      body: JSON.stringify(config.body),
+      signal: controller.signal
+    })
+    const rawBody = await response.text()
+    if (!response.ok) {
+      apiTestStatus.value = 'error'
+      apiTestErrorMessage.value = apiTestErrorText(response, rawBody)
+      return
+    }
+    apiTestStatus.value = 'success'
+    apiTestResponse.value = truncateApiTestResponse(rawBody || t('keys.useKeyModal.apiExample.quickTestEmptyResponse'))
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') return
+    apiTestStatus.value = 'error'
+    apiTestErrorMessage.value = error instanceof Error
+      ? error.message
+      : t('keys.useKeyModal.apiExample.quickTestRequestFailed')
+  } finally {
+    if (apiTestAbortController === controller) {
+      apiTestAbortController = null
+    }
+  }
+}
+
+watch([() => props.apiKey, () => props.platform, activeClientTab], () => {
+  resetApiTest()
+})
+
+watch(() => props.show, (show) => {
+  if (!show) resetApiTest()
+})
+
+onBeforeUnmount(() => {
+  resetApiTest()
+})
 
 function generateAnthropicFiles(baseUrl: string, apiKey: string): FileConfig[] {
   let path: string

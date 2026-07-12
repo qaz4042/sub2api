@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
 vi.mock('vue-i18n', () => ({
@@ -176,6 +176,105 @@ describe('UseKeyModal', () => {
     expect(antigravityContent).toContain('https://example.com/antigravity/v1beta/models/gemini-2.0-flash:generateContent')
     expect(antigravityContent).toContain('x-api-key: antigravity-key')
     expect(antigravityContent).toContain('x-goog-api-key: antigravity-key')
+  })
+
+  it('runs a minimal OpenAI request and renders the successful response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      text: async () => '{"choices":[{"message":{"content":"hello"}}]}'
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'openai'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    const apiExampleTab = wrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.apiExample')
+    )
+    await apiExampleTab!.trigger('click')
+    await nextTick()
+
+    const startButton = wrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.apiExample.quickTestStart')
+    )
+    await startButton!.trigger('click')
+    await flushPromises()
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.com/v1/chat/completions',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer sk-test',
+          'Content-Type': 'application/json'
+        }
+      })
+    )
+    expect(wrapper.text()).toContain('hello')
+    expect(wrapper.text()).toContain('keys.useKeyModal.apiExample.quickTestStatusSuccess')
+    vi.unstubAllGlobals()
+  })
+
+  it('shows a concise error when the API test fails', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      text: async () => '{"error":{"message":"invalid key"}}'
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-invalid',
+        baseUrl: 'https://example.com/v1',
+        platform: 'openai'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    const apiExampleTab = wrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.apiExample')
+    )
+    await apiExampleTab!.trigger('click')
+    await nextTick()
+    const startButton = wrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.apiExample.quickTestStart')
+    )
+    await startButton!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('invalid key')
+    expect(wrapper.text()).toContain('keys.useKeyModal.apiExample.quickTestStatusError')
+    vi.unstubAllGlobals()
   })
 
   it('renders GPT-5.5 and goals feature in OpenAI Codex WebSocket config', async () => {

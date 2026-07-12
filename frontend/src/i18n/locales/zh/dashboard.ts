@@ -155,7 +155,19 @@ export default {
       },
       apiExample: {
         description: '复制最小 curl 请求，在终端验证接口，或以此作为业务系统对接起点。',
-        copyHint: '示例仅在页面静态展示，不会从当前页面发送请求；复制到终端后再执行。'
+        copyHint: '示例仅在页面静态展示，不会从当前页面发送请求；复制到终端后再执行。',
+        quickTestTitle: '快速测试',
+        quickTestDescription: '使用当前密钥发送一次最小请求，并展示响应状态。',
+        quickTestStart: '开始测试',
+        quickTestRetry: '重新测试',
+        quickTestCancel: '取消',
+        quickTestClear: '清空',
+        quickTestConnecting: '测试中...',
+        quickTestStatusIdle: '待测试',
+        quickTestStatusSuccess: '成功',
+        quickTestStatusError: '失败',
+        quickTestEmptyResponse: '请求成功，但响应为空。',
+        quickTestRequestFailed: '请求失败。'
       },
       antigravity: {
         description: '为 Antigravity 分组配置 API 访问。请根据您使用的客户端选择对应的配置方式。',

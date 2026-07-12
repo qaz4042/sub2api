@@ -155,6 +155,18 @@ export default {
       apiExample: {
         description: 'Copy a minimal curl request to verify the endpoint from a terminal or use it as an integration starting point.',
         copyHint: 'The example is static and is not sent from this page. Copy it to a terminal to run it.',
+        quickTestTitle: 'Quick test',
+        quickTestDescription: 'Send one minimal request with the selected API key and show the response status.',
+        quickTestStart: 'Start test',
+        quickTestRetry: 'Retry test',
+        quickTestCancel: 'Cancel',
+        quickTestClear: 'Clear',
+        quickTestConnecting: 'Testing...',
+        quickTestStatusIdle: 'Ready',
+        quickTestStatusSuccess: 'Success',
+        quickTestStatusError: 'Failed',
+        quickTestEmptyResponse: 'Request succeeded, but the response was empty.',
+        quickTestRequestFailed: 'Request failed.',
       },
       antigravity: {
         description: 'Configure API access for Antigravity group. Select the configuration method based on your client.',
