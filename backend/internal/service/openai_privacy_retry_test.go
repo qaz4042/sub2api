@@ -87,3 +87,25 @@ func TestTokenRefreshService_ensureOpenAIPrivacy_RetriesNonSuccessModes(t *testi
 		})
 	}
 }
+
+func TestIsOpenAIPrivacyEdgeBlock(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		contentType string
+		body        string
+		want        bool
+	}{
+		{name: "html block page", contentType: "text/html; charset=UTF-8", body: "<html><title>Access denied</title></html>", want: true},
+		{name: "cloudflare marker", contentType: "text/plain", body: "Cloudflare Ray ID", want: true},
+		{name: "json authorization failure", contentType: "application/json", body: `{"error":"forbidden"}`, want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, test.want, isOpenAIPrivacyEdgeBlock(test.contentType, test.body))
+		})
+	}
+}
