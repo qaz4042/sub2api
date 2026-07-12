@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -336,12 +337,56 @@ func mergeEmailOAuthBaseConfig(base, override config.EmailOAuthProviderConfig) c
 	if strings.TrimSpace(override.FrontendRedirectURL) != "" {
 		base.FrontendRedirectURL = strings.TrimSpace(override.FrontendRedirectURL)
 	}
+	if len(override.AllowedRedirectOrigins) > 0 {
+		base.AllowedRedirectOrigins = append([]string(nil), override.AllowedRedirectOrigins...)
+	}
+	if len(override.OriginOverrides) > 0 {
+		base.OriginOverrides = append([]config.EmailOAuthOriginOverride(nil), override.OriginOverrides...)
+	}
 	return base
 }
 
 func (s *SettingService) emailOAuthPublicEnabled(settings map[string]string, provider string) bool {
 	cfg := s.effectiveEmailOAuthConfig(settings, provider)
 	return cfg.Enabled && strings.TrimSpace(cfg.ClientID) != "" && strings.TrimSpace(cfg.ClientSecret) != ""
+}
+
+func (s *SettingService) emailOAuthPublicEnabledForOrigin(settings map[string]string, provider, requestOrigin string) bool {
+	cfg := s.effectiveEmailOAuthConfig(settings, provider)
+	if len(cfg.AllowedRedirectOrigins) == 0 {
+		return cfg.Enabled && strings.TrimSpace(cfg.ClientID) != "" && strings.TrimSpace(cfg.ClientSecret) != ""
+	}
+	if strings.TrimSpace(requestOrigin) == "" {
+		return false
+	}
+
+	requestOrigin = normalizeEmailOAuthOrigin(requestOrigin)
+	allowed := false
+	for _, rawOrigin := range cfg.AllowedRedirectOrigins {
+		if normalizeEmailOAuthOrigin(rawOrigin) == requestOrigin {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return false
+	}
+
+	for _, override := range cfg.OriginOverrides {
+		if normalizeEmailOAuthOrigin(override.Origin) != requestOrigin {
+			continue
+		}
+		return cfg.Enabled && strings.TrimSpace(override.ClientID) != "" && strings.TrimSpace(override.ClientSecret) != ""
+	}
+	return cfg.Enabled && strings.TrimSpace(cfg.ClientID) != "" && strings.TrimSpace(cfg.ClientSecret) != ""
+}
+
+func normalizeEmailOAuthOrigin(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return ""
+	}
+	return strings.ToLower(u.Scheme) + "://" + strings.ToLower(u.Host)
 }
 
 func (s *SettingService) effectiveEmailOAuthConfig(settings map[string]string, provider string) config.EmailOAuthProviderConfig {

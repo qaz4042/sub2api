@@ -155,6 +155,14 @@ func (s *SettingService) GetFrontendURL(ctx context.Context) string {
 
 // GetPublicSettings 获取公开设置（无需登录）
 func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings, error) {
+	return s.getPublicSettings(ctx, "")
+}
+
+func (s *SettingService) GetPublicSettingsForOrigin(ctx context.Context, origin string) (*PublicSettings, error) {
+	return s.getPublicSettings(ctx, origin)
+}
+
+func (s *SettingService) getPublicSettings(ctx context.Context, requestOrigin string) (*PublicSettings, error) {
 	keys := []string{
 		SettingKeyRegistrationEnabled,
 		SettingKeyEmailVerifyEnabled,
@@ -255,8 +263,8 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 	if oidcProviderName == "" {
 		oidcProviderName = "OIDC"
 	}
-	gitHubEnabled := s.emailOAuthPublicEnabled(settings, "github")
-	googleEnabled := s.emailOAuthPublicEnabled(settings, "google")
+	gitHubEnabled := s.emailOAuthPublicEnabledForOrigin(settings, "github", requestOrigin)
+	googleEnabled := s.emailOAuthPublicEnabledForOrigin(settings, "google", requestOrigin)
 	weChatEnabled, weChatOpenEnabled, weChatMPEnabled, weChatMobileEnabled := s.weChatOAuthCapabilitiesFromSettings(settings)
 
 	// Password reset requires email verification to be enabled
@@ -502,7 +510,19 @@ type PublicSettingsInjectionPayload struct {
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
 // This implements the web.PublicSettingsProvider interface.
 func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any, error) {
-	settings, err := s.GetPublicSettings(ctx)
+	return s.getPublicSettingsForInjection(ctx, "")
+}
+
+func (s *SettingService) GetPublicSettingsForInjectionForOrigin(ctx context.Context, origin string) (any, error) {
+	return s.getPublicSettingsForInjection(ctx, origin)
+}
+
+func (s *SettingService) PublicSettingsOriginScopingEnabled() bool {
+	return s != nil && s.cfg != nil && (len(s.cfg.GitHubOAuth.AllowedRedirectOrigins) > 0 || len(s.cfg.GoogleOAuth.AllowedRedirectOrigins) > 0)
+}
+
+func (s *SettingService) getPublicSettingsForInjection(ctx context.Context, origin string) (any, error) {
+	settings, err := s.GetPublicSettingsForOrigin(ctx, origin)
 	if err != nil {
 		return nil, err
 	}

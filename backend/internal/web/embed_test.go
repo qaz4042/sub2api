@@ -173,6 +173,24 @@ type mockSettingsProvider struct {
 	called   int
 }
 
+type originAwareMockSettingsProvider struct {
+	settingsByOrigin map[string]any
+	calledOrigins    []string
+}
+
+func (m *originAwareMockSettingsProvider) GetPublicSettingsForInjection(ctx context.Context) (any, error) {
+	return nil, context.Canceled
+}
+
+func (m *originAwareMockSettingsProvider) GetPublicSettingsForInjectionForOrigin(_ context.Context, origin string) (any, error) {
+	m.calledOrigins = append(m.calledOrigins, origin)
+	return m.settingsByOrigin[origin], nil
+}
+
+func (m *originAwareMockSettingsProvider) PublicSettingsOriginScopingEnabled() bool {
+	return true
+}
+
 func (m *mockSettingsProvider) GetPublicSettingsForInjection(ctx context.Context) (any, error) {
 	m.called++
 	return m.settings, m.err
@@ -234,6 +252,37 @@ func TestFrontendServer_InjectSettings(t *testing.T) {
 }
 
 func TestFrontendServer_ServeIndexHTML(t *testing.T) {
+	t.Run("injects_origin_scoped_settings_without_shared_cache", func(t *testing.T) {
+		provider := &originAwareMockSettingsProvider{
+			settingsByOrigin: map[string]any{
+				"https://portal.example.com": map[string]any{"github_oauth_enabled": true},
+				"https://codex.example.com":  map[string]any{"github_oauth_enabled": false},
+			},
+		}
+
+		server, err := NewFrontendServer(provider)
+		require.NoError(t, err)
+
+		for _, item := range []struct {
+			origin string
+			want   string
+		}{
+			{origin: "https://portal.example.com", want: `"github_oauth_enabled":true`},
+			{origin: "https://codex.example.com", want: `"github_oauth_enabled":false`},
+		} {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+			c.Request.Host = strings.TrimPrefix(item.origin, "https://")
+			c.Request.Header.Set("X-Forwarded-Proto", "https")
+			server.serveIndexHTML(c)
+
+			require.Equal(t, http.StatusOK, w.Code)
+			require.Contains(t, w.Body.String(), item.want)
+		}
+		require.Equal(t, []string{"https://portal.example.com", "https://codex.example.com"}, provider.calledOrigins)
+	})
+
 	t.Run("serves_html_with_nonce", func(t *testing.T) {
 		provider := &mockSettingsProvider{
 			settings: map[string]string{"test": "value"},

@@ -37,7 +37,8 @@ func (h *SettingHandler) SetNotificationEmailService(notificationEmailService *s
 // GetPublicSettings 获取公开设置
 // GET /api/v1/settings/public
 func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
-	settings, err := h.settingService.GetPublicSettings(c.Request.Context())
+	c.Header("Vary", "Host, X-Forwarded-Proto")
+	settings, err := h.settingService.GetPublicSettingsForOrigin(c.Request.Context(), publicSettingsRequestOrigin(c))
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -104,6 +105,21 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 
 		AllowUserViewErrorRequests: settings.AllowUserViewErrorRequests,
 	})
+}
+
+func publicSettingsRequestOrigin(c *gin.Context) string {
+	if c == nil || c.Request == nil {
+		return ""
+	}
+	host := strings.TrimSpace(c.Request.Host)
+	if host == "" {
+		return ""
+	}
+	scheme := "http"
+	if isRequestHTTPS(c) {
+		scheme = "https"
+	}
+	return scheme + "://" + host
 }
 
 // UnsubscribeNotificationEmail handles optional notification email opt-outs.

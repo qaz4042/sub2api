@@ -19,6 +19,86 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestEmailOAuthConfigForRequestSelectsSameOriginCallback(t *testing.T) {
+	tests := []struct {
+		name    string
+		host    string
+		proto   string
+		origins []string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:    "configured origin",
+			host:    "portal.example.com",
+			proto:   "https",
+			origins: []string{"https://portal.example.com", "https://codex.example.com"},
+			want:    "https://portal.example.com/api/v1/auth/oauth/google/callback",
+		},
+		{
+			name:    "unconfigured origin",
+			host:    "unknown.example.com",
+			proto:   "https",
+			origins: []string{"https://portal.example.com"},
+			wantErr: true,
+		},
+		{
+			name:  "legacy without allowlist",
+			host:  "codex.example.com",
+			proto: "https",
+			want:  "https://portal.example.com/api/v1/auth/oauth/google/callback",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/oauth/google/start", nil)
+			c.Request.Host = tt.host
+			c.Request.Header.Set("X-Forwarded-Proto", tt.proto)
+
+			cfg, err := emailOAuthConfigForRequest(c, config.EmailOAuthProviderConfig{
+				RedirectURL:            "https://portal.example.com/api/v1/auth/oauth/google/callback",
+				AllowedRedirectOrigins: tt.origins,
+			})
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, cfg.RedirectURL)
+		})
+	}
+}
+
+func TestEmailOAuthConfigForRequestAppliesOriginOverride(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/oauth/github/start", nil)
+	c.Request.Host = "codex.example.com"
+	c.Request.Header.Set("X-Forwarded-Proto", "https")
+
+	cfg, err := emailOAuthConfigForRequest(c, config.EmailOAuthProviderConfig{
+		ClientID:               "portal-client",
+		ClientSecret:           "portal-secret",
+		RedirectURL:            "https://portal.example.com/api/v1/auth/oauth/github/callback",
+		AllowedRedirectOrigins: []string{"https://portal.example.com", "https://codex.example.com"},
+		OriginOverrides: []config.EmailOAuthOriginOverride{
+			{
+				Origin:       "https://codex.example.com",
+				ClientID:     "codex-client",
+				ClientSecret: "codex-secret",
+				RedirectURL:  "https://codex.example.com/api/v1/auth/oauth/github/callback",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "codex-client", cfg.ClientID)
+	require.Equal(t, "codex-secret", cfg.ClientSecret)
+	require.Equal(t, "https://codex.example.com/api/v1/auth/oauth/github/callback", cfg.RedirectURL)
+}
+
 func TestEmailOAuthCallbackRequiresPendingRegistrationWhenInvitationEnabled(t *testing.T) {
 	handler, client := newOAuthPendingFlowTestHandler(t, true)
 	ctx := context.Background()

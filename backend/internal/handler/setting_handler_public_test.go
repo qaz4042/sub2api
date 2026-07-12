@@ -82,6 +82,37 @@ func TestSettingHandler_GetPublicSettings_ExposesForceEmailOnThirdPartySignup(t 
 	require.True(t, resp.Data.ForceEmailOnThirdPartySignup)
 }
 
+func TestSettingHandler_GetPublicSettingsFiltersEmailOAuthByRequestOrigin(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewSettingHandler(service.NewSettingService(&settingHandlerPublicRepoStub{}, &config.Config{
+		GitHubOAuth: config.EmailOAuthProviderConfig{
+			Enabled:                true,
+			ClientID:               "client",
+			ClientSecret:           "secret",
+			RedirectURL:            "https://portal.example.com/api/v1/auth/oauth/github/callback",
+			AllowedRedirectOrigins: []string{"https://portal.example.com"},
+		},
+	}), "test-version")
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/settings/public", nil)
+	req.Host = "unknown.example.com"
+	req.Header.Set("X-Forwarded-Proto", "https")
+	c.Request = req
+
+	h.GetPublicSettings(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var resp struct {
+		Data struct {
+			GitHubOAuthEnabled bool `json:"github_oauth_enabled"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.False(t, resp.Data.GitHubOAuthEnabled)
+}
+
 func TestSettingHandler_GetPublicSettings_ExposesWeChatOAuthModeCapabilities(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h := NewSettingHandler(service.NewSettingService(&settingHandlerPublicRepoStub{

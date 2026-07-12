@@ -17,6 +17,11 @@ type PublicSettingsProvider interface {
 	GetPublicSettingsForInjection(ctx context.Context) (any, error)
 }
 
+type OriginAwarePublicSettingsProvider interface {
+	GetPublicSettingsForInjectionForOrigin(ctx context.Context, origin string) (any, error)
+	PublicSettingsOriginScopingEnabled() bool
+}
+
 // FrontendServer is a stub for non-embed builds
 type FrontendServer struct{}
 

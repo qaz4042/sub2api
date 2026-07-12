@@ -30,6 +30,40 @@ func TestLoadForBootstrapAllowsMissingJWTSecret(t *testing.T) {
 	}
 }
 
+func TestLoadGitHubOAuthOriginOverridesFromEnv(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("GITHUB_OAUTH_ORIGIN_OVERRIDES", `[{"origin":"https://codex.example.com","client_id":"codex-client","client_secret":"codex-secret","redirect_url":"https://codex.example.com/api/v1/auth/oauth/github/callback"}]`)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Len(t, cfg.GitHubOAuth.OriginOverrides, 1)
+	require.Equal(t, "https://codex.example.com", cfg.GitHubOAuth.OriginOverrides[0].Origin)
+	require.Equal(t, "codex-client", cfg.GitHubOAuth.OriginOverrides[0].ClientID)
+}
+
+func TestLoadGoogleOAuthAllowedRedirectOriginsFromEnv(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("GOOGLE_OAUTH_ALLOWED_REDIRECT_ORIGINS", "https://codex.example.com, https://portal.example.com")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, []string{"https://codex.example.com", "https://portal.example.com"}, cfg.GoogleOAuth.AllowedRedirectOrigins)
+}
+
+func TestValidateEmailOAuthOriginOverrides(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	cfg, err := Load()
+	require.NoError(t, err)
+	cfg.GitHubOAuth.AllowedRedirectOrigins = []string{"https://portal.example.com"}
+	cfg.GitHubOAuth.OriginOverrides = []EmailOAuthOriginOverride{
+		{Origin: "https://portal.example.com", ClientID: "client", ClientSecret: "secret", RedirectURL: "https://portal.example.com/api/v1/auth/oauth/github/callback"},
+	}
+	require.NoError(t, cfg.Validate())
+
+	cfg.GitHubOAuth.OriginOverrides[0].RedirectURL = "/relative/callback"
+	require.Error(t, cfg.Validate())
+}
+
 func TestNormalizeRunMode(t *testing.T) {
 	tests := []struct {
 		input    string

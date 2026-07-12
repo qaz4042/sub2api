@@ -91,6 +91,33 @@ func TestSettingService_GetPublicSettings_ExposesForceEmailOnThirdPartySignup(t 
 	require.True(t, settings.ForceEmailOnThirdPartySignup)
 }
 
+func TestSettingService_GetPublicSettingsForOriginFiltersEmailOAuth(t *testing.T) {
+	svc := NewSettingService(&settingPublicRepoStub{}, &config.Config{
+		GitHubOAuth: config.EmailOAuthProviderConfig{
+			Enabled:                true,
+			ClientID:               "portal-client",
+			ClientSecret:           "portal-secret",
+			RedirectURL:            "https://portal.example.com/api/v1/auth/oauth/github/callback",
+			AllowedRedirectOrigins: []string{"https://portal.example.com", "https://codex.example.com"},
+			OriginOverrides: []config.EmailOAuthOriginOverride{
+				{Origin: "https://codex.example.com", ClientID: "codex-client", ClientSecret: "codex-secret", RedirectURL: "https://codex.example.com/api/v1/auth/oauth/github/callback"},
+			},
+		},
+	})
+
+	portal, err := svc.GetPublicSettingsForOrigin(context.Background(), "https://portal.example.com")
+	require.NoError(t, err)
+	require.True(t, portal.GitHubOAuthEnabled)
+
+	codex, err := svc.GetPublicSettingsForOrigin(context.Background(), "https://codex.example.com")
+	require.NoError(t, err)
+	require.True(t, codex.GitHubOAuthEnabled)
+
+	unknown, err := svc.GetPublicSettingsForOrigin(context.Background(), "https://unknown.example.com")
+	require.NoError(t, err)
+	require.False(t, unknown.GitHubOAuthEnabled)
+}
+
 func TestSettingService_GetPublicSettings_ExposesAllowUserViewErrorRequests(t *testing.T) {
 	repo := &settingPublicRepoStub{
 		values: map[string]string{
