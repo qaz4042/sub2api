@@ -567,6 +567,7 @@ export default {
     recentActivity: 'Recent Activity',
     historyWillAppear: 'Your redemption history will appear here',
     balanceAddedRedeem: 'Balance Added (Redeem)',
+    balanceAddedPayment: 'Balance Added (Payment)',
     balanceAddedAffiliate: 'Balance Added (Affiliate Transfer)',
     balanceAddedAdmin: 'Balance Added (Admin)',
     balanceDeductedAdmin: 'Balance Deducted (Admin)',
