@@ -6,6 +6,45 @@
     @close="emit('close')"
   >
     <div class="space-y-4">
+      <div v-if="apiKeyOptions.length > 1" class="space-y-1.5">
+        <label class="input-label">{{ t('keys.useKeyModal.keySelectorLabel') }}</label>
+        <Select
+          :model-value="selectedKeyId"
+          :options="apiKeyOptions"
+          :searchable="true"
+          :search-placeholder="t('keys.useKeyModal.keySelectorSearchPlaceholder')"
+          @update:model-value="updateSelectedKey"
+        >
+          <template #selected="{ option }">
+            <span v-if="option" class="flex min-w-0 items-center gap-2">
+              <span class="truncate font-medium">{{ option.label }}</span>
+              <span class="shrink-0 text-xs text-gray-400 dark:text-gray-500">{{ option.maskedKey }}</span>
+            </span>
+            <span v-else class="text-gray-400">{{ t('keys.useKeyModal.keySelectorPlaceholder') }}</span>
+          </template>
+          <template #option="{ option, selected }">
+            <div class="flex min-w-0 flex-1 items-center justify-between gap-3">
+              <div class="min-w-0">
+                <div class="truncate text-sm font-medium text-gray-900 dark:text-white">
+                  {{ option.label }}
+                </div>
+                <div class="mt-0.5 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <span class="font-mono">{{ option.maskedKey }}</span>
+                  <span v-if="option.groupName" class="truncate">{{ option.groupName }}</span>
+                </div>
+              </div>
+              <Icon
+                v-if="selected"
+                name="check"
+                size="sm"
+                class="shrink-0 text-primary-500"
+                :stroke-width="2"
+              />
+            </div>
+          </template>
+        </Select>
+      </div>
+
       <!-- No Group Assigned Warning -->
       <div v-if="!platform" class="flex items-start gap-3 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
         <svg class="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
@@ -137,13 +176,26 @@
 import { ref, computed, h, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
+import { maskApiKey } from '@/utils/maskApiKey'
 import type { GroupPlatform } from '@/types'
+
+interface UseKeyOption {
+  id: number
+  name: string
+  key: string
+  status: string
+  platform: GroupPlatform | null
+  groupName: string | null
+}
 
 interface Props {
   show: boolean
   apiKey: string
+  apiKeys?: UseKeyOption[]
+  selectedKeyId?: number | null
   baseUrl: string
   platform: GroupPlatform | null
   allowMessagesDispatch?: boolean
@@ -151,6 +203,7 @@ interface Props {
 
 interface Emits {
   (e: 'close'): void
+  (e: 'update:selectedKeyId', value: number | null): void
 }
 
 interface TabConfig {
@@ -175,6 +228,20 @@ const { copyToClipboard: clipboardCopy } = useClipboard()
 const copiedIndex = ref<number | null>(null)
 const activeTab = ref<string>('unix')
 const activeClientTab = ref<string>('claude')
+
+const apiKeyOptions = computed(() =>
+  (props.apiKeys ?? []).map((key) => ({
+    value: key.id,
+    label: key.name,
+    maskedKey: maskApiKey(key.key),
+    groupName: key.groupName,
+    status: key.status,
+  }))
+)
+
+function updateSelectedKey(value: string | number | boolean | null) {
+  emit('update:selectedKeyId', typeof value === 'number' ? value : null)
+}
 
 // Reset tabs when platform changes
 const defaultClientTab = computed(() => {

@@ -15,6 +15,7 @@ vi.mock('@/composables/useClipboard', () => ({
 }))
 
 import UseKeyModal from '../UseKeyModal.vue'
+import Select from '@/components/common/Select.vue'
 
 describe('UseKeyModal', () => {
   it('renders GPT-5.5 and goals feature in OpenAI Codex config', () => {
@@ -47,6 +48,40 @@ describe('UseKeyModal', () => {
     expect(configToml).not.toContain('model_context_window')
     expect(configToml).not.toContain('model_auto_compact_token_limit')
     expect(configToml).toContain('[features]\ngoals = true')
+  })
+
+  it('allows switching between available API keys', async () => {
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-first-key',
+        apiKeys: [
+          { id: 1, name: 'First key', key: 'sk-first-key', status: 'active', platform: 'openai', groupName: 'OpenAI' },
+          { id: 2, name: 'Second key', key: 'sk-second-key', status: 'active', platform: 'openai', groupName: 'OpenAI' },
+        ],
+        selectedKeyId: 1,
+        baseUrl: 'https://example.com/v1',
+        platform: 'openai'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    const selector = wrapper.findComponent(Select)
+    expect(selector.exists()).toBe(true)
+    expect(selector.props('options')).toHaveLength(2)
+
+    await selector.vm.$emit('update:modelValue', 2)
+
+    expect(wrapper.emitted('update:selectedKeyId')).toEqual([[2]])
   })
 
   it('renders GPT-5.5 and goals feature in OpenAI Codex WebSocket config', async () => {

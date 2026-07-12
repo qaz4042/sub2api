@@ -128,6 +128,9 @@ export default {
     useKey: '使用密钥',
     useKeyModal: {
       title: '使用 API 密钥',
+      keySelectorLabel: '密钥',
+      keySelectorPlaceholder: '选择密钥',
+      keySelectorSearchPlaceholder: '搜索密钥...',
       description: '将以下环境变量添加到您的终端配置文件或直接在终端中运行。',
       copy: '复制',
       copied: '已复制',

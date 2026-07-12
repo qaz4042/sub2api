@@ -987,10 +987,13 @@
     <!-- Use Key Modal -->
     <UseKeyModal
       :show="showUseKeyModal"
+      :api-keys="useKeyOptions"
+      :selected-key-id="selectedKey?.id ?? null"
       :api-key="selectedKey?.key || ''"
       :base-url="publicSettings?.api_base_url || ''"
       :platform="selectedKey?.group?.platform || null"
       :allow-messages-dispatch="selectedKey?.group?.allow_messages_dispatch || false"
+      @update:selected-key-id="selectUseKey"
       @close="closeUseKeyModal"
     />
 
@@ -1264,6 +1267,17 @@ const columns = computed<Column[]>(() =>
   allColumns.value.filter((col) => ALWAYS_VISIBLE_COLUMNS.has(col.key) || !hiddenColumns.has(col.key))
 )
 
+const useKeyOptions = computed(() =>
+  apiKeys.value.map((key) => ({
+    id: key.id,
+    name: key.name,
+    key: key.key,
+    status: key.status,
+    platform: key.group?.platform ?? null,
+    groupName: key.group?.name ?? null,
+  }))
+)
+
 const apiKeys = ref<ApiKey[]>([])
 const groups = ref<Group[]>([])
 const loading = ref(false)
@@ -1532,6 +1546,11 @@ const openUseKeyModal = (key: ApiKey) => {
 const closeUseKeyModal = () => {
   showUseKeyModal.value = false
   selectedKey.value = null
+}
+
+const selectUseKey = (keyId: number | null) => {
+  if (keyId === null) return
+  selectedKey.value = apiKeys.value.find((key) => key.id === keyId) ?? selectedKey.value
 }
 
 const handlePageChange = (page: number) => {

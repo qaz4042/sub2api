@@ -128,6 +128,9 @@ export default {
     useKey: 'Use Key',
     useKeyModal: {
       title: 'Use API Key',
+      keySelectorLabel: 'Key',
+      keySelectorPlaceholder: 'Select key',
+      keySelectorSearchPlaceholder: 'Search keys...',
       description:
         'Add the following environment variables to your terminal profile or run directly in terminal to configure API access.',
       copy: 'Copy',
