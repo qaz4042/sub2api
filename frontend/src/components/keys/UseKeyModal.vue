@@ -341,24 +341,30 @@ const clientTabs = computed((): TabConfig[] => {
       if (props.allowMessagesDispatch) {
         tabs.push({ id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon })
       }
-      tabs.push({ id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon })
+      tabs.push(
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon },
+        { id: 'api-example', label: t('keys.useKeyModal.cliTabs.apiExample'), icon: TerminalIcon }
+      )
       return tabs
     }
     case 'gemini':
       return [
         { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
-        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon },
+        { id: 'api-example', label: t('keys.useKeyModal.cliTabs.apiExample'), icon: TerminalIcon }
       ]
     case 'antigravity':
       return [
         { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
         { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
-        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon },
+        { id: 'api-example', label: t('keys.useKeyModal.cliTabs.apiExample'), icon: TerminalIcon }
       ]
     default:
       return [
         { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
-        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon },
+        { id: 'api-example', label: t('keys.useKeyModal.cliTabs.apiExample'), icon: TerminalIcon }
       ]
   }
 })
@@ -376,7 +382,7 @@ const openaiTabs: TabConfig[] = [
   { id: 'windows', label: 'Windows', icon: WindowsIcon }
 ]
 
-const showShellTabs = computed(() => activeClientTab.value !== 'opencode')
+const showShellTabs = computed(() => !['opencode', 'api-example'].includes(activeClientTab.value))
 
 const currentTabs = computed(() => {
   if (!showShellTabs.value) return []
@@ -389,15 +395,27 @@ const currentTabs = computed(() => {
 const platformDescription = computed(() => {
   switch (props.platform) {
     case 'openai':
+      if (activeClientTab.value === 'api-example') {
+        return t('keys.useKeyModal.apiExample.description')
+      }
       if (activeClientTab.value === 'claude') {
         return t('keys.useKeyModal.description')
       }
       return t('keys.useKeyModal.openai.description')
     case 'gemini':
+      if (activeClientTab.value === 'api-example') {
+        return t('keys.useKeyModal.apiExample.description')
+      }
       return t('keys.useKeyModal.gemini.description')
     case 'antigravity':
+      if (activeClientTab.value === 'api-example') {
+        return t('keys.useKeyModal.apiExample.description')
+      }
       return t('keys.useKeyModal.antigravity.description')
     default:
+      if (activeClientTab.value === 'api-example') {
+        return t('keys.useKeyModal.apiExample.description')
+      }
       return t('keys.useKeyModal.description')
   }
 })
@@ -422,7 +440,7 @@ const platformNote = computed(() => {
   }
 })
 
-const showPlatformNote = computed(() => activeClientTab.value !== 'opencode')
+const showPlatformNote = computed(() => !['opencode', 'api-example'].includes(activeClientTab.value))
 
 const escapeHtml = (value: string) => value
   .replace(/&/g, '&amp;')
@@ -460,6 +478,17 @@ const currentFiles = computed((): FileConfig[] => {
     const trimmed = baseRoot.replace(/\/+$/, '')
     return trimmed.endsWith('/v1beta') ? trimmed : `${trimmed}/v1beta`
   })()
+
+  if (activeClientTab.value === 'api-example') {
+    return generateApiExampleFiles(
+      props.platform,
+      apiKey,
+      apiBase,
+      geminiBase,
+      antigravityBase,
+      antigravityGeminiBase
+    )
+  }
 
   if (activeClientTab.value === 'opencode') {
     switch (props.platform) {
@@ -499,6 +528,94 @@ const currentFiles = computed((): FileConfig[] => {
       return generateAnthropicFiles(baseUrl, apiKey)
   }
 })
+
+function generateApiExampleFiles(
+  platform: GroupPlatform | null,
+  apiKey: string,
+  apiBase: string,
+  geminiBase: string,
+  antigravityBase: string,
+  antigravityGeminiBase: string
+): FileConfig[] {
+  if (platform === 'openai') {
+    return [generateOpenAIApiExample(apiBase, apiKey)]
+  }
+  if (platform === 'gemini') {
+    return [generateGeminiApiExample(geminiBase, apiKey)]
+  }
+  if (platform === 'antigravity') {
+    return [
+      generateAnthropicApiExample(antigravityBase, apiKey, 'Claude'),
+      generateGeminiApiExample(antigravityGeminiBase, apiKey, 'Gemini')
+    ]
+  }
+  return [generateAnthropicApiExample(apiBase, apiKey)]
+}
+
+function generateOpenAIApiExample(baseUrl: string, apiKey: string): FileConfig {
+  const endpoint = `${baseUrl}/chat/completions`
+  return {
+    path: 'curl · OpenAI Chat Completions',
+    content: `curl "${endpoint}" \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -d '{
+    "model": "gpt-5.5",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Reply with one short sentence."
+      }
+    ]
+  }'`,
+    hint: t('keys.useKeyModal.apiExample.copyHint')
+  }
+}
+
+function generateAnthropicApiExample(baseUrl: string, apiKey: string, label?: string): FileConfig {
+  const endpoint = `${baseUrl}/messages`
+  return {
+    path: label ? `curl · Anthropic Messages (${label})` : 'curl · Anthropic Messages',
+    content: `curl "${endpoint}" \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${apiKey}" \\
+  -H "anthropic-version: 2023-06-01" \\
+  -d '{
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 128,
+    "messages": [
+      {
+        "role": "user",
+        "content": "Reply with one short sentence."
+      }
+    ]
+  }'`,
+    hint: t('keys.useKeyModal.apiExample.copyHint')
+  }
+}
+
+function generateGeminiApiExample(baseUrl: string, apiKey: string, label?: string): FileConfig {
+  const model = 'gemini-2.0-flash'
+  const endpoint = `${baseUrl}/models/${model}:generateContent`
+  return {
+    path: label ? `curl · Gemini generateContent (${label})` : 'curl · Gemini generateContent',
+    content: `curl "${endpoint}" \\
+  -H "Content-Type: application/json" \\
+  -H "x-goog-api-key: ${apiKey}" \\
+  -d '{
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "Reply with one short sentence."
+          }
+        ]
+      }
+    ]
+  }'`,
+    hint: t('keys.useKeyModal.apiExample.copyHint')
+  }
+}
 
 function generateAnthropicFiles(baseUrl: string, apiKey: string): FileConfig[] {
   let path: string

@@ -84,6 +84,100 @@ describe('UseKeyModal', () => {
     expect(wrapper.emitted('update:selectedKeyId')).toEqual([[2]])
   })
 
+  it('renders a static OpenAI curl example without making a request', async () => {
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'openai'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    const apiExampleTab = wrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.apiExample')
+    )
+
+    expect(apiExampleTab).toBeDefined()
+    await apiExampleTab!.trigger('click')
+    await nextTick()
+
+    const content = wrapper.find('pre code').text()
+    expect(content).toContain('https://example.com/v1/chat/completions')
+    expect(content).toContain('Authorization: Bearer sk-test')
+    expect(content).toContain('"model": "gpt-5.5"')
+    expect(wrapper.text()).toContain('keys.useKeyModal.apiExample.copyHint')
+  })
+
+  it('uses native authentication and paths for Gemini and Antigravity examples', async () => {
+    const geminiWrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'gemini-key',
+        baseUrl: 'https://example.com/v1beta',
+        platform: 'gemini'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    const geminiTab = geminiWrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.apiExample')
+    )
+    await geminiTab!.trigger('click')
+    await nextTick()
+    expect(geminiWrapper.text()).toContain('https://example.com/v1beta/models/gemini-2.0-flash:generateContent')
+    expect(geminiWrapper.text()).toContain('x-goog-api-key: gemini-key')
+
+    const antigravityWrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'antigravity-key',
+        baseUrl: 'https://example.com/v1',
+        platform: 'antigravity'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    const antigravityTab = antigravityWrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.apiExample')
+    )
+    await antigravityTab!.trigger('click')
+    await nextTick()
+    const antigravityContent = antigravityWrapper.findAll('pre code').map((code) => code.text()).join('\n')
+    expect(antigravityContent).toContain('https://example.com/antigravity/v1/messages')
+    expect(antigravityContent).toContain('https://example.com/antigravity/v1beta/models/gemini-2.0-flash:generateContent')
+    expect(antigravityContent).toContain('x-api-key: antigravity-key')
+    expect(antigravityContent).toContain('x-goog-api-key: antigravity-key')
+  })
+
   it('renders GPT-5.5 and goals feature in OpenAI Codex WebSocket config', async () => {
     const wrapper = mount(UseKeyModal, {
       props: {

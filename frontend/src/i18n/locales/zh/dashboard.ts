@@ -150,7 +150,12 @@ export default {
         geminiCli: 'Gemini CLI',
         codexCli: 'Codex CLI',
         codexCliWs: 'Codex CLI (WebSocket)',
-        opencode: 'OpenCode'
+        opencode: 'OpenCode',
+        apiExample: 'API 示例'
+      },
+      apiExample: {
+        description: '复制最小 curl 请求，在终端验证接口，或以此作为业务系统对接起点。',
+        copyHint: '示例仅在页面静态展示，不会从当前页面发送请求；复制到终端后再执行。'
       },
       antigravity: {
         description: '为 Antigravity 分组配置 API 访问。请根据您使用的客户端选择对应的配置方式。',

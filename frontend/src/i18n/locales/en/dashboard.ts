@@ -150,6 +150,11 @@ export default {
         codexCli: 'Codex CLI',
         codexCliWs: 'Codex CLI (WebSocket)',
         opencode: 'OpenCode',
+        apiExample: 'API Example',
+      },
+      apiExample: {
+        description: 'Copy a minimal curl request to verify the endpoint from a terminal or use it as an integration starting point.',
+        copyHint: 'The example is static and is not sent from this page. Copy it to a terminal to run it.',
       },
       antigravity: {
         description: 'Configure API access for Antigravity group. Select the configuration method based on your client.',
