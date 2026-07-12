@@ -134,7 +134,7 @@ function mountUsageView() {
         AppLayout: simpleStub,
         Pagination: true,
         Select: true,
-        DateRangePicker: true,
+        UsageDateRangeRadios: true,
         Icon: true,
         UsageStatsCards: chartStub,
         UsageTable: chartStub,

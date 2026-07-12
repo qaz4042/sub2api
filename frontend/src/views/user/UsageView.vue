@@ -7,10 +7,11 @@
         <div class="card p-4">
           <div class="flex flex-wrap items-center gap-4">
             <div class="flex items-center gap-2">
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
-              <DateRangePicker
+              <UsageDateRangeRadios
+                v-model="dateRangePreset"
                 v-model:start-date="startDate"
                 v-model:end-date="endDate"
+                :label="t('admin.dashboard.timeRange')"
                 @change="onDateRangeChange"
               />
             </div>
@@ -220,7 +221,7 @@ import { keysAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
-import DateRangePicker from '@/components/common/DateRangePicker.vue'
+import UsageDateRangeRadios from '@/components/common/UsageDateRangeRadios.vue'
 import UsageStatsCards from '@/components/admin/usage/UsageStatsCards.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'
@@ -233,6 +234,11 @@ import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { formatReasoningEffort } from '@/utils/format'
 import { BILLING_MODE_IMAGE, getBillingModeLabel } from '@/utils/billingMode'
 import { resolveUsageRequestType, requestTypeToLegacyStream } from '@/utils/usageRequestType'
+import {
+  getUsageDateRangePreset,
+  type UsageDateRangeMode,
+  type UsageDateRangePreset,
+} from '@/utils/usageDateRange'
 import type {
   ApiKey,
   EndpointStat,
@@ -324,22 +330,15 @@ let chartReqSeq = 0
 let statsReqSeq = 0
 let modelStatsReqSeq = 0
 
-const formatLocalDate = (date: Date): string =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-
-const getLast24HoursRangeDates = () => {
-  const end = new Date()
-  const start = new Date(end.getTime() - 24 * 60 * 60 * 1000)
-  return { start: formatLocalDate(start), end: formatLocalDate(end) }
-}
-
 const getGranularityForRange = (start: string, end: string): 'day' | 'hour' => {
   const startTime = new Date(`${start}T00:00:00`).getTime()
   const endTime = new Date(`${end}T00:00:00`).getTime()
   return Math.ceil((endTime - startTime) / (1000 * 60 * 60 * 24)) <= 1 ? 'hour' : 'day'
 }
 
-const defaultRange = getLast24HoursRangeDates()
+const defaultDateRangePreset: UsageDateRangePreset = 'today'
+const defaultRange = getUsageDateRangePreset(defaultDateRangePreset)
+const dateRangePreset = ref<UsageDateRangeMode | null>(defaultDateRangePreset)
 const startDate = ref(defaultRange.start)
 const endDate = ref(defaultRange.end)
 const granularity = ref<'day' | 'hour'>(getGranularityForRange(startDate.value, endDate.value))
@@ -543,7 +542,8 @@ const refreshData = () => {
 }
 
 const resetFilters = () => {
-  const range = getLast24HoursRangeDates()
+  const range = getUsageDateRangePreset(defaultDateRangePreset)
+  dateRangePreset.value = defaultDateRangePreset
   startDate.value = range.start
   endDate.value = range.end
   filters.value = {
@@ -561,7 +561,8 @@ const resetFilters = () => {
   }
 }
 
-const onDateRangeChange = (range: { startDate: string; endDate: string; preset: string | null }) => {
+const onDateRangeChange = (range: { startDate: string; endDate: string; preset: UsageDateRangeMode }) => {
+  dateRangePreset.value = range.preset
   startDate.value = range.startDate
   endDate.value = range.endDate
   filters.value.start_date = range.startDate

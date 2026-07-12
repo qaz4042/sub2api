@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 import UsageView from '../UsageView.vue'
+import { formatLocalDate } from '@/utils/usageDateRange'
 
 const { list, getStats, getSnapshotV2, getById, getModelStats, listErrorLogs } = vi.hoisted(() => {
   vi.stubGlobal('localStorage', {
@@ -25,13 +26,6 @@ const messages: Record<string, string> = {
   'admin.dashboard.day': 'Day',
   'admin.dashboard.hour': 'Hour',
   'admin.usage.failedToLoadUser': 'Failed to load user',
-}
-
-const formatLocalDate = (date: Date): string => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
 }
 
 vi.mock('@/api/admin', () => ({
@@ -165,7 +159,7 @@ describe('admin UsageView distribution metric toggles', () => {
         AppLayout: AppLayoutStub, UsageStatsCards: true, UsageFilters: UsageFiltersStub,
         UsageTable: true, UsageExportProgress: true, UsageCleanupDialog: true,
         UserBalanceHistoryModal: true, AuditLogModal: true, Pagination: true, Select: true,
-        DateRangePicker: true, Icon: true, TokenUsageTrend: true,
+        UsageDateRangeRadios: true, Icon: true, TokenUsageTrend: true,
         ModelDistributionChart: ModelDistributionChartStub, GroupDistributionChart: GroupDistributionChartStub,
         EndpointDistributionChart: true, UserTokenRanking: true,
       } },
@@ -200,7 +194,7 @@ describe('admin UsageView distribution metric toggles', () => {
           UserBalanceHistoryModal: true,
           Pagination: true,
           Select: true,
-          DateRangePicker: true,
+          UsageDateRangeRadios: true,
           Icon: true,
           TokenUsageTrend: true,
           ModelDistributionChart: ModelDistributionChartStub,
@@ -215,10 +209,10 @@ describe('admin UsageView distribution metric toggles', () => {
 
     expect(getSnapshotV2).toHaveBeenCalledTimes(1)
     const now = new Date()
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    const today = formatLocalDate(now)
     expect(getSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({
-      start_date: formatLocalDate(yesterday),
-      end_date: formatLocalDate(now),
+      start_date: today,
+      end_date: today,
       granularity: 'hour'
     }))
 
@@ -280,7 +274,7 @@ describe('admin UsageView handleUserClick', () => {
           AuditLogModal: true,
           Pagination: true,
           Select: true,
-          DateRangePicker: true,
+          UsageDateRangeRadios: true,
           Icon: true,
           TokenUsageTrend: true,
           ModelDistributionChart: true,
@@ -330,7 +324,7 @@ describe('admin UsageView errors tab filter forwarding', () => {
         AppLayout: AppLayoutStub, UsageStatsCards: true, UsageFilters: UsageFiltersStub,
         UsageTable: true, UsageExportProgress: true, UsageCleanupDialog: true,
         UserBalanceHistoryModal: true, AuditLogModal: true, Pagination: true, Select: true,
-        DateRangePicker: true, Icon: true, TokenUsageTrend: true,
+        UsageDateRangeRadios: true, Icon: true, TokenUsageTrend: true,
         ModelDistributionChart: true, GroupDistributionChart: true, EndpointDistributionChart: true,
         UserTokenRanking: true, OpsErrorLogTable: true, OpsErrorDetailModal: true,
       } },
@@ -386,7 +380,7 @@ describe('admin UsageView ranking tab', () => {
         AppLayout: AppLayoutStub, UsageStatsCards: true, UsageFilters: UsageFiltersStub,
         UsageTable: true, UsageExportProgress: true, UsageCleanupDialog: true,
         UserBalanceHistoryModal: true, Pagination: true, Select: true,
-        DateRangePicker: true, Icon: true, TokenUsageTrend: true,
+        UsageDateRangeRadios: true, Icon: true, TokenUsageTrend: true,
         ModelDistributionChart: true, GroupDistributionChart: true, EndpointDistributionChart: true,
         UserTokenRanking: UserTokenRankingStub, OpsErrorLogTable: true, OpsErrorDetailModal: true,
       } },
