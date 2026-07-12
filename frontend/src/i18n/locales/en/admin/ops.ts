@@ -134,6 +134,7 @@ export default {
       healthHelp: 'Overall system health score based on SLA, error rate, and resource usage',
       healthyStatus: 'Healthy',
       riskyStatus: 'At Risk',
+      observingStatus: 'Observing',
       idleStatus: 'Idle',
       timeRange: {
         '5m': 'Last 5 minutes',
@@ -179,6 +180,9 @@ export default {
         footer: 'Automated diagnostic suggestions based on current metrics',
         idle: 'System is currently idle',
         idleImpact: 'No active traffic',
+        lowSample: 'Health score is based on only {count} requests',
+        lowSampleImpact: 'The sample is too small for a confident trend judgment',
+        lowSampleAction: 'Continue monitoring before treating the score as a system incident',
         // Resource diagnostics
         dbDown: 'Database connection failed',
         dbDownImpact: 'All database operations will fail',
@@ -201,6 +205,9 @@ export default {
         ttftHigh: 'Time to first token elevated ({ttft}ms)',
         ttftHighImpact: 'User perceived latency increased',
         ttftHighAction: 'Optimize request processing flow, reduce pre-processing time',
+        upstreamExperienceHigh: '{percentile} TTFT is elevated ({ttft}ms)',
+        upstreamExperienceHighImpact: 'Upstream response speed is reducing user-perceived performance',
+        upstreamExperienceHighAction: 'Check upstream latency and account or channel routing',
         // Error rate diagnostics
         upstreamCritical: 'Upstream error rate critically high ({rate}%)',
         upstreamCriticalImpact: 'May affect many user requests',

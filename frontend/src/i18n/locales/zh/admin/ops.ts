@@ -134,6 +134,7 @@ export default {
       healthHelp: '基于 SLA、错误率和资源使用情况的系统整体健康评分',
       healthyStatus: '健康',
       riskyStatus: '风险',
+      observingStatus: '观察中',
       idleStatus: '待机',
       timeRange: {
         '5m': '近5分钟',
@@ -179,6 +180,9 @@ export default {
         footer: '基于当前指标的自动诊断建议',
         idle: '系统当前处于待机状态',
         idleImpact: '无活跃流量',
+        lowSample: '健康评分仅基于 {count} 个请求',
+        lowSampleImpact: '样本量较小，暂不足以形成稳定判断',
+        lowSampleAction: '继续观察后再将评分作为系统故障信号处理',
         // Resource diagnostics
         dbDown: '数据库连接失败',
         dbDownImpact: '所有数据库操作将失败',
@@ -201,6 +205,9 @@ export default {
         ttftHigh: '首 Token 时间偏高 ({ttft}ms)',
         ttftHighImpact: '用户感知时长增加',
         ttftHighAction: '优化请求处理流程，减少前置逻辑耗时',
+        upstreamExperienceHigh: '{percentile} 首 Token 时间偏高 ({ttft}ms)',
+        upstreamExperienceHighImpact: '上游响应速度正在影响用户感知性能',
+        upstreamExperienceHighAction: '检查上游延迟以及账号或渠道路由',
         // Error rate diagnostics
         upstreamCritical: '上游错误率严重偏高 ({rate}%)',
         upstreamCriticalImpact: '可能影响大量用户请求',

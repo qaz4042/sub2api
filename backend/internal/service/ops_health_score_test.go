@@ -12,8 +12,11 @@ import (
 func TestComputeDashboardHealthScore_IdleReturns100(t *testing.T) {
 	t.Parallel()
 
-	score := computeDashboardHealthScore(time.Now().UTC(), &OpsDashboardOverview{})
+	ov := &OpsDashboardOverview{}
+	score := computeDashboardHealthScore(time.Now().UTC(), ov)
 	require.Equal(t, 100, score)
+	require.NotNil(t, ov.HealthScoreMeta)
+	require.Equal(t, "idle", ov.HealthScoreMeta.PrimarySignal)
 }
 
 func TestComputeDashboardHealthScore_DegradesOnBadSignals(t *testing.T) {
@@ -310,8 +313,8 @@ func TestComputeBusinessHealth(t *testing.T) {
 				UpstreamErrorRate: 0,
 				TTFT:              OpsPercentiles{P99: intPtr(2000)},
 			},
-			wantMin: 75,
-			wantMax: 75,
+			wantMin: 94,
+			wantMax: 95,
 		},
 		{
 			name: "upstream error dominates",
@@ -335,6 +338,48 @@ func TestComputeBusinessHealth(t *testing.T) {
 			require.LessOrEqual(t, score, 100.0, "score must be <= 100")
 		})
 	}
+}
+
+func TestComputeDashboardHealthScoreMeta_LowSample(t *testing.T) {
+	t.Parallel()
+
+	ov := &OpsDashboardOverview{
+		RequestCountTotal: 5,
+		RequestCountSLA:   5,
+		SuccessCount:      5,
+		TTFT:              OpsPercentiles{P95: intPtr(4000), P99: intPtr(9000)},
+		SystemMetrics: &OpsSystemMetricsSnapshot{
+			DBOK:               boolPtr(true),
+			RedisOK:            boolPtr(true),
+			CPUUsagePercent:    float64Ptr(5),
+			MemoryUsagePercent: float64Ptr(20),
+		},
+	}
+
+	score := computeDashboardHealthScore(time.Now().UTC(), ov)
+	require.Greater(t, score, 0)
+	require.NotNil(t, ov.HealthScoreMeta)
+	require.Equal(t, "low_sample", ov.HealthScoreMeta.Confidence)
+	require.True(t, ov.HealthScoreMeta.LowSample)
+	require.Equal(t, int64(5), ov.HealthScoreMeta.SampleSize)
+	require.Equal(t, "upstream_experience", ov.HealthScoreMeta.PrimarySignal)
+	require.Equal(t, "p95", ov.HealthScoreMeta.TTFTReferencePctl)
+	require.Equal(t, intPtr(4000), ov.HealthScoreMeta.TTFTReferenceMs)
+	require.Contains(t, ov.HealthScoreMeta.Reasons, "low_sample")
+	require.Contains(t, ov.HealthScoreMeta.Reasons, "ttft")
+}
+
+func TestComputeBusinessHealth_UsesP95BeforeP99(t *testing.T) {
+	t.Parallel()
+
+	ov := &OpsDashboardOverview{
+		RequestCountTotal: 100,
+		RequestCountSLA:   100,
+		TTFT:              OpsPercentiles{P95: intPtr(1200), P99: intPtr(20000)},
+	}
+
+	score := computeBusinessHealth(ov)
+	require.Equal(t, 100.0, score)
 }
 
 func TestComputeInfraHealth(t *testing.T) {

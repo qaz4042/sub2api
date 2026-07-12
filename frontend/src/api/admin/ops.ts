@@ -32,6 +32,7 @@ export interface OpsDashboardOverview {
   group_id?: number | null
 
   health_score?: number
+  health_score_meta?: OpsHealthScoreMeta | null
 
   system_metrics?: OpsSystemMetricsSnapshot | null
   job_heartbeats?: OpsJobHeartbeat[] | null
@@ -65,6 +66,18 @@ export interface OpsDashboardOverview {
 
   duration: OpsPercentiles
   ttft: OpsPercentiles
+}
+
+export interface OpsHealthScoreMeta {
+  confidence: 'normal' | 'low_sample' | string
+  primary_signal: 'idle' | 'healthy' | 'upstream_experience' | 'upstream' | 'error' | 'infra' | 'business' | string
+  reasons?: string[] | null
+  sample_size: number
+  low_sample: boolean
+  business_score: number
+  infra_score: number
+  ttft_reference_ms?: number | null
+  ttft_reference_percentile?: string | null
 }
 
 export interface OpsPercentiles {
