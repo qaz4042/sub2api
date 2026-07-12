@@ -121,6 +121,16 @@
                 {{ t('keys.useKeyModal.apiExample.quickTestDescription') }}
               </p>
             </div>
+            <div class="w-full sm:w-56">
+              <label class="input-label">
+                {{ t('keys.useKeyModal.apiExample.quickTestModelLabel') }}
+              </label>
+              <Select
+                :model-value="apiTestModel"
+                :options="apiTestModelOptions"
+                @update:model-value="updateApiTestModel"
+              />
+            </div>
             <span
               :class="[
                 'rounded-full px-2.5 py-1 text-xs font-semibold',
@@ -269,6 +279,12 @@ interface ApiTestConfig {
   body: Record<string, unknown>
 }
 
+interface ApiTestModelOption {
+  value: string
+  label: string
+  [key: string]: unknown
+}
+
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
@@ -281,7 +297,22 @@ const activeClientTab = ref<string>('claude')
 const apiTestStatus = ref<'idle' | 'connecting' | 'success' | 'error'>('idle')
 const apiTestResponse = ref('')
 const apiTestErrorMessage = ref('')
+const apiTestModel = ref('')
 let apiTestAbortController: AbortController | null = null
+
+const apiTestModelPresets: Record<string, string[]> = {
+  openai: ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini'],
+  gemini: ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.5-pro'],
+  anthropic: ['claude-sonnet-4-6', 'claude-fable-5'],
+  antigravity: ['claude-sonnet-4-6', 'claude-fable-5']
+}
+
+const apiTestModelOptions = computed<ApiTestModelOption[]>(() =>
+  (apiTestModelPresets[props.platform ?? 'anthropic'] ?? apiTestModelPresets.anthropic).map((model) => ({
+    value: model,
+    label: model
+  }))
+)
 
 const apiTestStatusLabel = computed(() => {
   switch (apiTestStatus.value) {
@@ -327,6 +358,7 @@ const defaultClientTab = computed(() => {
 watch(() => props.platform, () => {
   activeTab.value = 'unix'
   activeClientTab.value = defaultClientTab.value
+  apiTestModel.value = apiTestModelOptions.value[0]?.value ?? ''
 }, { immediate: true })
 
 // Reset shell tab when client changes
@@ -684,6 +716,13 @@ function generateGeminiApiExample(baseUrl: string, apiKey: string, label?: strin
   }
 }
 
+function updateApiTestModel(value: string | number | boolean | null) {
+  if (typeof value === 'string') {
+    apiTestModel.value = value
+    resetApiTest()
+  }
+}
+
 function getApiTestConfig(): ApiTestConfig | null {
   const baseUrl = props.baseUrl || window.location.origin
   const baseRoot = baseUrl.replace(/\/(?:v1|v1beta)\/?$/, '').replace(/\/+$/, '')
@@ -700,7 +739,7 @@ function getApiTestConfig(): ApiTestConfig | null {
         'Content-Type': 'application/json'
       },
       body: {
-        model: 'gpt-5.5',
+        model: apiTestModel.value,
         messages: [{ role: 'user', content: 'Reply with one short sentence.' }]
       }
     }
@@ -708,7 +747,7 @@ function getApiTestConfig(): ApiTestConfig | null {
 
   if (props.platform === 'gemini') {
     return {
-      url: `${geminiBase}/models/gemini-2.0-flash:generateContent`,
+      url: `${geminiBase}/models/${apiTestModel.value}:generateContent`,
       headers: {
         'x-goog-api-key': props.apiKey,
         'Content-Type': 'application/json'
@@ -728,7 +767,7 @@ function getApiTestConfig(): ApiTestConfig | null {
       'Content-Type': 'application/json'
     },
     body: {
-      model: 'claude-sonnet-4-6',
+      model: apiTestModel.value,
       max_tokens: 128,
       messages: [{ role: 'user', content: 'Reply with one short sentence.' }]
     }

@@ -158,6 +158,7 @@ export default {
         copyHint: '示例仅在页面静态展示，不会从当前页面发送请求；复制到终端后再执行。',
         quickTestTitle: '快速测试',
         quickTestDescription: '使用当前密钥发送一次最小请求，并展示响应状态。',
+        quickTestModelLabel: '测试模型',
         quickTestStart: '开始测试',
         quickTestRetry: '重新测试',
         quickTestCancel: '取消',

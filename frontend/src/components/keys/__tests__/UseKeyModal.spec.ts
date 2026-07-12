@@ -233,6 +233,147 @@ describe('UseKeyModal', () => {
     vi.unstubAllGlobals()
   })
 
+  it('uses the selected preset model for each quick test platform', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      text: async () => '{}'
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const openaiWrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'openai'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    const openaiTab = openaiWrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.apiExample')
+    )
+    await openaiTab!.trigger('click')
+    await nextTick()
+
+    const modelSelect = openaiWrapper.findComponent(Select)
+    expect(modelSelect.props('options').map((option: { value: string }) => option.value)).toEqual([
+      'gpt-5.5',
+      'gpt-5.4',
+      'gpt-5.4-mini'
+    ])
+    await modelSelect.vm.$emit('update:modelValue', 'gpt-5.4-mini')
+    expect(modelSelect.props('modelValue')).toBe('gpt-5.4-mini')
+    const openaiStartButton = openaiWrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.apiExample.quickTestStart')
+    )
+    await openaiStartButton!.trigger('click')
+    await flushPromises()
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).model).toBe('gpt-5.4-mini')
+    await openaiWrapper.setProps({ platform: 'gemini', baseUrl: 'https://example.com/v1beta', apiKey: 'gemini-key' })
+    await nextTick()
+    const switchedGeminiTab = openaiWrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.apiExample')
+    )
+    await switchedGeminiTab!.trigger('click')
+    await nextTick()
+    expect(openaiWrapper.findComponent(Select).props('modelValue')).toBe('gemini-2.0-flash')
+    await openaiWrapper.setProps({ platform: 'openai', baseUrl: 'https://example.com/v1', apiKey: 'sk-test' })
+    await nextTick()
+    const switchedOpenaiTab = openaiWrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.apiExample')
+    )
+    await switchedOpenaiTab!.trigger('click')
+    await nextTick()
+    expect(openaiWrapper.findComponent(Select).props('modelValue')).toBe('gpt-5.5')
+
+    const geminiWrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'gemini-key',
+        baseUrl: 'https://example.com/v1beta',
+        platform: 'gemini'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+    const geminiTab = geminiWrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.apiExample')
+    )
+    await geminiTab!.trigger('click')
+    await nextTick()
+    const geminiModelSelect = geminiWrapper.findComponent(Select)
+    expect(geminiModelSelect.props('options').map((option: { value: string }) => option.value)).toEqual([
+      'gemini-2.0-flash',
+      'gemini-2.5-flash',
+      'gemini-2.5-pro'
+    ])
+    await geminiModelSelect.vm.$emit('update:modelValue', 'gemini-2.5-pro')
+    const geminiStartButton = geminiWrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.apiExample.quickTestStart')
+    )
+    await geminiStartButton!.trigger('click')
+    await flushPromises()
+    expect(fetchMock.mock.calls[1][0]).toBe('https://example.com/v1beta/models/gemini-2.5-pro:generateContent')
+
+    const anthropicWrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'claude-key',
+        baseUrl: 'https://example.com/v1',
+        platform: 'anthropic'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+    const anthropicTab = anthropicWrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.apiExample')
+    )
+    await anthropicTab!.trigger('click')
+    await nextTick()
+    const anthropicModelSelect = anthropicWrapper.findComponent(Select)
+    expect(anthropicModelSelect.props('options').map((option: { value: string }) => option.value)).toEqual([
+      'claude-sonnet-4-6',
+      'claude-fable-5'
+    ])
+    await anthropicModelSelect.vm.$emit('update:modelValue', 'claude-fable-5')
+    const anthropicStartButton = anthropicWrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.apiExample.quickTestStart')
+    )
+    await anthropicStartButton!.trigger('click')
+    await flushPromises()
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body as string).model).toBe('claude-fable-5')
+
+    vi.unstubAllGlobals()
+  })
+
   it('shows a concise error when the API test fails', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,

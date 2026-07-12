@@ -157,6 +157,7 @@ export default {
         copyHint: 'The example is static and is not sent from this page. Copy it to a terminal to run it.',
         quickTestTitle: 'Quick test',
         quickTestDescription: 'Send one minimal request with the selected API key and show the response status.',
+        quickTestModelLabel: 'Test model',
         quickTestStart: 'Start test',
         quickTestRetry: 'Retry test',
         quickTestCancel: 'Cancel',
