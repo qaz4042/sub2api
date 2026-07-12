@@ -24,6 +24,8 @@ This directory contains files for deploying Sub2API on Linux servers.
 | `sub2api-datamanagementd.service` | datamanagementd systemd service unit file |
 | `DATAMANAGEMENTD_CN.md` | datamanagementd 部署与联动说明（中文） |
 | `config.example.yaml` | Example configuration file |
+| `private/release-runbook.md` | 通用脱敏发布、备份、验证和回滚 Runbook |
+| `private/docker-compose.release.yml` | 发布时固定 Sub2API 镜像 tag 或 digest 的 Compose 覆盖文件 |
 
 ---
 

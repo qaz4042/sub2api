@@ -1,0 +1,5 @@
+# Use this file together with docker-compose.local.yml to pin an image tag or digest.
+# Example: SUB2API_IMAGE=weishaw/sub2api:<release-tag>
+services:
+  sub2api:
+    image: ${SUB2API_IMAGE:?SUB2API_IMAGE is required}
