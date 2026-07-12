@@ -208,6 +208,16 @@ export async function refreshCredentials(id: number): Promise<Account> {
 }
 
 /**
+ * Refresh OpenAI subscription metadata without refreshing OAuth tokens.
+ * @param id - Account ID
+ * @returns Updated account
+ */
+export async function refreshSubscription(id: number): Promise<Account> {
+  const { data } = await apiClient.post<Account>(`/admin/accounts/${id}/refresh-subscription`)
+  return data
+}
+
+/**
  * Apply OAuth credentials after re-authorization.
  *
  * Unlike `update()`, this endpoint:
@@ -815,6 +825,7 @@ export const accountsAPI = {
   toggleStatus,
   testAccount,
   refreshCredentials,
+  refreshSubscription,
   applyOAuthCredentials,
   getStats,
   clearError,
