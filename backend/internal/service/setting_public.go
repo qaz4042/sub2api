@@ -183,6 +183,7 @@ func (s *SettingService) getPublicSettings(ctx context.Context, requestOrigin st
 		SettingKeySiteLogo,
 		SettingKeySiteSubtitle,
 		SettingKeyAPIBaseURL,
+		SettingKeyCcsImportBaseURL,
 		SettingKeyContactInfo,
 		SettingKeyDocURL,
 		SettingKeyHomeContent,
@@ -236,6 +237,10 @@ func (s *SettingService) getPublicSettings(ctx context.Context, requestOrigin st
 	settings, err := s.settingRepo.GetMultiple(ctx, keys)
 	if err != nil {
 		return nil, fmt.Errorf("get public settings: %w", err)
+	}
+	platformConfigs, err := s.ListPlatformConfigs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list platform configs: %w", err)
 	}
 
 	linuxDoEnabled := false
@@ -308,6 +313,7 @@ func (s *SettingService) getPublicSettings(ctx context.Context, requestOrigin st
 		SiteLogo:                         settings[SettingKeySiteLogo],
 		SiteSubtitle:                     s.getStringOrDefault(settings, SettingKeySiteSubtitle, "Subscription to API Conversion Platform"),
 		APIBaseURL:                       settings[SettingKeyAPIBaseURL],
+		CcsImportBaseURL:                 strings.TrimSpace(settings[SettingKeyCcsImportBaseURL]),
 		ContactInfo:                      settings[SettingKeyContactInfo],
 		DocURL:                           settings[SettingKeyDocURL],
 		HomeContent:                      settings[SettingKeyHomeContent],
@@ -339,6 +345,7 @@ func (s *SettingService) getPublicSettings(ctx context.Context, requestOrigin st
 		ChannelMonitorDefaultIntervalSeconds: parseChannelMonitorInterval(settings[SettingKeyChannelMonitorDefaultIntervalSeconds]),
 
 		AvailableChannelsEnabled: settings[SettingKeyAvailableChannelsEnabled] == "true",
+		PlatformConfigs:          platformConfigs,
 
 		AffiliateEnabled: settings[SettingKeyAffiliateEnabled] == "true",
 
@@ -465,6 +472,7 @@ type PublicSettingsInjectionPayload struct {
 	SiteLogo                         string                   `json:"site_logo"`
 	SiteSubtitle                     string                   `json:"site_subtitle"`
 	APIBaseURL                       string                   `json:"api_base_url"`
+	CcsImportBaseURL                 string                   `json:"ccs_import_base_url"`
 	ContactInfo                      string                   `json:"contact_info"`
 	DocURL                           string                   `json:"doc_url"`
 	HomeContent                      string                   `json:"home_content"`
@@ -499,12 +507,13 @@ type PublicSettingsInjectionPayload struct {
 	// Feature flags — MUST match the opt-in/opt-out registry in
 	// frontend/src/utils/featureFlags.ts. Missing a field here is the bug
 	// that hid the "可用渠道" menu on page refresh.
-	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
-	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
-	AvailableChannelsEnabled             bool `json:"available_channels_enabled"`
-	AffiliateEnabled                     bool `json:"affiliate_enabled"`
-	RiskControlEnabled                   bool `json:"risk_control_enabled"`
-	AllowUserViewErrorRequests           bool `json:"allow_user_view_error_requests"`
+	ChannelMonitorEnabled                bool             `json:"channel_monitor_enabled"`
+	ChannelMonitorDefaultIntervalSeconds int              `json:"channel_monitor_default_interval_seconds"`
+	AvailableChannelsEnabled             bool             `json:"available_channels_enabled"`
+	PlatformConfigs                      []PlatformConfig `json:"platform_configs"`
+	AffiliateEnabled                     bool             `json:"affiliate_enabled"`
+	RiskControlEnabled                   bool             `json:"risk_control_enabled"`
+	AllowUserViewErrorRequests           bool             `json:"allow_user_view_error_requests"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -546,6 +555,7 @@ func (s *SettingService) getPublicSettingsForInjection(ctx context.Context, orig
 		SiteLogo:                         settings.SiteLogo,
 		SiteSubtitle:                     settings.SiteSubtitle,
 		APIBaseURL:                       settings.APIBaseURL,
+		CcsImportBaseURL:                 settings.CcsImportBaseURL,
 		ContactInfo:                      settings.ContactInfo,
 		DocURL:                           settings.DocURL,
 		HomeContent:                      settings.HomeContent,
@@ -579,6 +589,7 @@ func (s *SettingService) getPublicSettingsForInjection(ctx context.Context, orig
 		ChannelMonitorEnabled:                settings.ChannelMonitorEnabled,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 		AvailableChannelsEnabled:             settings.AvailableChannelsEnabled,
+		PlatformConfigs:                      settings.PlatformConfigs,
 		AffiliateEnabled:                     settings.AffiliateEnabled,
 		RiskControlEnabled:                   settings.RiskControlEnabled,
 		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,

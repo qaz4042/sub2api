@@ -19,6 +19,22 @@ export interface CcSwitchImportDeeplinkInput {
   usageScript: string
 }
 
+export interface CcSwitchBaseUrlSettings {
+  ccs_import_base_url?: string | null
+  api_base_url?: string | null
+}
+
+export function resolveCcSwitchBaseUrl(
+  settings: CcSwitchBaseUrlSettings | null | undefined,
+  currentOrigin: string,
+): string {
+  const configured = settings?.ccs_import_base_url?.trim()
+  if (configured) return configured.replace(/\/+$/, '')
+  const apiBaseUrl = settings?.api_base_url?.trim()
+  if (apiBaseUrl) return apiBaseUrl.replace(/\/+$/, '')
+  return currentOrigin.replace(/\/+$/, '')
+}
+
 export function resolveCcSwitchImportConfig(
   platform: GroupPlatform | undefined | null,
   clientType: CcSwitchClientType,

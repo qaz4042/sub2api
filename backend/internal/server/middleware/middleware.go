@@ -106,6 +106,31 @@ func GoogleErrorWriter(c *gin.Context, status int, message string) {
 	})
 }
 
+func RequirePlatformEnabled(settingService *service.SettingService, writeError GatewayErrorWriter) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if settingService == nil {
+			c.Next()
+			return
+		}
+		platform, forced := GetForcePlatformFromContext(c)
+		if !forced {
+			apiKey, ok := GetAPIKeyFromContext(c)
+			if !ok || apiKey.Group == nil {
+				c.Next()
+				return
+			}
+			platform = apiKey.Group.Platform
+		}
+		if settingService.IsPlatformEnabled(c.Request.Context(), platform) {
+			c.Next()
+			return
+		}
+		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+		writeError(c, http.StatusForbidden, "The "+platform+" platform interface is disabled by the administrator.")
+		c.Abort()
+	}
+}
+
 // RequireGroupAssignment 检查 API Key 是否已分配到分组，
 // 如果未分组且系统设置不允许未分组 Key 调度则返回 403。
 func RequireGroupAssignment(settingService *service.SettingService, writeError GatewayErrorWriter) gin.HandlerFunc {

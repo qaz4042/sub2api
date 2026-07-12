@@ -781,6 +781,7 @@ func TestAPIContracts(t *testing.T) {
 						"site_logo": "",
 						"site_subtitle": "Subtitle",
 						"api_base_url": "https://api.example.com",
+						"ccs_import_base_url": "",
 						"api_key_acl_trust_forwarded_ip": false,
 					"contact_info": "support",
 					"doc_url": "https://docs.example.com",
@@ -875,6 +876,13 @@ func TestAPIContracts(t *testing.T) {
 					"payment_visible_method_wxpay_source": "official_wxpay",
 					"payment_visible_method_alipay_enabled": true,
 					"payment_visible_method_wxpay_enabled": false,
+					"platform_configs": [
+						{"key": "openai", "label": "OpenAI", "description": "OpenAI-compatible interface.", "enabled": true, "core": true, "sort_order": 10, "created_at": "0001-01-01T00:00:00Z", "updated_at": "0001-01-01T00:00:00Z"},
+						{"key": "anthropic", "label": "Anthropic / Claude", "description": "Claude-compatible interface.", "enabled": true, "core": false, "sort_order": 20, "created_at": "0001-01-01T00:00:00Z", "updated_at": "0001-01-01T00:00:00Z"},
+						{"key": "gemini", "label": "Gemini", "description": "Google Gemini interface.", "enabled": true, "core": false, "sort_order": 30, "created_at": "0001-01-01T00:00:00Z", "updated_at": "0001-01-01T00:00:00Z"},
+						{"key": "antigravity", "label": "Antigravity", "description": "Antigravity interface.", "enabled": true, "core": false, "sort_order": 40, "created_at": "0001-01-01T00:00:00Z", "updated_at": "0001-01-01T00:00:00Z"},
+						{"key": "grok", "label": "Grok", "description": "Grok-compatible interface.", "enabled": true, "core": false, "sort_order": 50, "created_at": "0001-01-01T00:00:00Z", "updated_at": "0001-01-01T00:00:00Z"}
+					],
 					"openai_advanced_scheduler_enabled": true,
 					"openai_advanced_scheduler_sticky_weighted_enabled": false,
 					"openai_advanced_scheduler_subscription_priority_enabled": false,
@@ -1084,6 +1092,7 @@ func TestAPIContracts(t *testing.T) {
 					"site_logo": "",
 					"site_subtitle": "Subscription to API Conversion Platform",
 					"api_base_url": "",
+					"ccs_import_base_url": "",
 					"api_key_acl_trust_forwarded_ip": false,
 					"contact_info": "",
 					"doc_url": "",
@@ -1103,6 +1112,13 @@ func TestAPIContracts(t *testing.T) {
 					"auth_source_default_dingtalk_platform_quotas": null,
 					"custom_menu_items": [],
 					"custom_endpoints": [],
+					"platform_configs": [
+						{"key": "openai", "label": "OpenAI", "description": "OpenAI-compatible interface.", "enabled": true, "core": true, "sort_order": 10, "created_at": "0001-01-01T00:00:00Z", "updated_at": "0001-01-01T00:00:00Z"},
+						{"key": "anthropic", "label": "Anthropic / Claude", "description": "Claude-compatible interface.", "enabled": true, "core": false, "sort_order": 20, "created_at": "0001-01-01T00:00:00Z", "updated_at": "0001-01-01T00:00:00Z"},
+						{"key": "gemini", "label": "Gemini", "description": "Google Gemini interface.", "enabled": true, "core": false, "sort_order": 30, "created_at": "0001-01-01T00:00:00Z", "updated_at": "0001-01-01T00:00:00Z"},
+						{"key": "antigravity", "label": "Antigravity", "description": "Antigravity interface.", "enabled": true, "core": false, "sort_order": 40, "created_at": "0001-01-01T00:00:00Z", "updated_at": "0001-01-01T00:00:00Z"},
+						{"key": "grok", "label": "Grok", "description": "Grok-compatible interface.", "enabled": true, "core": false, "sort_order": 50, "created_at": "0001-01-01T00:00:00Z", "updated_at": "0001-01-01T00:00:00Z"}
+					],
 					"default_concurrency": 0,
 					"default_balance": 0,
 					"affiliate_rebate_rate": 20,

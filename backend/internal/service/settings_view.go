@@ -131,6 +131,7 @@ type SystemSettings struct {
 	SiteLogo                    string
 	SiteSubtitle                string
 	APIBaseURL                  string
+	CcsImportBaseURL            string
 	ContactInfo                 string
 	DocURL                      string
 	HomeContent                 string
@@ -178,6 +179,8 @@ type SystemSettings struct {
 
 	// Available Channels feature (user-facing aggregate view)
 	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
+
+	PlatformConfigs []PlatformConfig `json:"platform_configs"`
 
 	// Claude Code version check
 	MinClaudeCodeVersion string
@@ -286,6 +289,7 @@ type PublicSettings struct {
 	SiteLogo                         string
 	SiteSubtitle                     string
 	APIBaseURL                       string
+	CcsImportBaseURL                 string `json:"ccs_import_base_url"`
 	ContactInfo                      string
 	DocURL                           string
 	HomeContent                      string
@@ -323,6 +327,8 @@ type PublicSettings struct {
 
 	// Available Channels feature (user-facing aggregate view)
 	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
+
+	PlatformConfigs []PlatformConfig `json:"platform_configs"`
 
 	// Affiliate (邀请返利) feature toggle
 	AffiliateEnabled bool `json:"affiliate_enabled"`

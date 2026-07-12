@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   OPENAI_CC_SWITCH_CODEX_MODEL,
-  buildCcSwitchImportDeeplink
+  buildCcSwitchImportDeeplink,
+  resolveCcSwitchBaseUrl,
 } from '@/utils/ccswitchImport'
 import type { GroupPlatform } from '@/types'
 
@@ -11,6 +12,12 @@ function paramsFromDeeplink(deeplink: string): URLSearchParams {
 }
 
 describe('ccswitchImport utils', () => {
+  it('prefers the dedicated import URL and falls back safely', () => {
+    expect(resolveCcSwitchBaseUrl({ ccs_import_base_url: 'https://ccs.example.com///', api_base_url: 'https://api.example.com' }, 'https://web.example.com')).toBe('https://ccs.example.com')
+    expect(resolveCcSwitchBaseUrl({ api_base_url: 'https://api.example.com///' }, 'https://web.example.com')).toBe('https://api.example.com')
+    expect(resolveCcSwitchBaseUrl({}, 'https://web.example.com///')).toBe('https://web.example.com')
+  })
+
   it('defaults OpenAI CC Switch imports to the current Codex model', () => {
     expect(OPENAI_CC_SWITCH_CODEX_MODEL).toBe('gpt-5.5')
   })

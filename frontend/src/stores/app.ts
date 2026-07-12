@@ -365,6 +365,13 @@ export const useAppStore = defineStore('app', () => {
         channel_monitor_enabled: true,
         channel_monitor_default_interval_seconds: 60,
         available_channels_enabled: false,
+        platform_configs: [
+          { key: 'openai', label: 'OpenAI', description: '', enabled: true, core: true, sort_order: 10 },
+          { key: 'anthropic', label: 'Anthropic / Claude', description: '', enabled: true, core: false, sort_order: 20 },
+          { key: 'gemini', label: 'Gemini', description: '', enabled: true, core: false, sort_order: 30 },
+          { key: 'antigravity', label: 'Antigravity', description: '', enabled: true, core: false, sort_order: 40 },
+          { key: 'grok', label: 'Grok', description: '', enabled: true, core: false, sort_order: 50 },
+        ],
         risk_control_enabled: false,
         service_quota_enabled: false,
         affiliate_enabled: false,

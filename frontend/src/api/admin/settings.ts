@@ -9,6 +9,7 @@ import type {
   CustomMenuItem,
   LoginAgreementDocument,
   NotifyEmailEntry,
+  PlatformConfig,
 } from "@/types";
 
 export interface DefaultSubscriptionSetting {
@@ -429,6 +430,7 @@ export interface SystemSettings {
   site_logo: string;
   site_subtitle: string;
   api_base_url: string;
+  ccs_import_base_url?: string;
   contact_info: string;
   doc_url: string;
   home_content: string;
@@ -644,6 +646,7 @@ export interface SystemSettings {
 
   // Available Channels feature switch
   available_channels_enabled: boolean;
+  platform_configs?: PlatformConfig[];
 
   // Affiliate (邀请返利) feature switch
   affiliate_enabled: boolean;
@@ -725,6 +728,7 @@ export interface UpdateSettingsRequest {
   site_logo?: string;
   site_subtitle?: string;
   api_base_url?: string;
+  ccs_import_base_url?: string;
   contact_info?: string;
   doc_url?: string;
   home_content?: string;

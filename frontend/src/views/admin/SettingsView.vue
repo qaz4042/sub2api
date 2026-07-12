@@ -5154,6 +5154,21 @@
                 </p>
               </div>
 
+              <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ localText("CCS 导入专用地址", "CC Switch import base URL") }}
+                </label>
+                <input
+                  v-model="form.ccs_import_base_url"
+                  type="url"
+                  class="input font-mono text-sm"
+                  :placeholder="localText('留空则使用 API 地址或当前站点', 'Leave blank to use API URL or current site')"
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ localText("用于 CC Switch 导入；适合 API 与前端域名不同的部署。", "Used by CC Switch imports when the API and frontend use different domains.") }}
+                </p>
+              </div>
+
               <!-- Global Table Preferences -->
               <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
                 <h3 class="text-sm font-medium text-gray-900 dark:text-white">
@@ -5959,6 +5974,39 @@
                 type="number"
                 min="1"
                 class="input"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ localText("平台访问控制", "Platform access") }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ localText("关闭后对应平台的公开接口和网关请求会被拒绝。OpenAI 为核心平台，始终启用。", "Disabled platforms reject public interfaces and gateway requests. OpenAI is the always-on core platform.") }}
+            </p>
+          </div>
+          <div class="space-y-3 p-6">
+            <div
+              v-for="platform in platformConfigs"
+              :key="platform.key"
+              class="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3 dark:border-dark-700"
+            >
+              <div class="min-w-0 pr-4">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium text-gray-900 dark:text-white">{{ platform.label }}</span>
+                  <span class="font-mono text-xs text-gray-400">{{ platform.key }}</span>
+                  <span v-if="platform.core" class="text-xs text-primary-600 dark:text-primary-400">{{ localText("核心", "Core") }}</span>
+                </div>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ platform.description }}</p>
+              </div>
+              <Toggle
+                :model-value="platform.enabled"
+                :disabled="platform.core || platformSavingKey === platform.key"
+                :aria-label="platform.label"
+                @update:model-value="togglePlatform(platform, $event)"
               />
             </div>
           </div>
@@ -7415,6 +7463,7 @@ import type {
   AdminGroup,
   LoginAgreementDocument,
   NotifyEmailEntry,
+  PlatformConfig,
   Proxy,
 } from "@/types";
 import type { ProviderInstance } from "@/types/payment";
@@ -8120,6 +8169,7 @@ const form = reactive<SettingsForm>({
   site_logo: "",
   site_subtitle: "Subscription to API Conversion Platform",
   api_base_url: "",
+  ccs_import_base_url: "",
   contact_info: "",
   doc_url: "",
   home_content: "",
@@ -8329,6 +8379,27 @@ const form = reactive<SettingsForm>({
   // Allow user view error requests
   allow_user_view_error_requests: false,
 });
+
+const platformConfigs = ref<PlatformConfig[]>([]);
+const platformSavingKey = ref("");
+
+async function togglePlatform(platform: PlatformConfig, enabled: boolean): Promise<void> {
+  if (platform.core || platformSavingKey.value === platform.key) return;
+  const previous = platform.enabled;
+  platform.enabled = enabled;
+  platformSavingKey.value = platform.key;
+  try {
+    const updated = await adminAPI.platforms.update(platform.key, enabled);
+    Object.assign(platform, updated);
+    await appStore.fetchPublicSettings(true);
+    appStore.showSuccess(localText("平台访问设置已更新", "Platform access updated"));
+  } catch (error) {
+    platform.enabled = previous;
+    appStore.showError(extractApiErrorMessage(error, localText("平台访问设置保存失败", "Failed to update platform access")));
+  } finally {
+    platformSavingKey.value = "";
+  }
+}
 
 type OpenAIAdvancedSchedulerOverrideKey =
   | "openai_advanced_scheduler_lb_top_k"
@@ -9089,6 +9160,9 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
+    platformConfigs.value = Array.isArray(settings.platform_configs)
+      ? settings.platform_configs.map((item) => ({ ...item }))
+      : [];
     if (!form.claude_oauth_system_prompt_blocks?.trim()) {
       form.claude_oauth_system_prompt_blocks =
         defaultClaudeOAuthSystemPromptBlocks;
@@ -9475,6 +9549,7 @@ async function saveSettings() {
       site_logo: form.site_logo,
       site_subtitle: form.site_subtitle,
       api_base_url: form.api_base_url,
+      ccs_import_base_url: form.ccs_import_base_url,
       contact_info: form.contact_info,
       doc_url: form.doc_url,
       home_content: form.home_content,

@@ -506,8 +506,9 @@ func ProvideOpsService(
 }
 
 // ProvideSettingService wires SettingService with group reader and proxy repo.
-func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupRepository, proxyRepo ProxyRepository, cfg *config.Config) *SettingService {
+func ProvideSettingService(settingRepo SettingRepository, platformConfigRepo PlatformConfigRepository, groupRepo GroupRepository, proxyRepo ProxyRepository, cfg *config.Config) *SettingService {
 	svc := NewSettingService(settingRepo, cfg)
+	svc.SetPlatformConfigRepository(platformConfigRepo)
 	svc.SetDefaultSubscriptionGroupReader(groupRepo)
 	svc.SetProxyRepository(proxyRepo)
 	if err := svc.LoadAPIKeyACLTrustForwardedIPSetting(context.Background()); err != nil {
@@ -521,6 +522,10 @@ func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupReposit
 	}
 	antigravity.SetUserAgentVersionResolver(svc.GetAntigravityUserAgentVersion)
 	return svc
+}
+
+func ProvidePlatformConfigService(repo PlatformConfigRepository, settingService *SettingService) *PlatformConfigService {
+	return NewPlatformConfigService(repo, settingService)
 }
 
 // ProvideBillingCacheService wires BillingCacheService with its RPM dependencies.
@@ -604,6 +609,7 @@ var ProviderSet = wire.NewSet(
 	NewAccountUsageService,
 	NewAccountTestService,
 	ProvideSettingService,
+	ProvidePlatformConfigService,
 	NewDataManagementService,
 	ProvideBackupService,
 	ProvideOpsSystemLogSink,

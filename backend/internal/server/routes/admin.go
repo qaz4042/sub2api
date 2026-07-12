@@ -62,6 +62,12 @@ func RegisterAdminRoutes(
 		// 系统设置
 		registerSettingsRoutes(admin, h)
 
+		platforms := admin.Group("/platforms")
+		{
+			platforms.GET("", h.Admin.PlatformConfig.List)
+			platforms.PUT("/:key", h.Admin.PlatformConfig.Update)
+		}
+
 		// 数据管理
 		registerDataManagementRoutes(admin, h)
 

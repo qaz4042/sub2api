@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync/atomic"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -46,6 +47,7 @@ type WebSearchManagerBuilder func(cfg *WebSearchEmulationConfig, proxyURLs map[i
 // SettingService 系统设置服务
 type SettingService struct {
 	settingRepo                 SettingRepository
+	platformConfigRepo          PlatformConfigRepository
 	defaultSubGroupReader       DefaultSubscriptionGroupReader
 	proxyRepo                   ProxyRepository // for resolving websearch provider proxy URLs
 	cfg                         *config.Config
@@ -61,6 +63,8 @@ type SettingService struct {
 
 	cyberSessionBlockRuntimeCache atomic.Value // *cachedCyberSessionBlockRuntime
 	cyberSessionBlockRuntimeSF    singleflight.Group
+	platformAccessSettingsCache   atomic.Value // *cachedPlatformAccessSettings
+	platformAccessSettingsSF      singleflight.Group
 
 	// openAIQuotaAutoPauseSettingsCache holds the most recently observed quota auto-pause
 	// settings. GetOpenAIQuotaAutoPauseSettings reads this atomic.Value on the request hot
@@ -71,6 +75,13 @@ type SettingService struct {
 	openAIQuotaAutoPauseSettingsCache atomic.Value // *cachedOpenAIQuotaAutoPauseSettings
 	openAIQuotaAutoPauseSettingsSF    singleflight.Group
 }
+
+type cachedPlatformAccessSettings struct {
+	enabled   map[string]bool
+	expiresAt int64
+}
+
+const platformAccessSettingsCacheTTL = 60 * time.Second
 
 // DefaultPlatformQuotaSetting 单 platform 三档限额（nil = 沿用上层；0 = 显式禁用；>0 = 上限）
 type DefaultPlatformQuotaSetting struct {
@@ -216,6 +227,69 @@ func (s *SettingService) SetProxyRepository(repo ProxyRepository) {
 	s.proxyRepo = repo
 }
 
+func (s *SettingService) SetPlatformConfigRepository(repo PlatformConfigRepository) {
+	s.platformConfigRepo = repo
+}
+
+func (s *SettingService) ListPlatformConfigs(ctx context.Context) ([]PlatformConfig, error) {
+	if s == nil || s.platformConfigRepo == nil {
+		return DefaultPlatformConfigs(), nil
+	}
+	return s.platformConfigRepo.List(ctx)
+}
+
+func (s *SettingService) IsPlatformEnabled(ctx context.Context, platform string) bool {
+	platform = normalizePlatformKey(platform)
+	settings := s.getPlatformAccessSettingsCached(ctx)
+	return settings.enabled[platform]
+}
+
+func (s *SettingService) InvalidatePlatformAccessCache() {
+	if s == nil {
+		return
+	}
+	s.platformAccessSettingsSF.Forget("platform_access_settings")
+	s.platformAccessSettingsCache.Store(&cachedPlatformAccessSettings{enabled: map[string]bool{}, expiresAt: 0})
+}
+
+func (s *SettingService) getPlatformAccessSettingsCached(ctx context.Context) cachedPlatformAccessSettings {
+	now := time.Now().UnixNano()
+	if cached, ok := s.platformAccessSettingsCache.Load().(*cachedPlatformAccessSettings); ok && cached != nil && now < cached.expiresAt {
+		return *cached
+	}
+
+	result, err, _ := s.platformAccessSettingsSF.Do("platform_access_settings", func() (any, error) {
+		if cached, ok := s.platformAccessSettingsCache.Load().(*cachedPlatformAccessSettings); ok && cached != nil && time.Now().UnixNano() < cached.expiresAt {
+			return *cached, nil
+		}
+		configs, err := s.ListPlatformConfigs(ctx)
+		if err != nil {
+			return nil, err
+		}
+		enabled := make(map[string]bool, len(configs))
+		for _, cfg := range configs {
+			enabled[normalizePlatformKey(cfg.Key)] = cfg.Enabled
+		}
+		loaded := cachedPlatformAccessSettings{
+			enabled:   enabled,
+			expiresAt: time.Now().Add(platformAccessSettingsCacheTTL).UnixNano(),
+		}
+		s.platformAccessSettingsCache.Store(&loaded)
+		return loaded, nil
+	})
+	if err == nil {
+		return result.(cachedPlatformAccessSettings)
+	}
+	if cached, ok := s.platformAccessSettingsCache.Load().(*cachedPlatformAccessSettings); ok && cached != nil {
+		return *cached
+	}
+	enabled := make(map[string]bool)
+	for _, cfg := range DefaultPlatformConfigs() {
+		enabled[cfg.Key] = cfg.Enabled
+	}
+	return cachedPlatformAccessSettings{enabled: enabled}
+}
+
 func (s *SettingService) LoadAPIKeyACLTrustForwardedIPSetting(ctx context.Context) error {
 	if s == nil || s.cfg == nil || s.settingRepo == nil {
 		return nil
@@ -240,7 +314,9 @@ func (s *SettingService) GetAllSettings(ctx context.Context) (*SystemSettings, e
 		return nil, fmt.Errorf("get all settings: %w", err)
 	}
 
-	return s.parseSettings(settings), nil
+	parsed := s.parseSettings(settings)
+	parsed.PlatformConfigs, _ = s.ListPlatformConfigs(ctx)
+	return parsed, nil
 }
 
 // SetOnUpdateCallback sets a callback function to be called when settings are updated

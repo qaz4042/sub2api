@@ -64,6 +64,7 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		SiteLogo:                         settings.SiteLogo,
 		SiteSubtitle:                     settings.SiteSubtitle,
 		APIBaseURL:                       settings.APIBaseURL,
+		CcsImportBaseURL:                 settings.CcsImportBaseURL,
 		ContactInfo:                      settings.ContactInfo,
 		DocURL:                           settings.DocURL,
 		HomeContent:                      settings.HomeContent,
@@ -98,6 +99,7 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 
 		AvailableChannelsEnabled: settings.AvailableChannelsEnabled,
+		PlatformConfigs:          settings.PlatformConfigs,
 
 		AffiliateEnabled: settings.AffiliateEnabled,
 
