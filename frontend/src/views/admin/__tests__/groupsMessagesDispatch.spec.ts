@@ -12,7 +12,7 @@ describe("groupsMessagesDispatch", () => {
     expect(createDefaultMessagesDispatchFormState()).toEqual({
       allow_messages_dispatch: false,
       opus_mapped_model: "gpt-5.4",
-      sonnet_mapped_model: "gpt-5.3-codex",
+      sonnet_mapped_model: "gpt-5.4",
       haiku_mapped_model: "gpt-5.4-mini",
       exact_model_mappings: [],
     });
@@ -22,7 +22,7 @@ describe("groupsMessagesDispatch", () => {
     const config = messagesDispatchFormStateToConfig({
       allow_messages_dispatch: true,
       opus_mapped_model: " gpt-5.4 ",
-      sonnet_mapped_model: "gpt-5.3-codex",
+      sonnet_mapped_model: "gpt-5.4",
       haiku_mapped_model: " gpt-5.4-mini ",
       exact_model_mappings: [
         {
@@ -36,7 +36,7 @@ describe("groupsMessagesDispatch", () => {
 
     expect(config).toEqual({
       opus_mapped_model: "gpt-5.4",
-      sonnet_mapped_model: "gpt-5.3-codex",
+      sonnet_mapped_model: "gpt-5.4",
       haiku_mapped_model: "gpt-5.4-mini",
       exact_model_mappings: {
         "claude-sonnet-4-5-20250929": "gpt-5.2",
@@ -86,7 +86,7 @@ describe("groupsMessagesDispatch", () => {
     expect(state).toEqual({
       allow_messages_dispatch: false,
       opus_mapped_model: "gpt-5.4",
-      sonnet_mapped_model: "gpt-5.3-codex",
+      sonnet_mapped_model: "gpt-5.4",
       haiku_mapped_model: "gpt-5.4-mini",
       exact_model_mappings: [],
     });
