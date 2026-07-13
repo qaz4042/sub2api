@@ -343,6 +343,55 @@ func TestApplyCodexOAuthTransform_AddsFallbackNameForFunctionCallInput(t *testin
 	require.Equal(t, "fc_1", item["call_id"])
 }
 
+func TestApplyCodexOAuthTransform_StringifiesToolCallArguments(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "gpt-5.4",
+		"input": []any{
+			map[string]any{
+				"type":      "function_call",
+				"call_id":   "call_function",
+				"arguments": map[string]any{"path": "/tmp/file"},
+			},
+			map[string]any{
+				"type":      "mcp_tool_call",
+				"call_id":   "call_mcp",
+				"arguments": []any{"first", "second"},
+			},
+			map[string]any{
+				"type":      "function_call",
+				"call_id":   "call_string",
+				"arguments": `{"path":"/tmp/file"}`,
+			},
+			map[string]any{
+				"type":      "message",
+				"arguments": map[string]any{"preserve": true},
+			},
+		},
+	}
+
+	applyCodexOAuthTransform(reqBody, true, false)
+
+	input, ok := reqBody["input"].([]any)
+	require.True(t, ok)
+	require.Len(t, input, 4)
+
+	functionCall, ok := input[0].(map[string]any)
+	require.True(t, ok)
+	require.JSONEq(t, `{"path":"/tmp/file"}`, functionCall["arguments"].(string))
+
+	mcpCall, ok := input[1].(map[string]any)
+	require.True(t, ok)
+	require.JSONEq(t, `["first","second"]`, mcpCall["arguments"].(string))
+
+	stringCall, ok := input[2].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, `{"path":"/tmp/file"}`, stringCall["arguments"])
+
+	message, ok := input[3].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, map[string]any{"preserve": true}, message["arguments"])
+}
+
 func TestApplyCodexOAuthTransform_PreservesFunctionCallInputName(t *testing.T) {
 	reqBody := map[string]any{
 		"model": "gpt-5.4",

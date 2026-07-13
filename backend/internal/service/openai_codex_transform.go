@@ -1392,6 +1392,11 @@ func filterCodexInputWithOptions(input []any, opts codexInputFilterOptions) []an
 			}
 		}
 
+		if arguments, ok := normalizeCodexToolCallArguments(typ, m["arguments"]); ok {
+			ensureCopy()
+			newItem["arguments"] = arguments
+		}
+
 		if !opts.PreserveReferences {
 			ensureCopy()
 			delete(newItem, "id")
@@ -1410,6 +1415,25 @@ func filterCodexInputWithOptions(input []any, opts codexInputFilterOptions) []an
 		filtered = append(filtered, newItem)
 	}
 	return filtered
+}
+
+func normalizeCodexToolCallArguments(typ string, value any) (string, bool) {
+	switch strings.TrimSpace(typ) {
+	case "function_call", "mcp_tool_call":
+	default:
+		return "", false
+	}
+	if value == nil {
+		return "", false
+	}
+	if _, ok := value.(string); ok {
+		return "", false
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return "", false
+	}
+	return string(encoded), true
 }
 
 func isCodexToolCallItemType(typ string) bool {
