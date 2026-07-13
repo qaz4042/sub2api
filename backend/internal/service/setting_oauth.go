@@ -346,11 +346,6 @@ func mergeEmailOAuthBaseConfig(base, override config.EmailOAuthProviderConfig) c
 	return base
 }
 
-func (s *SettingService) emailOAuthPublicEnabled(settings map[string]string, provider string) bool {
-	cfg := s.effectiveEmailOAuthConfig(settings, provider)
-	return cfg.Enabled && strings.TrimSpace(cfg.ClientID) != "" && strings.TrimSpace(cfg.ClientSecret) != ""
-}
-
 func (s *SettingService) emailOAuthPublicEnabledForOrigin(settings map[string]string, provider, requestOrigin string) bool {
 	clients := emailOAuthClientsForProvider(parseEmailOAuthClients(settings[SettingKeyEmailOAuthClients]), provider)
 	if normalizedOrigin := normalizeEmailOAuthOrigin(requestOrigin); normalizedOrigin != "" && len(clients) > 0 {

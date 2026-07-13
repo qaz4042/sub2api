@@ -63,40 +63,40 @@ func validateEmailOAuthClientSettings(items, previous []service.EmailOAuthClient
 	for _, item := range items {
 		provider := strings.ToLower(strings.TrimSpace(item.Provider))
 		if provider != "github" && provider != "google" {
-			return fmt.Errorf("Email OAuth provider must be github or google")
+			return fmt.Errorf("email OAuth provider must be github or google")
 		}
 		origin := strings.TrimSpace(item.Origin)
 		if origin == "" {
-			return fmt.Errorf("Email OAuth origin is required")
+			return fmt.Errorf("email OAuth origin is required")
 		}
 		if err := config.ValidateAbsoluteHTTPOrigin(origin); err != nil {
-			return fmt.Errorf("Email OAuth origin must be an absolute http(s) origin")
+			return fmt.Errorf("email OAuth origin must be an absolute http(s) origin")
 		}
 		key := provider + "|" + strings.TrimRight(strings.ToLower(origin), "/")
 		if _, ok := seen[key]; ok {
-			return fmt.Errorf("Email OAuth origin cannot be duplicated for the same provider")
+			return fmt.Errorf("email OAuth origin cannot be duplicated for the same provider")
 		}
 		seen[key] = struct{}{}
 		if strings.TrimSpace(item.RedirectURL) == "" {
-			return fmt.Errorf("Email OAuth redirect URL is required")
+			return fmt.Errorf("email OAuth redirect URL is required")
 		}
 		if err := config.ValidateAbsoluteHTTPURL(item.RedirectURL); err != nil {
-			return fmt.Errorf("Email OAuth redirect URL must be an absolute http(s) URL")
+			return fmt.Errorf("email OAuth redirect URL must be an absolute http(s) URL")
 		}
 		if strings.TrimSpace(item.FrontendRedirectURL) == "" {
-			return fmt.Errorf("Email OAuth frontend redirect URL is required")
+			return fmt.Errorf("email OAuth frontend redirect URL is required")
 		}
 		if err := config.ValidateFrontendRedirectURL(item.FrontendRedirectURL); err != nil {
-			return fmt.Errorf("Email OAuth frontend redirect URL is invalid")
+			return fmt.Errorf("email OAuth frontend redirect URL is invalid")
 		}
 		if !item.Enabled {
 			continue
 		}
 		if strings.TrimSpace(item.ClientID) == "" {
-			return fmt.Errorf("Email OAuth Client ID is required when enabled")
+			return fmt.Errorf("email OAuth client ID is required when enabled")
 		}
 		if strings.TrimSpace(item.ClientSecret) == "" && !previousSecrets[emailOAuthClientSecretKey(item)] {
-			return fmt.Errorf("Email OAuth Client Secret is required when enabled")
+			return fmt.Errorf("email OAuth client secret is required when enabled")
 		}
 	}
 	return nil

@@ -277,8 +277,8 @@ func (s *SettingService) getPlatformAccessSettingsCached(ctx context.Context) ca
 		s.platformAccessSettingsCache.Store(&loaded)
 		return loaded, nil
 	})
-	if err == nil {
-		return result.(cachedPlatformAccessSettings)
+	if loaded, ok := result.(cachedPlatformAccessSettings); err == nil && ok {
+		return loaded
 	}
 	if cached, ok := s.platformAccessSettingsCache.Load().(*cachedPlatformAccessSettings); ok && cached != nil {
 		return *cached

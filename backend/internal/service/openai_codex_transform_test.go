@@ -377,11 +377,15 @@ func TestApplyCodexOAuthTransform_StringifiesToolCallArguments(t *testing.T) {
 
 	functionCall, ok := input[0].(map[string]any)
 	require.True(t, ok)
-	require.JSONEq(t, `{"path":"/tmp/file"}`, functionCall["arguments"].(string))
+	functionArguments, ok := functionCall["arguments"].(string)
+	require.True(t, ok)
+	require.JSONEq(t, `{"path":"/tmp/file"}`, functionArguments)
 
 	mcpCall, ok := input[1].(map[string]any)
 	require.True(t, ok)
-	require.JSONEq(t, `["first","second"]`, mcpCall["arguments"].(string))
+	mcpArguments, ok := mcpCall["arguments"].(string)
+	require.True(t, ok)
+	require.JSONEq(t, `["first","second"]`, mcpArguments)
 
 	stringCall, ok := input[2].(map[string]any)
 	require.True(t, ok)
