@@ -196,6 +196,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		OIDCConnectUserInfoEmailPath:                           settings.OIDCConnectUserInfoEmailPath,
 		OIDCConnectUserInfoIDPath:                              settings.OIDCConnectUserInfoIDPath,
 		OIDCConnectUserInfoUsernamePath:                        settings.OIDCConnectUserInfoUsernamePath,
+		EmailOAuthClients:                                      emailOAuthClientsToDTO(settings.EmailOAuthClients),
 		GitHubOAuthEnabled:                                     settings.GitHubOAuthEnabled,
 		GitHubOAuthClientID:                                    settings.GitHubOAuthClientID,
 		GitHubOAuthClientSecretConfigured:                      settings.GitHubOAuthClientSecretConfigured,

@@ -115,16 +115,20 @@ type UpdateSettingsRequest struct {
 	OIDCConnectUserInfoIDPath       string `json:"oidc_connect_userinfo_id_path"`
 	OIDCConnectUserInfoUsernamePath string `json:"oidc_connect_userinfo_username_path"`
 
-	GitHubOAuthEnabled             bool   `json:"github_oauth_enabled"`
-	GitHubOAuthClientID            string `json:"github_oauth_client_id"`
-	GitHubOAuthClientSecret        string `json:"github_oauth_client_secret"`
-	GitHubOAuthRedirectURL         string `json:"github_oauth_redirect_url"`
-	GitHubOAuthFrontendRedirectURL string `json:"github_oauth_frontend_redirect_url"`
-	GoogleOAuthEnabled             bool   `json:"google_oauth_enabled"`
-	GoogleOAuthClientID            string `json:"google_oauth_client_id"`
-	GoogleOAuthClientSecret        string `json:"google_oauth_client_secret"`
-	GoogleOAuthRedirectURL         string `json:"google_oauth_redirect_url"`
-	GoogleOAuthFrontendRedirectURL string `json:"google_oauth_frontend_redirect_url"`
+	// UpdateEmailOAuthClients 区分普通设置保存和 OAuth 客户端列表保存。
+	// 普通设置保存不读取、不覆盖客户端列表，避免旧前端或部分 payload 清空 OAuth 配置。
+	UpdateEmailOAuthClients        bool                              `json:"update_email_oauth_clients"`
+	EmailOAuthClients              []service.EmailOAuthClientSetting `json:"email_oauth_clients"`
+	GitHubOAuthEnabled             bool                              `json:"github_oauth_enabled"`
+	GitHubOAuthClientID            string                            `json:"github_oauth_client_id"`
+	GitHubOAuthClientSecret        string                            `json:"github_oauth_client_secret"`
+	GitHubOAuthRedirectURL         string                            `json:"github_oauth_redirect_url"`
+	GitHubOAuthFrontendRedirectURL string                            `json:"github_oauth_frontend_redirect_url"`
+	GoogleOAuthEnabled             bool                              `json:"google_oauth_enabled"`
+	GoogleOAuthClientID            string                            `json:"google_oauth_client_id"`
+	GoogleOAuthClientSecret        string                            `json:"google_oauth_client_secret"`
+	GoogleOAuthRedirectURL         string                            `json:"google_oauth_redirect_url"`
+	GoogleOAuthFrontendRedirectURL string                            `json:"google_oauth_frontend_redirect_url"`
 
 	// OEM设置
 	SiteName                    string                `json:"site_name"`
@@ -346,6 +350,33 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
+	}
+	// 只有显式提交客户端列表时才处理 OAuth 字段；否则完整恢复旧值，保持旧客户端兼容。
+	if !req.UpdateEmailOAuthClients {
+		req.EmailOAuthClients = previousSettings.EmailOAuthClients
+		req.GitHubOAuthEnabled = previousSettings.GitHubOAuthEnabled
+		req.GitHubOAuthClientID = previousSettings.GitHubOAuthClientID
+		req.GitHubOAuthClientSecret = previousSettings.GitHubOAuthClientSecret
+		req.GitHubOAuthRedirectURL = previousSettings.GitHubOAuthRedirectURL
+		req.GitHubOAuthFrontendRedirectURL = previousSettings.GitHubOAuthFrontendRedirectURL
+		req.GoogleOAuthEnabled = previousSettings.GoogleOAuthEnabled
+		req.GoogleOAuthClientID = previousSettings.GoogleOAuthClientID
+		req.GoogleOAuthClientSecret = previousSettings.GoogleOAuthClientSecret
+		req.GoogleOAuthRedirectURL = previousSettings.GoogleOAuthRedirectURL
+		req.GoogleOAuthFrontendRedirectURL = previousSettings.GoogleOAuthFrontendRedirectURL
+	} else {
+		// 前端不会回传已配置的 Secret，先从旧列表合并，再校验和同步兼容字段。
+		req.EmailOAuthClients = service.MergeEmailOAuthClientSecrets(req.EmailOAuthClients, previousSettings.EmailOAuthClients)
+		if err := validateEmailOAuthClientSettings(req.EmailOAuthClients, previousSettings.EmailOAuthClients); err != nil {
+			response.BadRequest(c, err.Error())
+			return
+		}
+		primaryGitHub := firstEmailOAuthClient(req.EmailOAuthClients, "github")
+		primaryGoogle := firstEmailOAuthClient(req.EmailOAuthClients, "google")
+		req.GitHubOAuthEnabled = primaryGitHub != nil && primaryGitHub.Enabled
+		req.GitHubOAuthClientID, req.GitHubOAuthClientSecret, req.GitHubOAuthRedirectURL, req.GitHubOAuthFrontendRedirectURL = emailOAuthLegacyFields(primaryGitHub, "/auth/oauth/callback")
+		req.GoogleOAuthEnabled = primaryGoogle != nil && primaryGoogle.Enabled
+		req.GoogleOAuthClientID, req.GoogleOAuthClientSecret, req.GoogleOAuthRedirectURL, req.GoogleOAuthFrontendRedirectURL = emailOAuthLegacyFields(primaryGoogle, "/auth/oauth/callback")
 	}
 
 	// 验证参数
@@ -1250,6 +1281,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		OIDCConnectUserInfoEmailPath:           req.OIDCConnectUserInfoEmailPath,
 		OIDCConnectUserInfoIDPath:              req.OIDCConnectUserInfoIDPath,
 		OIDCConnectUserInfoUsernamePath:        req.OIDCConnectUserInfoUsernamePath,
+		UpdateEmailOAuthClients:                req.UpdateEmailOAuthClients,
+		EmailOAuthClients:                      req.EmailOAuthClients,
 		GitHubOAuthEnabled:                     req.GitHubOAuthEnabled,
 		GitHubOAuthClientID:                    req.GitHubOAuthClientID,
 		GitHubOAuthClientSecret:                req.GitHubOAuthClientSecret,

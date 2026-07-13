@@ -219,6 +219,7 @@ func (s *SettingService) getPublicSettings(ctx context.Context, requestOrigin st
 		SettingKeyGitHubOAuthEnabled,
 		SettingKeyGitHubOAuthClientID,
 		SettingKeyGitHubOAuthClientSecret,
+		SettingKeyEmailOAuthClients,
 		SettingKeyGoogleOAuthEnabled,
 		SettingKeyGoogleOAuthClientID,
 		SettingKeyGoogleOAuthClientSecret,
@@ -527,7 +528,8 @@ func (s *SettingService) GetPublicSettingsForInjectionForOrigin(ctx context.Cont
 }
 
 func (s *SettingService) PublicSettingsOriginScopingEnabled() bool {
-	return s != nil && s.cfg != nil && (len(s.cfg.GitHubOAuth.AllowedRedirectOrigins) > 0 || len(s.cfg.GoogleOAuth.AllowedRedirectOrigins) > 0)
+	// 数据库中的客户端列表可能在运行时变化，不能只依赖启动时配置判断是否需要按 Origin 注入。
+	return s != nil
 }
 
 func (s *SettingService) getPublicSettingsForInjection(ctx context.Context, origin string) (any, error) {

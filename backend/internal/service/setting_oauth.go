@@ -352,6 +352,17 @@ func (s *SettingService) emailOAuthPublicEnabled(settings map[string]string, pro
 }
 
 func (s *SettingService) emailOAuthPublicEnabledForOrigin(settings map[string]string, provider, requestOrigin string) bool {
+	clients := emailOAuthClientsForProvider(parseEmailOAuthClients(settings[SettingKeyEmailOAuthClients]), provider)
+	if normalizedOrigin := normalizeEmailOAuthOrigin(requestOrigin); normalizedOrigin != "" && len(clients) > 0 {
+		// 列表配置启用后必须精确命中 Origin；未知来源不能回退到其他域名的客户端。
+		for _, client := range clients {
+			if normalizeEmailOAuthOrigin(client.Origin) != normalizedOrigin {
+				continue
+			}
+			return client.Enabled && strings.TrimSpace(client.ClientID) != "" && strings.TrimSpace(client.ClientSecret) != ""
+		}
+		return false
+	}
 	cfg := s.effectiveEmailOAuthConfig(settings, provider)
 	if len(cfg.AllowedRedirectOrigins) == 0 {
 		return cfg.Enabled && strings.TrimSpace(cfg.ClientID) != "" && strings.TrimSpace(cfg.ClientSecret) != ""
@@ -409,6 +420,8 @@ func (s *SettingService) effectiveEmailOAuthConfig(settings map[string]string, p
 		cfg.RedirectURL = firstNonEmpty(settings[SettingKeyGoogleOAuthRedirectURL], cfg.RedirectURL)
 		cfg.FrontendRedirectURL = firstNonEmpty(settings[SettingKeyGoogleOAuthFrontendRedirectURL], cfg.FrontendRedirectURL, defaultGoogleOAuthFrontend)
 	}
+	// 没有列表配置时继续使用旧字段；存在列表配置时由列表覆盖旧的单客户端结果。
+	cfg = applyEmailOAuthClientsToConfig(cfg, parseEmailOAuthClients(settings[SettingKeyEmailOAuthClients]), provider)
 	return cfg
 }
 
@@ -469,6 +482,7 @@ func (s *SettingService) GetEmailOAuthProviderConfig(ctx context.Context, provid
 		SettingKeyGitHubOAuthClientSecret,
 		SettingKeyGitHubOAuthRedirectURL,
 		SettingKeyGitHubOAuthFrontendRedirectURL,
+		SettingKeyEmailOAuthClients,
 		SettingKeyGoogleOAuthEnabled,
 		SettingKeyGoogleOAuthClientID,
 		SettingKeyGoogleOAuthClientSecret,

@@ -12,6 +12,8 @@ func firstNonEmpty(values ...string) string {
 }
 
 type SystemSettings struct {
+	// UpdateEmailOAuthClients 为 true 时才写入 email_oauth_clients；普通设置保存保持其原值。
+	UpdateEmailOAuthClients          bool
 	RegistrationEnabled              bool
 	EmailVerifyEnabled               bool
 	RegistrationEmailSuffixWhitelist []string
@@ -114,6 +116,7 @@ type SystemSettings struct {
 	OIDCConnectUserInfoUsernamePath   string
 
 	// GitHub / Google 邮箱快捷登录
+	EmailOAuthClients                 []EmailOAuthClientSetting
 	GitHubOAuthEnabled                bool
 	GitHubOAuthClientID               string
 	GitHubOAuthClientSecret           string
@@ -262,6 +265,22 @@ type SystemSettings struct {
 
 	// 允许终端用户在用量页查看自己的失败请求
 	AllowUserViewErrorRequests bool
+}
+
+// EmailOAuthClientSetting 是 settings JSON 中保存的单条域名 OAuth 客户端配置。
+// ClientSecret 只在后端内部流转，返回管理端 DTO 时必须脱敏。
+type EmailOAuthClientSetting struct {
+	ID                     string `json:"id"`
+	Provider               string `json:"provider"`
+	Name                   string `json:"name"`
+	Origin                 string `json:"origin"`
+	Enabled                bool   `json:"enabled"`
+	ClientID               string `json:"client_id"`
+	ClientSecret           string `json:"client_secret,omitempty"`
+	ClientSecretConfigured bool   `json:"client_secret_configured"`
+	RedirectURL            string `json:"redirect_url"`
+	FrontendRedirectURL    string `json:"frontend_redirect_url"`
+	SortOrder              int    `json:"sort_order"`
 }
 
 type DefaultSubscriptionSetting struct {

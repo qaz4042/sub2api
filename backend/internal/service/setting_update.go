@@ -105,6 +105,29 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	if settings.GoogleOAuthFrontendRedirectURL == "" {
 		settings.GoogleOAuthFrontendRedirectURL = defaultGoogleOAuthFrontend
 	}
+	if settings.UpdateEmailOAuthClients {
+		// 读取旧值只发生在显式保存 OAuth 列表时，避免普通设置保存依赖或触碰 OAuth 配置。
+		previousRaw, err := s.settingRepo.GetMultiple(ctx, []string{
+			SettingKeyEmailOAuthClients,
+			SettingKeyGitHubOAuthEnabled,
+			SettingKeyGitHubOAuthClientID,
+			SettingKeyGitHubOAuthClientSecret,
+			SettingKeyGitHubOAuthRedirectURL,
+			SettingKeyGitHubOAuthFrontendRedirectURL,
+			SettingKeyGoogleOAuthEnabled,
+			SettingKeyGoogleOAuthClientID,
+			SettingKeyGoogleOAuthClientSecret,
+			SettingKeyGoogleOAuthRedirectURL,
+			SettingKeyGoogleOAuthFrontendRedirectURL,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("get email oauth settings: %w", err)
+		}
+		settings.EmailOAuthClients = MergeEmailOAuthClientSecrets(
+			normalizeEmailOAuthClients(settings.EmailOAuthClients, true),
+			s.emailOAuthClientsFromSettings(previousRaw),
+		)
+	}
 
 	updates := make(map[string]string)
 
@@ -209,18 +232,30 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	}
 
 	// GitHub / Google 邮箱快捷登录
+	if settings.UpdateEmailOAuthClients {
+		// 列表 JSON 与兼容旧字段一起保存，旧版调用方仍可读取首个客户端。
+		emailOAuthClientsJSON, err := json.Marshal(settings.EmailOAuthClients)
+		if err != nil {
+			return nil, fmt.Errorf("marshal email oauth clients: %w", err)
+		}
+		updates[SettingKeyEmailOAuthClients] = string(emailOAuthClientsJSON)
+	}
 	updates[SettingKeyGitHubOAuthEnabled] = strconv.FormatBool(settings.GitHubOAuthEnabled)
 	updates[SettingKeyGitHubOAuthClientID] = strings.TrimSpace(settings.GitHubOAuthClientID)
 	updates[SettingKeyGitHubOAuthRedirectURL] = settings.GitHubOAuthRedirectURL
 	updates[SettingKeyGitHubOAuthFrontendRedirectURL] = settings.GitHubOAuthFrontendRedirectURL
-	if settings.GitHubOAuthClientSecret != "" {
+	if settings.UpdateEmailOAuthClients {
+		updates[SettingKeyGitHubOAuthClientSecret] = strings.TrimSpace(settings.GitHubOAuthClientSecret)
+	} else if settings.GitHubOAuthClientSecret != "" {
 		updates[SettingKeyGitHubOAuthClientSecret] = strings.TrimSpace(settings.GitHubOAuthClientSecret)
 	}
 	updates[SettingKeyGoogleOAuthEnabled] = strconv.FormatBool(settings.GoogleOAuthEnabled)
 	updates[SettingKeyGoogleOAuthClientID] = strings.TrimSpace(settings.GoogleOAuthClientID)
 	updates[SettingKeyGoogleOAuthRedirectURL] = settings.GoogleOAuthRedirectURL
 	updates[SettingKeyGoogleOAuthFrontendRedirectURL] = settings.GoogleOAuthFrontendRedirectURL
-	if settings.GoogleOAuthClientSecret != "" {
+	if settings.UpdateEmailOAuthClients {
+		updates[SettingKeyGoogleOAuthClientSecret] = strings.TrimSpace(settings.GoogleOAuthClientSecret)
+	} else if settings.GoogleOAuthClientSecret != "" {
 		updates[SettingKeyGoogleOAuthClientSecret] = strings.TrimSpace(settings.GoogleOAuthClientSecret)
 	}
 

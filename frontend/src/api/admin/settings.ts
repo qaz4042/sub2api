@@ -520,6 +520,7 @@ export interface SystemSettings {
   oidc_connect_userinfo_id_path: string;
   oidc_connect_userinfo_username_path: string;
   github_oauth_enabled: boolean;
+  email_oauth_clients: EmailOAuthClient[];
   github_oauth_client_id: string;
   github_oauth_client_secret_configured: boolean;
   github_oauth_redirect_url: string;
@@ -656,6 +657,20 @@ export interface SystemSettings {
 
   // Allow user view error requests
   allow_user_view_error_requests: boolean;
+}
+
+// 管理端回显的 OAuth 客户端元数据不包含 Secret 明文。
+export interface EmailOAuthClient {
+  id: string;
+  provider: "github" | "google" | string;
+  name: string;
+  origin: string;
+  enabled: boolean;
+  client_id: string;
+  client_secret_configured: boolean;
+  redirect_url: string;
+  frontend_redirect_url: string;
+  sort_order: number;
 }
 
 export interface UpdateSettingsRequest {
@@ -808,6 +823,9 @@ export interface UpdateSettingsRequest {
   oidc_connect_userinfo_id_path?: string;
   oidc_connect_userinfo_username_path?: string;
   github_oauth_enabled?: boolean;
+  // 仅编辑 OAuth 客户端列表时置 true，普通设置保存不应覆盖列表。
+  update_email_oauth_clients?: boolean;
+  email_oauth_clients?: Array<EmailOAuthClient & { client_secret?: string }>;
   github_oauth_client_id?: string;
   github_oauth_client_secret?: string;
   github_oauth_redirect_url?: string;

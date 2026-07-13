@@ -1860,219 +1860,198 @@
 
           <!-- GitHub / Google 邮箱快捷登录 -->
           <div class="card">
-            <div
-              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
-            >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-                {{ localText("邮箱快捷登录", "Email OAuth Sign-in") }}
-              </h2>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {{
-                  localText(
-                    "开启 GitHub 或 Google 邮箱授权登录后，系统会读取已验证邮箱，存在则直接登录，不存在则自动注册。",
-                    "After GitHub or Google email OAuth is enabled, the system reads a verified email, signs in matching users, and auto-registers missing users.",
-                  )
-                }}
-              </p>
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    {{ localText("邮箱快捷登录", "Email OAuth Sign-in") }}
+                  </h2>
+                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {{
+                      localText(
+                        "按访问域名维护 GitHub 或 Google 邮箱授权登录配置；系统会读取已验证邮箱，存在则直接登录，不存在则自动注册。",
+                        "Maintain GitHub or Google email OAuth clients by origin. The system reads a verified email, signs in matching users, and auto-registers missing users.",
+                      )
+                    }}
+                  </p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    @click="addEmailOAuthClient('github')"
+                  >
+                    {{ localText("添加 GitHub", "Add GitHub") }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    @click="addEmailOAuthClient('google')"
+                  >
+                    {{ localText("添加 Google", "Add Google") }}
+                  </button>
+                </div>
+              </div>
             </div>
             <div class="space-y-6 p-6">
-              <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-700">
-                  <div class="flex items-start justify-between gap-4">
-                    <div>
-                      <h3 class="font-medium text-gray-900 dark:text-white">
-                        GitHub
-                      </h3>
-                      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {{
-                          localText(
-                            "GitHub OAuth App 需要 read:user user:email 权限，回调地址填写下方后端地址。",
-                            "GitHub OAuth App needs read:user user:email scopes. Use the backend callback URL below.",
-                          )
-                        }}
-                      </p>
+              <div class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300">
+                <p>
+                  {{
+                    localText(
+                      "GitHub OAuth App 需要 read:user user:email 权限；Google OAuth 客户端需要 openid email profile 范围。每个访问域名配置一条客户端，后端回调地址登记到对应平台。",
+                      "GitHub OAuth Apps need read:user user:email scopes. Google OAuth clients need openid email profile scopes. Configure one client per origin and register the backend callback URL with the provider.",
+                    )
+                  }}
+                </p>
+                <p
+                  v-if="
+                    form.github_oauth_enabled ||
+                    form.email_oauth_clients.some(
+                      (client) => client.provider === 'github',
+                    )
+                  "
+                  class="mt-2"
+                >
+                  <template v-if="isZhLocale">
+                    开通引导：GitHub Settings → Developer settings →
+                    <a
+                      data-testid="github-oauth-apps-guide-link"
+                      href="https://github.com/settings/developers"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="font-medium text-primary-600 hover:underline dark:text-primary-400"
+                    >OAuth Apps</a>
+                    → New OAuth App；Homepage URL 填站点域名，Authorization callback URL
+                    填下面对应客户端的后端回调地址。
+                  </template>
+                  <template v-else>
+                    Setup guide: GitHub Settings → Developer settings →
+                    <a
+                      data-testid="github-oauth-apps-guide-link"
+                      href="https://github.com/settings/developers"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="font-medium text-primary-600 hover:underline dark:text-primary-400"
+                    >OAuth Apps</a>
+                    → New OAuth App. Use the site origin as Homepage URL and the
+                    matching client callback URL below as Authorization callback URL.
+                  </template>
+                </p>
+              </div>
+
+              <div
+                v-if="form.email_oauth_clients.length === 0"
+                class="rounded-lg border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400"
+              >
+                {{ localText("暂无邮箱快捷登录配置。", "No email OAuth clients configured.") }}
+              </div>
+
+              <div class="space-y-4">
+                <div
+                  v-for="(client, index) in form.email_oauth_clients"
+                  :key="client.id"
+                  class="rounded-lg border border-gray-200 p-4 dark:border-dark-700"
+                >
+                  <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div class="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-4">
+                      <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          {{ localText("类型", "Provider") }}
+                        </label>
+                        <select
+                          v-model="client.provider"
+                          class="input text-sm"
+                          @change="syncEmailOAuthClientRedirectUrl(client)"
+                        >
+                          <option value="github">GitHub</option>
+                          <option value="google">Google</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          {{ localText("名称", "Name") }}
+                        </label>
+                        <input
+                          v-model="client.name"
+                          type="text"
+                          class="input text-sm"
+                          placeholder="Portal GitHub"
+                        />
+                      </div>
+                      <div class="lg:col-span-2">
+                        <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Origin
+                        </label>
+                        <div class="flex gap-2">
+                          <input
+                            v-model="client.origin"
+                            type="url"
+                            class="input font-mono text-sm"
+                            placeholder="https://portal.example.com"
+                            @blur="syncEmailOAuthClientRedirectUrl(client)"
+                          />
+                          <button
+                            type="button"
+                            class="btn btn-secondary btn-sm shrink-0"
+                            @click="syncEmailOAuthClientRedirectUrl(client)"
+                          >
+                            {{ localText("生成", "Generate") }}
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <Toggle v-model="form.github_oauth_enabled" />
+                    <div class="flex items-center justify-between gap-3 lg:justify-end">
+                      <Toggle v-model="client.enabled" />
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-sm"
+                        @click="removeEmailOAuthClient(index)"
+                      >
+                        {{ localText("删除", "Delete") }}
+                      </button>
+                    </div>
                   </div>
 
-                  <div v-if="form.github_oauth_enabled" class="mt-4 space-y-4">
-                    <div class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300">
-                      <template v-if="isZhLocale">
-                        开通引导：GitHub Settings → Developer settings →
-                        <a
-                          data-testid="github-oauth-apps-guide-link"
-                          href="https://github.com/settings/developers"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          class="font-medium text-primary-600 hover:underline dark:text-primary-400"
-                        >OAuth Apps</a>
-                        → New OAuth App；Homepage URL 填站点域名，Authorization callback URL 填下面的后端回调地址。
-                      </template>
-                      <template v-else>
-                        Setup guide: GitHub Settings → Developer settings →
-                        <a
-                          data-testid="github-oauth-apps-guide-link"
-                          href="https://github.com/settings/developers"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          class="font-medium text-primary-600 hover:underline dark:text-primary-400"
-                        >OAuth Apps</a>
-                        → New OAuth App. Use your site origin as Homepage URL and the backend callback URL below as Authorization callback URL.
-                      </template>
-                    </div>
-
-                    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                      <div>
-                        <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Client ID</label>
-                        <input
-                          v-model="form.github_oauth_client_id"
-                          type="text"
-                          class="input font-mono text-sm"
-                          placeholder="GitHub OAuth Client ID"
-                        />
-                      </div>
-                      <div>
-                        <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Client Secret</label>
-                        <input
-                          v-model="form.github_oauth_client_secret"
-                          type="password"
-                          class="input font-mono text-sm"
-                          :placeholder="
-                            form.github_oauth_client_secret_configured
-                              ? localText('密钥已配置，留空以保留当前值。', 'Secret configured. Leave empty to keep the current value.')
-                              : 'GitHub OAuth Client Secret'
-                          "
-                        />
-                      </div>
-                    </div>
-
+                  <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
                     <div>
-                      <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {{ localText("后端回调地址", "Backend Callback URL") }}
-                      </label>
+                      <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Client ID</label>
                       <input
-                        v-model="form.github_oauth_redirect_url"
-                        type="url"
-                        class="input font-mono text-sm"
-                        placeholder="https://your-domain.com/api/v1/auth/oauth/github/callback"
-                      />
-                      <div class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                        <button
-                          type="button"
-                          class="btn btn-secondary btn-sm w-fit"
-                          @click="setAndCopyEmailOAuthRedirectUrl('github')"
-                        >
-                          {{ localText("生成并复制", "Generate and copy") }}
-                        </button>
-                        <code
-                          v-if="githubOAuthRedirectUrlSuggestion"
-                          class="select-all break-all rounded bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300"
-                        >
-                          {{ githubOAuthRedirectUrlSuggestion }}
-                        </code>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {{ localText("前端回跳地址", "Frontend Callback URL") }}
-                      </label>
-                      <input
-                        v-model="form.github_oauth_frontend_redirect_url"
+                        v-model="client.client_id"
                         type="text"
                         class="input font-mono text-sm"
-                        placeholder="/auth/oauth/callback"
+                        placeholder="OAuth Client ID"
                       />
                     </div>
-                  </div>
-                </div>
-
-                <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-700">
-                  <div class="flex items-start justify-between gap-4">
                     <div>
-                      <h3 class="font-medium text-gray-900 dark:text-white">
-                        Google
-                      </h3>
-                      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {{
-                          localText(
-                            "Google OAuth 客户端需要 openid email profile 范围，并在凭据里登记后端回调地址。",
-                            "Google OAuth client needs openid email profile scopes and the backend callback URL registered in credentials.",
-                          )
-                        }}
-                      </p>
+                      <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Client Secret</label>
+                      <input
+                        v-model="client.client_secret"
+                        type="password"
+                        class="input font-mono text-sm"
+                        :placeholder="
+                          client.client_secret_configured
+                            ? localText('密钥已配置，留空以保留当前值。', 'Secret configured. Leave empty to keep the current value.')
+                            : 'OAuth Client Secret'
+                        "
+                      />
                     </div>
-                    <Toggle v-model="form.google_oauth_enabled" />
-                  </div>
-
-                  <div v-if="form.google_oauth_enabled" class="mt-4 space-y-4">
-                    <div class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300">
-                      {{
-                        localText(
-                          "开通引导：Google Cloud Console → APIs & Services → OAuth consent screen 完成同意屏幕；Credentials → Create Credentials → OAuth client ID，类型选择 Web application，并把下面地址加入 Authorized redirect URIs。",
-                          "Setup guide: Google Cloud Console → APIs & Services → OAuth consent screen, then Credentials → Create Credentials → OAuth client ID, choose Web application, and add the URL below to Authorized redirect URIs.",
-                        )
-                      }}
-                    </div>
-
-                    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                      <div>
-                        <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Client ID</label>
-                        <input
-                          v-model="form.google_oauth_client_id"
-                          type="text"
-                          class="input font-mono text-sm"
-                          placeholder="Google OAuth Client ID"
-                        />
-                      </div>
-                      <div>
-                        <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Client Secret</label>
-                        <input
-                          v-model="form.google_oauth_client_secret"
-                          type="password"
-                          class="input font-mono text-sm"
-                          :placeholder="
-                            form.google_oauth_client_secret_configured
-                              ? localText('密钥已配置，留空以保留当前值。', 'Secret configured. Leave empty to keep the current value.')
-                              : 'Google OAuth Client Secret'
-                          "
-                        />
-                      </div>
-                    </div>
-
                     <div>
                       <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                         {{ localText("后端回调地址", "Backend Callback URL") }}
                       </label>
                       <input
-                        v-model="form.google_oauth_redirect_url"
+                        v-model="client.redirect_url"
                         type="url"
                         class="input font-mono text-sm"
-                        placeholder="https://your-domain.com/api/v1/auth/oauth/google/callback"
+                        :placeholder="`https://your-domain.com/api/v1/auth/oauth/${client.provider}/callback`"
                       />
-                      <div class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                        <button
-                          type="button"
-                          class="btn btn-secondary btn-sm w-fit"
-                          @click="setAndCopyEmailOAuthRedirectUrl('google')"
-                        >
-                          {{ localText("生成并复制", "Generate and copy") }}
-                        </button>
-                        <code
-                          v-if="googleOAuthRedirectUrlSuggestion"
-                          class="select-all break-all rounded bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300"
-                        >
-                          {{ googleOAuthRedirectUrlSuggestion }}
-                        </code>
-                      </div>
                     </div>
-
                     <div>
                       <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                         {{ localText("前端回跳地址", "Frontend Callback URL") }}
                       </label>
                       <input
-                        v-model="form.google_oauth_frontend_redirect_url"
+                        v-model="client.frontend_redirect_url"
                         type="text"
                         class="input font-mono text-sm"
                         placeholder="/auth/oauth/callback"
@@ -7449,6 +7428,7 @@ import {
 import type {
   AuthSourceDefaultsState,
   AuthSourceType,
+  EmailOAuthClient,
   SystemSettings,
   UpdateSettingsRequest,
   DefaultSubscriptionSetting,
@@ -7605,6 +7585,8 @@ const testEmailAddress = ref("");
 const registrationEmailSuffixWhitelistTags = ref<string[]>([]);
 const registrationEmailSuffixWhitelistDraft = ref("");
 const tablePageSizeOptionsInput = ref("10, 20, 50, 100");
+// 用脱敏后的快照判断 OAuth 列表是否真的被编辑，避免普通设置保存携带整份列表。
+const emailOAuthClientsBaseline = ref("");
 
 // Admin API Key 状态
 const adminApiKeyLoading = ref(true);
@@ -8104,11 +8086,17 @@ interface DefaultSubscriptionGroupOption {
   [key: string]: unknown;
 }
 
+type EmailOAuthClientFormItem = EmailOAuthClient & {
+  provider: EmailOAuthProvider;
+  client_secret: string;
+};
+
 type SettingsForm = Omit<
   SystemSettings,
   | "wechat_connect_open_enabled"
   | "wechat_connect_mp_enabled"
   | "wechat_connect_mobile_enabled"
+  | "email_oauth_clients"
 > & {
   smtp_password: string;
   turnstile_secret_key: string;
@@ -8124,6 +8112,7 @@ type SettingsForm = Omit<
   oidc_connect_client_secret: string;
   github_oauth_client_secret: string;
   google_oauth_client_secret: string;
+  email_oauth_clients: EmailOAuthClientFormItem[];
   force_email_on_third_party_signup: boolean;
   openai_advanced_scheduler_enabled: boolean;
   openai_advanced_scheduler_sticky_weighted_enabled: boolean;
@@ -8311,6 +8300,7 @@ const form = reactive<SettingsForm>({
   google_oauth_client_secret_configured: false,
   google_oauth_redirect_url: "",
   google_oauth_frontend_redirect_url: "/auth/oauth/callback",
+  email_oauth_clients: [] as EmailOAuthClientFormItem[],
   // Model fallback
   enable_model_fallback: false,
   fallback_model_anthropic: "claude-3-5-sonnet-20241022",
@@ -8858,29 +8848,158 @@ async function setAndCopyLinuxdoRedirectUrl() {
 
 type EmailOAuthProvider = "github" | "google";
 
-const githubOAuthRedirectUrlSuggestion = computed(() => {
-  return buildApiCallbackUrl("/auth/oauth/github/callback");
-});
-
-const googleOAuthRedirectUrlSuggestion = computed(() => {
-  return buildApiCallbackUrl("/auth/oauth/google/callback");
-});
-
-async function setAndCopyEmailOAuthRedirectUrl(provider: EmailOAuthProvider) {
-  const url =
-    provider === "github"
-      ? githubOAuthRedirectUrlSuggestion.value
-      : googleOAuthRedirectUrlSuggestion.value;
-  if (!url) return;
-
-  if (provider === "github") {
-    form.github_oauth_redirect_url = url;
-  } else {
-    form.google_oauth_redirect_url = url;
+function originFromURL(raw: string): string {
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return "";
   }
-  await copyToClipboard(
-    url,
-    localText("回调地址已写入并复制。", "Callback URL set and copied."),
+}
+
+function getCurrentOrigin(): string {
+  if (typeof window === "undefined") return "";
+  return window.location.origin || `${window.location.protocol}//${window.location.host}`;
+}
+
+function emailOAuthCallbackPath(provider: EmailOAuthProvider): string {
+  return `/api/v1/auth/oauth/${provider}/callback`;
+}
+
+function buildEmailOAuthRedirectURL(
+  provider: EmailOAuthProvider,
+  origin: string,
+): string {
+  return `${origin.replace(/\/+$/, "")}${emailOAuthCallbackPath(provider)}`;
+}
+
+function normalizeEmailOAuthClients(
+  settings: Partial<SystemSettings>,
+): EmailOAuthClientFormItem[] {
+  const raw = Array.isArray(settings.email_oauth_clients)
+    ? settings.email_oauth_clients
+    : [];
+  const clients = raw.map((item, index) => {
+    const provider: EmailOAuthProvider =
+      item.provider === "google" ? "google" : "github";
+    return {
+      id: String(item.id || `${provider}-${index}`),
+      provider,
+      name: String(item.name || (provider === "google" ? "Google" : "GitHub")),
+      origin: String(item.origin || ""),
+      enabled: item.enabled !== false,
+      client_id: String(item.client_id || ""),
+      client_secret: "",
+      client_secret_configured: Boolean(item.client_secret_configured),
+      redirect_url: String(item.redirect_url || ""),
+      frontend_redirect_url: String(
+        item.frontend_redirect_url || "/auth/oauth/callback",
+      ),
+      sort_order: Number(item.sort_order ?? index),
+    };
+  });
+  if (clients.length > 0) return clients;
+
+  // 兼容后端仍只提供旧版 GitHub/Google 单客户端字段的情况。
+  const legacy: EmailOAuthClientFormItem[] = [];
+  if (
+    settings.github_oauth_enabled ||
+    settings.github_oauth_client_id ||
+    settings.github_oauth_redirect_url
+  ) {
+    legacy.push({
+      id: "github-default",
+      provider: "github",
+      name: "GitHub",
+      origin: originFromURL(settings.github_oauth_redirect_url || ""),
+      enabled: Boolean(settings.github_oauth_enabled),
+      client_id: String(settings.github_oauth_client_id || ""),
+      client_secret: "",
+      client_secret_configured: Boolean(
+        settings.github_oauth_client_secret_configured,
+      ),
+      redirect_url: String(settings.github_oauth_redirect_url || ""),
+      frontend_redirect_url: String(
+        settings.github_oauth_frontend_redirect_url || "/auth/oauth/callback",
+      ),
+      sort_order: 0,
+    });
+  }
+  if (
+    settings.google_oauth_enabled ||
+    settings.google_oauth_client_id ||
+    settings.google_oauth_redirect_url
+  ) {
+    legacy.push({
+      id: "google-default",
+      provider: "google",
+      name: "Google",
+      origin: originFromURL(settings.google_oauth_redirect_url || ""),
+      enabled: Boolean(settings.google_oauth_enabled),
+      client_id: String(settings.google_oauth_client_id || ""),
+      client_secret: "",
+      client_secret_configured: Boolean(
+        settings.google_oauth_client_secret_configured,
+      ),
+      redirect_url: String(settings.google_oauth_redirect_url || ""),
+      frontend_redirect_url: String(
+        settings.google_oauth_frontend_redirect_url || "/auth/oauth/callback",
+      ),
+      sort_order: 1,
+    });
+  }
+  return legacy;
+}
+
+function addEmailOAuthClient(provider: EmailOAuthProvider): void {
+  const origin = getCurrentOrigin();
+  const index = form.email_oauth_clients.length;
+  form.email_oauth_clients.push({
+    id: `${provider}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    provider,
+    name: provider === "github" ? "GitHub" : "Google",
+    origin,
+    enabled: true,
+    client_id: "",
+    client_secret: "",
+    client_secret_configured: false,
+    redirect_url: origin ? buildEmailOAuthRedirectURL(provider, origin) : "",
+    frontend_redirect_url: "/auth/oauth/callback",
+    sort_order: index,
+  });
+}
+
+function removeEmailOAuthClient(index: number): void {
+  form.email_oauth_clients.splice(index, 1);
+}
+
+function syncEmailOAuthClientRedirectUrl(
+  client: EmailOAuthClientFormItem,
+): void {
+  const origin = client.origin.trim() || getCurrentOrigin();
+  if (!origin) return;
+  client.origin = origin.replace(/\/+$/, "");
+  client.redirect_url = buildEmailOAuthRedirectURL(client.provider, client.origin);
+}
+
+function emailOAuthClientsSignature(
+  clients: EmailOAuthClientFormItem[],
+): string {
+	// Secret 不参与后端回显，只保留在当前编辑会话中；签名仍记录 configured 状态。
+  return JSON.stringify(
+    clients.map((client, index) => ({
+      id: client.id,
+      provider: client.provider,
+      name: client.name.trim(),
+      origin: client.origin.trim().replace(/\/+$/, ""),
+      enabled: client.enabled !== false,
+      client_id: client.client_id.trim(),
+      client_secret: client.client_secret.trim(),
+      client_secret_configured: Boolean(client.client_secret_configured),
+      redirect_url: client.redirect_url.trim(),
+      frontend_redirect_url:
+        client.frontend_redirect_url.trim() || "/auth/oauth/callback",
+      sort_order: index,
+    })),
   );
 }
 
@@ -9160,6 +9279,11 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
+	// 后端已脱敏 Secret，表单只记录 configured 标记，避免将凭据写入浏览器状态。
+	form.email_oauth_clients = normalizeEmailOAuthClients(settings);
+    emailOAuthClientsBaseline.value = emailOAuthClientsSignature(
+      form.email_oauth_clients,
+    );
     platformConfigs.value = Array.isArray(settings.platform_configs)
       ? settings.platform_configs.map((item) => ({ ...item }))
       : [];
@@ -9217,6 +9341,9 @@ async function loadSettings() {
     form.dingtalk_connect_client_secret = "";
     form.github_oauth_client_secret = "";
     form.google_oauth_client_secret = "";
+    form.email_oauth_clients.forEach((client) => {
+      client.client_secret = "";
+    });
     form.wechat_connect_app_secret = "";
     form.wechat_connect_open_app_secret = "";
     form.wechat_connect_mp_app_secret = "";
@@ -9518,6 +9645,31 @@ async function saveSettings() {
     form.claude_oauth_system_prompt_blocks =
       claudeOAuthSystemPromptBlocksJSON;
 
+	// 仅当列表快照变化时提交 OAuth 字段，避免普通设置保存覆盖数据库中的客户端列表。
+	const emailOAuthClients = form.email_oauth_clients.map((client, index) => ({
+      ...client,
+      provider: client.provider === "google" ? "google" : "github",
+      name: client.name.trim(),
+      origin: client.origin.trim().replace(/\/+$/, ""),
+      client_id: client.client_id.trim(),
+      client_secret: client.client_secret.trim() || undefined,
+      client_secret_configured:
+        client.client_secret_configured || Boolean(client.client_secret.trim()),
+      redirect_url: client.redirect_url.trim(),
+      frontend_redirect_url:
+        client.frontend_redirect_url.trim() || "/auth/oauth/callback",
+      sort_order: index,
+    }));
+    const primaryGitHubOAuthClient = emailOAuthClients.find(
+      (client) => client.provider === "github",
+    );
+    const primaryGoogleOAuthClient = emailOAuthClients.find(
+      (client) => client.provider === "google",
+    );
+    const shouldSaveEmailOAuth =
+      emailOAuthClientsSignature(form.email_oauth_clients) !==
+      emailOAuthClientsBaseline.value;
+
     const payload: UpdateSettingsRequest = {
       registration_enabled: form.registration_enabled,
       email_verify_enabled: form.email_verify_enabled,
@@ -9780,6 +9932,29 @@ async function saveSettings() {
       allow_user_view_error_requests: form.allow_user_view_error_requests,
     };
 
+    if (shouldSaveEmailOAuth) {
+      payload.update_email_oauth_clients = true;
+      payload.email_oauth_clients = emailOAuthClients;
+      payload.github_oauth_enabled = Boolean(primaryGitHubOAuthClient?.enabled);
+      payload.github_oauth_client_id = primaryGitHubOAuthClient?.client_id || "";
+      payload.github_oauth_client_secret =
+        primaryGitHubOAuthClient?.client_secret || undefined;
+      payload.github_oauth_redirect_url =
+        primaryGitHubOAuthClient?.redirect_url || "";
+      payload.github_oauth_frontend_redirect_url =
+        primaryGitHubOAuthClient?.frontend_redirect_url ||
+        "/auth/oauth/callback";
+      payload.google_oauth_enabled = Boolean(primaryGoogleOAuthClient?.enabled);
+      payload.google_oauth_client_id = primaryGoogleOAuthClient?.client_id || "";
+      payload.google_oauth_client_secret =
+        primaryGoogleOAuthClient?.client_secret || undefined;
+      payload.google_oauth_redirect_url =
+        primaryGoogleOAuthClient?.redirect_url || "";
+      payload.google_oauth_frontend_redirect_url =
+        primaryGoogleOAuthClient?.frontend_redirect_url ||
+        "/auth/oauth/callback";
+    }
+
     // 仅当 openai_fast_policy_settings 已成功从后端加载时才回写，
     // 否则省略整个字段，让后端保留既有规则（含默认值）。
     if (openaiFastPolicyLoaded.value) {
@@ -9841,6 +10016,10 @@ async function saveSettings() {
     form.dingtalk_connect_client_secret = "";
     form.github_oauth_client_secret = "";
     form.google_oauth_client_secret = "";
+    form.email_oauth_clients = normalizeEmailOAuthClients(updated);
+    emailOAuthClientsBaseline.value = emailOAuthClientsSignature(
+      form.email_oauth_clients,
+    );
     form.wechat_connect_app_secret = "";
     form.wechat_connect_open_app_secret = "";
     form.wechat_connect_mp_app_secret = "";

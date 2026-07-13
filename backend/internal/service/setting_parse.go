@@ -80,6 +80,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyWeChatConnectRedirectURL:                  "",
 		SettingKeyWeChatConnectFrontendRedirectURL:          defaultWeChatConnectFrontend,
 		SettingKeyGitHubOAuthEnabled:                        "false",
+		SettingKeyEmailOAuthClients:                         "[]",
 		SettingKeyGitHubOAuthClientID:                       "",
 		SettingKeyGitHubOAuthClientSecret:                   "",
 		SettingKeyGitHubOAuthRedirectURL:                    "",
@@ -634,6 +635,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.OIDCConnectClientSecretConfigured = result.OIDCConnectClientSecret != ""
 
 	gitHubEffective := s.effectiveEmailOAuthConfig(settings, "github")
+	result.EmailOAuthClients = s.emailOAuthClientsFromSettings(settings)
 	result.GitHubOAuthEnabled = gitHubEffective.Enabled
 	result.GitHubOAuthClientID = strings.TrimSpace(gitHubEffective.ClientID)
 	result.GitHubOAuthClientSecret = strings.TrimSpace(gitHubEffective.ClientSecret)
