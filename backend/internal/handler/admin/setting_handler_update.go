@@ -137,6 +137,7 @@ type UpdateSettingsRequest struct {
 	APIBaseURL                  string                `json:"api_base_url"`
 	CcsImportBaseURL            string                `json:"ccs_import_base_url"`
 	ContactInfo                 string                `json:"contact_info"`
+	ContactMethods              *json.RawMessage      `json:"contact_methods"`
 	DocURL                      string                `json:"doc_url"`
 	HomeContent                 string                `json:"home_content"`
 	HideCcsImportButton         bool                  `json:"hide_ccs_import_button"`
@@ -1097,6 +1098,11 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		customEndpointsJSON = string(endpointBytes)
 	}
 
+	contactMethodsJSON := previousSettings.ContactMethods
+	if req.ContactMethods != nil {
+		contactMethodsJSON = string(dto.SafeRawJSONArray(string(*req.ContactMethods)))
+	}
+
 	// Ops metrics collector interval validation (seconds).
 	if req.OpsMetricsIntervalSeconds != nil {
 		v := *req.OpsMetricsIntervalSeconds
@@ -1299,6 +1305,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		APIBaseURL:                             req.APIBaseURL,
 		CcsImportBaseURL:                       req.CcsImportBaseURL,
 		ContactInfo:                            req.ContactInfo,
+		ContactMethods:                         contactMethodsJSON,
 		DocURL:                                 req.DocURL,
 		HomeContent:                            req.HomeContent,
 		HideCcsImportButton:                    req.HideCcsImportButton,
@@ -1807,6 +1814,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		APIBaseURL:                                             updatedSettings.APIBaseURL,
 		CcsImportBaseURL:                                       updatedSettings.CcsImportBaseURL,
 		ContactInfo:                                            updatedSettings.ContactInfo,
+		ContactMethods:                                         dto.SafeRawJSONArray(updatedSettings.ContactMethods),
 		DocURL:                                                 updatedSettings.DocURL,
 		HomeContent:                                            updatedSettings.HomeContent,
 		HideCcsImportButton:                                    updatedSettings.HideCcsImportButton,

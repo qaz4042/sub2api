@@ -185,6 +185,7 @@ func (s *SettingService) getPublicSettings(ctx context.Context, requestOrigin st
 		SettingKeyAPIBaseURL,
 		SettingKeyCcsImportBaseURL,
 		SettingKeyContactInfo,
+		SettingKeyContactMethods,
 		SettingKeyDocURL,
 		SettingKeyHomeContent,
 		SettingKeyHideCcsImportButton,
@@ -316,6 +317,7 @@ func (s *SettingService) getPublicSettings(ctx context.Context, requestOrigin st
 		APIBaseURL:                       settings[SettingKeyAPIBaseURL],
 		CcsImportBaseURL:                 strings.TrimSpace(settings[SettingKeyCcsImportBaseURL]),
 		ContactInfo:                      settings[SettingKeyContactInfo],
+		ContactMethods:                   settings[SettingKeyContactMethods],
 		DocURL:                           settings[SettingKeyDocURL],
 		HomeContent:                      settings[SettingKeyHomeContent],
 		HideCcsImportButton:              settings[SettingKeyHideCcsImportButton] == "true",
@@ -475,6 +477,7 @@ type PublicSettingsInjectionPayload struct {
 	APIBaseURL                       string                   `json:"api_base_url"`
 	CcsImportBaseURL                 string                   `json:"ccs_import_base_url"`
 	ContactInfo                      string                   `json:"contact_info"`
+	ContactMethods                   json.RawMessage          `json:"contact_methods"`
 	DocURL                           string                   `json:"doc_url"`
 	HomeContent                      string                   `json:"home_content"`
 	HideCcsImportButton              bool                     `json:"hide_ccs_import_button"`
@@ -559,6 +562,7 @@ func (s *SettingService) getPublicSettingsForInjection(ctx context.Context, orig
 		APIBaseURL:                       settings.APIBaseURL,
 		CcsImportBaseURL:                 settings.CcsImportBaseURL,
 		ContactInfo:                      settings.ContactInfo,
+		ContactMethods:                   safeRawJSONArray(settings.ContactMethods),
 		DocURL:                           settings.DocURL,
 		HomeContent:                      settings.HomeContent,
 		HideCcsImportButton:              settings.HideCcsImportButton,
@@ -640,7 +644,11 @@ func safeRawJSONArray(raw string) json.RawMessage {
 	if raw == "" {
 		return json.RawMessage("[]")
 	}
-	if json.Valid([]byte(raw)) {
+	if !strings.HasPrefix(raw, "[") || !strings.HasSuffix(raw, "]") {
+		return json.RawMessage("[]")
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &items); err == nil {
 		return json.RawMessage(raw)
 	}
 	return json.RawMessage("[]")

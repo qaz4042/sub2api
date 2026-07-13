@@ -5,6 +5,7 @@
 
 import { apiClient } from "../client";
 import type {
+  ContactMethod,
   CustomEndpoint,
   CustomMenuItem,
   LoginAgreementDocument,
@@ -432,6 +433,7 @@ export interface SystemSettings {
   api_base_url: string;
   ccs_import_base_url?: string;
   contact_info: string;
+  contact_methods: ContactMethod[];
   doc_url: string;
   home_content: string;
   hide_ccs_import_button: boolean;
@@ -745,6 +747,7 @@ export interface UpdateSettingsRequest {
   api_base_url?: string;
   ccs_import_base_url?: string;
   contact_info?: string;
+  contact_methods?: ContactMethod[];
   doc_url?: string;
   home_content?: string;
   hide_ccs_import_button?: boolean;

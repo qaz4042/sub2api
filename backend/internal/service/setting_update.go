@@ -292,6 +292,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyAPIBaseURL] = settings.APIBaseURL
 	updates[SettingKeyCcsImportBaseURL] = strings.TrimSpace(settings.CcsImportBaseURL)
 	updates[SettingKeyContactInfo] = settings.ContactInfo
+	updates[SettingKeyContactMethods] = settings.ContactMethods
 	updates[SettingKeyDocURL] = settings.DocURL
 	updates[SettingKeyHomeContent] = settings.HomeContent
 	updates[SettingKeyHideCcsImportButton] = strconv.FormatBool(settings.HideCcsImportButton)

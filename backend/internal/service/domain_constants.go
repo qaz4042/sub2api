@@ -253,6 +253,7 @@ const (
 	SettingKeyAPIBaseURL                  = "api_base_url"                  // API端点地址（用于客户端配置和导入）
 	SettingKeyCcsImportBaseURL            = "ccs_import_base_url"           // CCS 导入专用 API 端点地址
 	SettingKeyContactInfo                 = "contact_info"                  // 客服联系方式
+	SettingKeyContactMethods              = "contact_methods"               // 结构化客服联系方式（JSON array）
 	SettingKeyDocURL                      = "doc_url"                       // 文档链接
 	SettingKeyHomeContent                 = "home_content"                  // 首页内容（支持 Markdown/HTML，或 URL 作为 iframe src）
 	SettingKeyHideCcsImportButton         = "hide_ccs_import_button"        // 是否隐藏 API Keys 页面的导入 CCS 按钮
