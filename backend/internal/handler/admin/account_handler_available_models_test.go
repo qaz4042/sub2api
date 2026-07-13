@@ -213,6 +213,55 @@ func TestAccountHandlerGetAvailableModels_OpenAIOAuthPassthroughFallsBackToDefau
 	require.NotEqual(t, "gpt-5", resp.Data[0].ID)
 }
 
+func TestAccountHandlerGetAvailableModels_OpenAIDefaultsDoNotExposeGPT56Alias(t *testing.T) {
+	svc := &availableModelsAdminService{
+		stubAdminService: newStubAdminService(),
+		account: service.Account{
+			ID:       46,
+			Name:     "openai-oauth-defaults",
+			Platform: service.PlatformOpenAI,
+			Type:     service.AccountTypeOAuth,
+			Status:   service.StatusActive,
+		},
+	}
+	router := setupAvailableModelsRouter(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/46/models", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp struct {
+		Data []struct {
+			ID          string `json:"id"`
+			DisplayName string `json:"display_name"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+
+	ids := make([]string, 0, len(resp.Data))
+	for _, model := range resp.Data {
+		ids = append(ids, model.ID)
+	}
+	require.NotContains(t, ids, "gpt-5.6")
+	require.Contains(t, ids, "gpt-5.6-sol")
+	require.Equal(t, 1, countModelID(resp.Data, "gpt-5.6-sol"))
+}
+
+func countModelID(models []struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"display_name"`
+}, id string) int {
+	count := 0
+	for _, model := range models {
+		if model.ID == id {
+			count++
+		}
+	}
+	return count
+}
+
 func TestAccountHandlerGetAvailableModels_OpenAISparkShadowReturnsMappingModels(t *testing.T) {
 	parentID := int64(100)
 	svc := &availableModelsAdminService{

@@ -42,6 +42,18 @@ func DefaultModelIDs() []string {
 	return ids
 }
 
+// DefaultAccountTestModels returns models suitable for the admin account test flow.
+func DefaultAccountTestModels() []Model {
+	models := make([]Model, 0, len(DefaultModels)-1)
+	for _, model := range DefaultModels {
+		if model.ID == "gpt-5.6" {
+			continue
+		}
+		models = append(models, model)
+	}
+	return models
+}
+
 // DefaultTestModel default model for testing OpenAI accounts
 const DefaultTestModel = "gpt-5.4"
 
