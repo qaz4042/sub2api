@@ -184,11 +184,24 @@
                 <li>{{ t('redeem.codeRule2') }}</li>
                 <li>
                   {{ t('redeem.codeRule3') }}
-                  <span
-                    v-if="contactInfo"
-                    class="ml-1.5 inline-flex items-center rounded-md bg-primary-200/50 px-2 py-0.5 text-xs font-medium text-primary-800 dark:bg-primary-800/40 dark:text-primary-200"
-                  >
-                    {{ contactInfo }}
+                  <span v-if="contactMethods.length > 0" class="ml-1.5 inline-flex flex-wrap gap-1.5 align-middle">
+                    <template v-for="method in contactMethods" :key="method.key">
+                      <a
+                        v-if="method.href"
+                        :href="method.href"
+                        :target="method.external ? '_blank' : undefined"
+                        :rel="method.external ? 'noopener noreferrer' : undefined"
+                        class="inline-flex items-center rounded-md bg-primary-200/50 px-2 py-0.5 text-xs font-medium text-primary-800 hover:underline dark:bg-primary-800/40 dark:text-primary-200"
+                      >
+                        {{ method.label }}: {{ method.value }}
+                      </a>
+                      <span
+                        v-else
+                        class="inline-flex items-center rounded-md bg-primary-200/50 px-2 py-0.5 text-xs font-medium text-primary-800 dark:bg-primary-800/40 dark:text-primary-200"
+                      >
+                        {{ method.label }}: {{ method.value }}
+                      </span>
+                    </template>
                   </span>
                 </li>
                 <li>{{ t('redeem.codeRule4') }}</li>
@@ -352,6 +365,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTime } from '@/utils/format'
 import { isOnlinePaymentTopUp } from '@/utils/redeemHistory'
+import { resolveContactMethods, type DisplayContactMethod } from '@/utils/contactMethods'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -376,7 +390,7 @@ const errorMessage = ref('')
 // History data
 const history = ref<RedeemHistoryItem[]>([])
 const loadingHistory = ref(false)
-const contactInfo = ref('')
+const contactMethods = ref<DisplayContactMethod[]>([])
 
 // Helper functions for history display
 const isBalanceType = (type: string) => {
@@ -483,7 +497,11 @@ onMounted(async () => {
   fetchHistory()
   try {
     const settings = await authAPI.getPublicSettings()
-    contactInfo.value = settings.contact_info || ''
+    contactMethods.value = resolveContactMethods(
+      settings.contact_methods,
+      settings.contact_info || '',
+      t('common.contactSupport'),
+    )
   } catch (error) {
     console.error('Failed to load contact info:', error)
   }

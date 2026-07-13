@@ -269,7 +269,7 @@ import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMi
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeUrl } from '@/utils/url'
-import type { ContactMethod as ConfigContactMethod } from '@/types'
+import { resolveContactMethods, type DisplayContactMethod } from '@/utils/contactMethods'
 
 const router = useRouter()
 const route = useRoute()
@@ -318,186 +318,13 @@ const displayName = computed(() => {
   return user.value.username || user.value.email?.split('@')[0] || ''
 })
 
-type ContactMethodIcon = 'chat' | 'mail' | 'link'
-
-interface DisplayContactMethod {
-  key: string
-  label: string
-  value: string
-  href?: string
-  external: boolean
-  icon: ContactMethodIcon
-  sort?: number
-}
-
-const contactMethods = computed(() => {
-  const configured = Array.isArray(configuredContactMethods.value)
-    ? configuredContactMethods.value
-        .filter((method) => method && method.enabled !== false)
-        .map(mapConfiguredContactMethod)
-        .filter((method): method is DisplayContactMethod => method !== null)
-        .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
-    : []
-
-  return configured.length > 0
-    ? configured
-    : parseContactInfo(contactInfo.value)
-})
-
-function parseContactInfo(raw: string): DisplayContactMethod[] {
-  const chunks = raw
-    .split(/[\n|；;]+/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-  const seen = new Set<string>()
-
-  return chunks.flatMap(parseContactChunk).filter((method) => {
-    const dedupeKey = method.href || `${method.label}:${method.value}`
-    if (seen.has(dedupeKey)) return false
-    seen.add(dedupeKey)
-    return true
-  })
-}
-
-function parseContactChunk(chunk: string): DisplayContactMethod[] {
-  const labelMatch = chunk.match(/^([^:：]{1,24})[:：]\s*(.+)$/)
-  const labelHint = labelMatch?.[1]?.trim()
-  const value = (labelMatch?.[2] || chunk).trim()
-  const methods: DisplayContactMethod[] = []
-  const telegram = parseTelegram(value)
-
-  if (telegram) {
-    methods.push({
-      key: `telegram:${telegram.href}`,
-      label: normalizeContactLabel(labelHint, 'Telegram'),
-      value: telegram.display,
-      href: telegram.href,
-      external: true,
-      icon: 'chat',
-    })
-  }
-
-  const email = value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]
-  if (email) {
-    methods.push({
-      key: `email:${email}`,
-      label: normalizeContactLabel(labelHint, 'Email'),
-      value: email,
-      href: `mailto:${email}`,
-      external: false,
-      icon: 'mail',
-    })
-  }
-
-  if (methods.length > 0) return methods
-
-  const url = value.match(/https?:\/\/[^\s]+/i)?.[0]
-  if (url) {
-    const cleanUrl = sanitizeUrl(url.replace(/[，。,.;；|)）]+$/g, ''))
-    if (cleanUrl) {
-      return [{
-        key: `url:${cleanUrl}`,
-        label: normalizeContactLabel(labelHint, getUrlHost(cleanUrl)),
-        value: cleanUrl,
-        href: cleanUrl,
-        external: true,
-        icon: 'link',
-      }]
-    }
-  }
-
-  return [{
-    key: `text:${chunk}`,
-    label: normalizeContactLabel(labelHint, t('common.contactSupport')),
-    value,
-    external: false,
-    icon: 'chat',
-  }]
-}
-
-function parseTelegram(value: string): { href: string; display: string } | null {
-  const urlMatch = value.match(/(?:https?:\/\/)?(?:t\.me|telegram\.me)\/([A-Za-z0-9_]{5,32})/i)
-  if (urlMatch?.[1]) {
-    return { href: `https://t.me/${urlMatch[1]}`, display: `@${urlMatch[1]}` }
-  }
-  const handleMatch = value.match(/(?:^|\s)@([A-Za-z0-9_]{5,32})(?:\s|$)/)
-  if (handleMatch?.[1]) {
-    return { href: `https://t.me/${handleMatch[1]}`, display: `@${handleMatch[1]}` }
-  }
-  return null
-}
-
-function mapConfiguredContactMethod(
-  method: ConfigContactMethod,
-): DisplayContactMethod | null {
-  const type = method.type?.trim().toLowerCase() || 'text'
-  const value = method.value?.trim() || method.url?.trim() || ''
-  const url = method.url?.trim() || ''
-  const label = method.label?.trim() || defaultContactLabel(type)
-  const sort = Number.isFinite(method.sort) ? Number(method.sort) : 0
-  if (!label || (!value && !url)) return null
-
-  if (type === 'email') {
-    const email = (value || url).replace(/^mailto:/i, '')
-    return {
-      key: `email:${email}`,
-      label,
-      value: email,
-      href: email ? `mailto:${email}` : undefined,
-      external: false,
-      icon: 'mail',
-      sort,
-    }
-  }
-
-  if (type === 'telegram') {
-    const telegram = parseTelegram(url || value)
-    const href = telegram?.href || sanitizeUrl(url)
-    return {
-      key: `telegram:${href || value}`,
-      label,
-      value: telegram?.display || value,
-      href: href || undefined,
-      external: Boolean(href),
-      icon: 'chat',
-      sort,
-    }
-  }
-
-  const href = type === 'link' ? sanitizeUrl(url || value) : undefined
-  return {
-    key: `${type}:${href || value}`,
-    label,
-    value,
-    href: href || undefined,
-    external: Boolean(href),
-    icon: type === 'text' ? 'chat' : 'link',
-    sort,
-  }
-}
-
-function defaultContactLabel(type: string): string {
-  if (type === 'telegram') return 'Telegram'
-  if (type === 'email') return 'Email'
-  if (type === 'link') return 'Link'
-  return t('common.contactSupport')
-}
-
-function normalizeContactLabel(label: string | undefined, fallback: string): string {
-  const normalized = label?.trim()
-  if (!normalized) return fallback
-  if (/^(tg|telegram)$/i.test(normalized)) return 'Telegram'
-  if (/^(email|mail|e-mail|邮箱|郵箱)$/i.test(normalized)) return 'Email'
-  return normalized
-}
-
-function getUrlHost(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '')
-  } catch {
-    return 'Link'
-  }
-}
+const contactMethods = computed<DisplayContactMethod[]>(() =>
+  resolveContactMethods(
+    configuredContactMethods.value,
+    contactInfo.value,
+    t('common.contactSupport'),
+  ),
+)
 
 const pageTitle = computed(() => {
   // For custom pages, use the menu item's label instead of generic "自定义页面"

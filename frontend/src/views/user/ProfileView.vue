@@ -16,18 +16,33 @@
       />
 
       <div
-        v-if="contactInfo"
+        v-if="contactMethods.length > 0"
         class="card border-primary-200 bg-primary-50 p-6 dark:bg-primary-900/20"
       >
-        <div class="flex items-center gap-4">
+        <div class="flex items-start gap-4">
           <div class="rounded-xl bg-primary-100 p-3 text-primary-600">
             <Icon name="chat" size="lg" />
           </div>
-          <div>
+          <div class="min-w-0 flex-1">
             <h3 class="font-semibold text-primary-800 dark:text-primary-200">
               {{ t('common.contactSupport') }}
             </h3>
-            <p class="text-sm font-medium">{{ contactInfo }}</p>
+            <div class="mt-2 space-y-1.5">
+              <template v-for="method in contactMethods" :key="method.key">
+                <a
+                  v-if="method.href"
+                  :href="method.href"
+                  :target="method.external ? '_blank' : undefined"
+                  :rel="method.external ? 'noopener noreferrer' : undefined"
+                  class="block break-words text-sm font-medium text-primary-700 hover:underline dark:text-primary-300"
+                >
+                  {{ method.label }}: {{ method.value }}
+                </a>
+                <p v-else class="break-words text-sm font-medium text-primary-700 dark:text-primary-300">
+                  {{ method.label }}: {{ method.value }}
+                </p>
+              </template>
+            </div>
           </div>
         </div>
       </div>
@@ -60,13 +75,14 @@ import ProfileTotpCard from '@/components/user/profile/ProfileTotpCard.vue'
 import { isWeChatWebOAuthEnabled } from '@/api/auth'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
+import { resolveContactMethods, type DisplayContactMethod } from '@/utils/contactMethods'
 
 const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const user = computed(() => authStore.user)
 
-const contactInfo = ref('')
+const contactMethods = ref<DisplayContactMethod[]>([])
 const balanceLowNotifyEnabled = ref(false)
 const systemDefaultThreshold = ref(0)
 const linuxdoOAuthEnabled = ref(false)
@@ -87,7 +103,11 @@ onMounted(async () => {
       if (!settings) {
         return
       }
-      contactInfo.value = settings.contact_info || ''
+      contactMethods.value = resolveContactMethods(
+        settings.contact_methods,
+        settings.contact_info || '',
+        t('common.contactSupport'),
+      )
       balanceLowNotifyEnabled.value = settings.balance_low_notify_enabled ?? false
       systemDefaultThreshold.value = settings.balance_low_notify_threshold ?? 0
       linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled ?? false
