@@ -27,6 +27,7 @@ This directory contains files for deploying Sub2API on Linux servers.
 | `private/release-runbook.md` | 通用脱敏发布、备份、验证和回滚 Runbook |
 | `private/docker-compose.release.yml` | 发布时固定 Sub2API 镜像 tag 或 digest 的 Compose 覆盖文件 |
 | `private/deploy-systemd-release.sh` | 参数化构建、SSH 原子发布、健康检查和自动回滚脚本 |
+| `private/my4g-deployment.md` | my4g 私有发布入口、验证、日志安全和手工回滚说明 |
 
 ---
 
@@ -389,6 +390,7 @@ configuration are stored by the script.
 
 Private host aliases are isolated in `private/*.mk`. This repository currently provides the original
 `make deploy-my4g` and `make deploy-my4g-backend-only` entrypoints; both delegate to the generic script.
+The corresponding operator notes are kept in `private/my4g-deployment.md`.
 
 ### One-Line Installation
 

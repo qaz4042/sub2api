@@ -12,7 +12,13 @@ REQUIRE_CLEAN="${REQUIRE_CLEAN:-1}"
 BUILD_FRONTEND="${BUILD_FRONTEND:-1}"
 TARGET_GOOS="${TARGET_GOOS:-linux}"
 TARGET_GOARCH="${TARGET_GOARCH:-amd64}"
+REMOTE_REQUIRED_FILE="${REMOTE_REQUIRED_FILE:-}"
+REMOTE_OWNER="${REMOTE_OWNER:-}"
 DRY_RUN="${DRY_RUN:-0}"
+
+log() {
+  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S %z')" "$*"
+}
 
 fail() {
   echo "$*" >&2
@@ -38,6 +44,14 @@ require_boolean() {
 require_boolean REQUIRE_CLEAN "${REQUIRE_CLEAN}"
 require_boolean BUILD_FRONTEND "${BUILD_FRONTEND}"
 require_boolean DRY_RUN "${DRY_RUN}"
+if [[ -n "${REMOTE_REQUIRED_FILE}" ]]; then
+  [[ "${REMOTE_REQUIRED_FILE}" == /* ]] || fail "REMOTE_REQUIRED_FILE 必须是绝对路径。"
+  [[ "${REMOTE_REQUIRED_FILE}" =~ ^/[A-Za-z0-9._/-]+$ && "/${REMOTE_REQUIRED_FILE#/}/" != *"/../"* ]] || \
+    fail "REMOTE_REQUIRED_FILE 包含不安全的路径字符或 .. 段。"
+fi
+if [[ -n "${REMOTE_OWNER}" ]]; then
+  [[ "${REMOTE_OWNER}" =~ ^[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+$ ]] || fail "REMOTE_OWNER 必须是 user:group。"
+fi
 
 VERSION="$(tr -d '\r\n' < "${ROOT_DIR}/backend/cmd/server/VERSION")"
 COMMIT="$(git -C "${ROOT_DIR}" rev-parse --short HEAD)"
@@ -53,9 +67,9 @@ REMOTE_RELEASE="${REMOTE_DIR}/releases/${TAG}"
 REMOTE_INCOMING="${REMOTE_DIR}/releases/.incoming-${TAG}"
 
 if [[ "${DRY_RUN}" == "1" ]]; then
-  printf 'release=%s\nssh_target=%s\nremote_release=%s\nservice=%s\nhealth_url=%s\ntarget=%s/%s\nbuild_frontend=%s\n' \
+  printf 'release=%s\nssh_target=%s\nremote_release=%s\nservice=%s\nhealth_url=%s\ntarget=%s/%s\nbuild_frontend=%s\nremote_required_file=%s\nremote_owner=%s\n' \
     "${TAG}" "${SSH_TARGET}" "${REMOTE_RELEASE}" "${SERVICE_NAME}" "${HEALTH_URL}" \
-    "${TARGET_GOOS}" "${TARGET_GOARCH}" "${BUILD_FRONTEND}"
+    "${TARGET_GOOS}" "${TARGET_GOARCH}" "${BUILD_FRONTEND}" "${REMOTE_REQUIRED_FILE}" "${REMOTE_OWNER}"
   exit 0
 fi
 
@@ -71,6 +85,31 @@ ARTIFACT="${TMP_DIR}/sub2api"
 COMPRESSED_ARTIFACT="${TMP_DIR}/sub2api.gz"
 REMOTE_PREPARED=false
 
+STEP_STARTED=0
+STEP_NAME=""
+step_start() {
+  STEP_STARTED=${SECONDS}
+  STEP_NAME="$1"
+  log "开始 ${STEP_NAME}"
+}
+
+step_done() {
+  local label="${1:-${STEP_NAME}}"
+  log "完成 ${label} ($((SECONDS - STEP_STARTED))s)"
+}
+
+run_quiet() {
+  local label="$1"
+  shift
+  local output
+  output="$(mktemp "${TMP_DIR}/deploy-step.XXXXXX")"
+  if ! "$@" >"${output}" 2>&1; then
+    log "${label} 失败，输出如下：" >&2
+    cat "${output}" >&2
+    return 1
+  fi
+}
+
 cleanup() {
   local status=$?
   rm -rf "${TMP_DIR}"
@@ -81,11 +120,20 @@ cleanup() {
 }
 trap cleanup EXIT
 
-ssh "${SSH_TARGET}" bash -s -- "${REMOTE_DIR}" "${REMOTE_RELEASE}" "${SERVICE_NAME}" <<'REMOTE_PREFLIGHT'
+DEPLOY_STARTED=${SECONDS}
+log "发布开始: ${TAG} -> ${SSH_TARGET}:${REMOTE_RELEASE}"
+if [[ "${COMMIT}" == *-dirty ]]; then
+  log "提示: 工作区有未提交改动，版本=${COMMIT}"
+fi
+
+step_start "1/5 远端环境"
+ssh "${SSH_TARGET}" bash -s -- \
+  "${REMOTE_DIR}" "${REMOTE_RELEASE}" "${SERVICE_NAME}" "${REMOTE_REQUIRED_FILE}" <<'REMOTE_PREFLIGHT'
 set -Eeuo pipefail
 remote_dir="$1"
 remote_release="$2"
 service_name="$3"
+required_file="$4"
 for command in systemctl curl rsync readlink gzip; do
   command -v "${command}" >/dev/null
 done
@@ -93,36 +141,53 @@ test -d "${remote_dir}/releases"
 test -L "${remote_dir}/current"
 test -d "$(readlink -f "${remote_dir}/current")"
 systemctl cat "${service_name}" >/dev/null
-test ! -e "${remote_release}"
+if [[ -n "${required_file}" ]]; then
+  test -f "${required_file}"
+fi
+if [[ -e "${remote_release}" ]]; then
+  echo "远端 release 已存在: ${remote_release}" >&2
+  exit 1
+fi
 REMOTE_PREFLIGHT
+step_done
 
 if [[ "${BUILD_FRONTEND}" == "1" ]]; then
-  pnpm --dir "${ROOT_DIR}/frontend" install --frozen-lockfile
-  pnpm --dir "${ROOT_DIR}/frontend" run build
+  step_start "2/5 前端构建"
+  run_quiet "前端依赖安装" pnpm --dir "${ROOT_DIR}/frontend" install --frozen-lockfile
+  run_quiet "前端构建" pnpm --dir "${ROOT_DIR}/frontend" run build
 else
+  step_start "2/5 复用前端 dist"
   test -f "${ROOT_DIR}/backend/internal/web/dist/index.html"
 fi
+step_done
 
 BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-(
-  cd "${ROOT_DIR}/backend"
-  CGO_ENABLED=0 GOOS="${TARGET_GOOS}" GOARCH="${TARGET_GOARCH}" go build \
+step_start "3/5 后端构建 ${TARGET_GOOS}/${TARGET_GOARCH}"
+run_quiet "后端构建" bash -c '
+  cd "$1"
+  CGO_ENABLED=0 GOOS="$2" GOARCH="$3" go build \
     -tags embed \
     -trimpath \
-    -ldflags="-s -w -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.Date=${BUILD_DATE} -X main.BuildType=release" \
-    -o "${ARTIFACT}" \
+    -ldflags="$4" \
+    -o "$5" \
     ./cmd/server
-)
+' _ "${ROOT_DIR}/backend" "${TARGET_GOOS}" "${TARGET_GOARCH}" \
+  "-s -w -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.Date=${BUILD_DATE} -X main.BuildType=release" \
+  "${ARTIFACT}"
+step_done
 
+step_start "4/5 上传 release"
 ssh "${SSH_TARGET}" "mkdir -p '${REMOTE_INCOMING}/resources'"
 REMOTE_PREPARED=true
 gzip -1 -c "${ARTIFACT}" >"${COMPRESSED_ARTIFACT}"
 scp -q "${COMPRESSED_ARTIFACT}" "${SSH_TARGET}:${REMOTE_INCOMING}/sub2api.gz"
 rsync -a --delete "${ROOT_DIR}/backend/resources/" "${SSH_TARGET}:${REMOTE_INCOMING}/resources/"
+step_done
 
+step_start "5/5 切换重启 + 本机健康"
 ssh "${SSH_TARGET}" bash -s -- \
   "${REMOTE_DIR}" "${REMOTE_INCOMING}" "${REMOTE_RELEASE}" "${SERVICE_NAME}" \
-  "${HEALTH_URL}" "${HEALTH_TIMEOUT}" <<'REMOTE_DEPLOY'
+  "${HEALTH_URL}" "${HEALTH_TIMEOUT}" "${REMOTE_OWNER}" <<'REMOTE_DEPLOY'
 set -Eeuo pipefail
 remote_dir="$1"
 incoming="$2"
@@ -130,6 +195,7 @@ release="$3"
 service_name="$4"
 health_url="$5"
 health_timeout="$6"
+remote_owner="$7"
 current="${remote_dir}/current"
 previous="$(readlink -f "${current}")"
 switched=false
@@ -145,10 +211,15 @@ wait_for_health() {
   return 1
 }
 
+log() {
+  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S %z')" "$*"
+}
+
 rollback() {
   local status=$?
   trap - ERR
   if [[ "${switched}" == "true" && -d "${previous}" ]]; then
+    log "新 release 健康检查失败，回滚到 ${previous}" >&2
     ln -sfn "${previous}" "${current}"
     systemctl restart "${service_name}" || true
     wait_for_health || true
@@ -158,9 +229,14 @@ rollback() {
 }
 trap rollback ERR
 
+test -f "${incoming}/sub2api.gz"
+test -d "${incoming}/resources"
 gzip -dc "${incoming}/sub2api.gz" >"${incoming}/sub2api"
 rm -f "${incoming}/sub2api.gz"
 chmod 0755 "${incoming}/sub2api"
+if [[ -n "${remote_owner}" ]]; then
+  chown -R "${remote_owner}" "${incoming}"
+fi
 mv "${incoming}" "${release}"
 ln -sfn "${release}" "${current}"
 switched=true
@@ -170,4 +246,7 @@ trap - ERR
 REMOTE_DEPLOY
 
 REMOTE_PREPARED=false
-printf '发布完成: %s:%s\n' "${SSH_TARGET}" "${REMOTE_RELEASE}"
+step_done
+log "发布完成 ($((SECONDS - DEPLOY_STARTED))s)"
+log "release: ${REMOTE_RELEASE}"
+log "health:  ${HEALTH_URL} (remote local check)"
