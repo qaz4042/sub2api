@@ -1,4 +1,6 @@
-.PHONY: build build-backend build-frontend test test-backend test-frontend test-frontend-critical
+.PHONY: build build-backend build-frontend deploy-systemd-release test test-backend test-frontend test-frontend-critical
+
+-include deploy/private/*.mk
 
 FRONTEND_CRITICAL_VITEST := \
 	src/views/auth/__tests__/LinuxDoCallbackView.spec.ts \
@@ -18,6 +20,9 @@ build-backend:
 # 编译前端（需要已安装依赖）
 build-frontend:
 	@pnpm --dir frontend run build
+
+deploy-systemd-release:
+	@./deploy/private/deploy-systemd-release.sh
 
 # 运行测试（后端 + 前端）
 test: test-backend test-frontend

@@ -2,6 +2,10 @@
 
 本文件是脱敏模板，适用于使用 `docker-compose.local.yml` 的单机部署。仓库不保存真实域名、主机、凭证或生产快照；执行前请替换占位符，并把 `.env` 保存在服务器安全目录。
 
+systemd 二进制部署可使用同目录的 `deploy-systemd-release.sh`。该脚本要求远端已有
+`releases/` 和指向有效版本目录的 `current` 软链，并要求 service 的 `WorkingDirectory`、
+`ExecStart` 经由 `current` 指向版本目录；具体参数和首次目录准备见 `deploy/README.md`。
+
 ## 变量
 
 ```bash

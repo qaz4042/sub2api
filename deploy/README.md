@@ -26,6 +26,7 @@ This directory contains files for deploying Sub2API on Linux servers.
 | `config.example.yaml` | Example configuration file |
 | `private/release-runbook.md` | 通用脱敏发布、备份、验证和回滚 Runbook |
 | `private/docker-compose.release.yml` | 发布时固定 Sub2API 镜像 tag 或 digest 的 Compose 覆盖文件 |
+| `private/deploy-systemd-release.sh` | 参数化构建、SSH 原子发布、健康检查和自动回滚脚本 |
 
 ---
 
@@ -351,6 +352,43 @@ GEMINI_OAUTH_CLIENT_SECRET=GOCSPX-your-client-secret
 ## Binary Installation
 
 For production servers using systemd.
+
+### Atomic SSH Release
+
+For an existing systemd installation that uses a `current` symlink, configure the service with
+`WorkingDirectory=/opt/sub2api/current` and `ExecStart=/opt/sub2api/current/sub2api`, then prepare the
+initial release layout on the server. The deployment account must be allowed to restart and inspect
+the configured service.
+
+```bash
+sudo mkdir -p /opt/sub2api/releases/initial
+sudo ln -sfn /opt/sub2api/releases/initial /opt/sub2api/current
+```
+
+Run a local validation without connecting or building:
+
+```bash
+SSH_TARGET=deploy.example.invalid DRY_RUN=1 make deploy-systemd-release
+```
+
+Run the release after replacing the target and confirming the remote layout:
+
+```bash
+SSH_TARGET=deploy.example.invalid \
+REMOTE_DIR=/opt/sub2api \
+SERVICE_NAME=sub2api \
+HEALTH_URL=http://127.0.0.1:8080/health \
+make deploy-systemd-release
+```
+
+The script requires a clean worktree by default, builds the embedded frontend and Linux/amd64
+binary, uploads into an incoming directory, atomically switches `current`, and restores the previous
+symlink if the local health endpoint does not recover. Set `BUILD_FRONTEND=0` only when the embedded
+frontend dist already exists; use `TARGET_GOARCH=arm64` for an ARM64 server. No credentials or host
+configuration are stored by the script.
+
+Private host aliases are isolated in `private/*.mk`. This repository currently provides the original
+`make deploy-my4g` and `make deploy-my4g-backend-only` entrypoints; both delegate to the generic script.
 
 ### One-Line Installation
 
