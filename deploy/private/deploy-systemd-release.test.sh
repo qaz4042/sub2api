@@ -19,7 +19,12 @@ make_mock() {
 make_mock ssh 'if [[ ! -t 0 ]]; then cat >/dev/null; fi'
 make_mock scp ':'
 make_mock rsync ':'
-make_mock pnpm 'echo "unexpected raw pnpm output"'
+make_mock pnpm '
+echo "mock pnpm detail"
+if [[ "${FAIL_PNPM:-0}" == "1" ]]; then
+  exit 42
+fi
+'
 make_mock go '
 output=""
 while (($#)); do
@@ -56,10 +61,23 @@ for expected in \
   grep -Fq "${expected}" "${OUTPUT}"
 done
 
-if grep -Fq 'unexpected raw pnpm output' "${OUTPUT}"; then
+if grep -Fq 'mock pnpm detail' "${OUTPUT}"; then
   echo "成功构建时不应输出 pnpm 详情" >&2
   exit 1
 fi
+
+FAIL_OUTPUT="${TMP_DIR}/fail-output"
+if PATH="${MOCK_BIN}:${PATH}" \
+  SSH_TARGET=test-host \
+  REQUIRE_CLEAN=0 \
+  FAIL_PNPM=1 \
+  TAG=failed-release \
+  "${ROOT_DIR}/deploy/private/deploy-systemd-release.sh" >"${FAIL_OUTPUT}" 2>&1; then
+  echo "模拟前端构建失败时发布不应成功" >&2
+  exit 1
+fi
+grep -Fq '前端依赖安装 失败，输出如下：' "${FAIL_OUTPUT}"
+grep -Fq 'mock pnpm detail' "${FAIL_OUTPUT}"
 
 DRY_OUTPUT="${TMP_DIR}/dry-output"
 SSH_TARGET=my4g \
