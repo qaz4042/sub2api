@@ -29,7 +29,7 @@ func TestAccountHandlerRefreshSubscriptionRejectsNonOpenAIAccount(t *testing.T) 
 			Type:     service.AccountTypeOAuth,
 		},
 	}
-	handler := NewAccountHandler(adminService, nil, service.NewOpenAIOAuthService(nil, nil), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	handler := NewAccountHandler(adminService, nil, service.NewOpenAIOAuthService(nil, nil), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	router := gin.New()
 	router.POST("/api/v1/admin/accounts/:id/refresh-subscription", handler.RefreshSubscription)
 
@@ -51,7 +51,7 @@ func TestAccountHandlerRefreshSubscriptionRejectsShadowAccount(t *testing.T) {
 			ParentAccountID: &parentID,
 		},
 	}
-	handler := NewAccountHandler(adminService, nil, service.NewOpenAIOAuthService(nil, nil), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	handler := NewAccountHandler(adminService, nil, service.NewOpenAIOAuthService(nil, nil), nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	router := gin.New()
 	router.POST("/api/v1/admin/accounts/:id/refresh-subscription", handler.RefreshSubscription)
 
