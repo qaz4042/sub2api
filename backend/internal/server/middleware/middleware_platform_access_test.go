@@ -50,6 +50,44 @@ func (platformAccessConfigRepoStub) SetEnabled(context.Context, string, bool) (*
 }
 
 func TestRequirePlatformEnabledRejectsDisabledGroupPlatform(t *testing.T) {
+	router := newPlatformAccessTestRouter(service.PlatformAnthropic, "")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Contains(t, w.Body.String(), "disabled")
+}
+
+func TestRequirePlatformEnabledAllowsResolvedCompositeTarget(t *testing.T) {
+	router := newPlatformAccessTestRouter(service.PlatformComposite, service.PlatformOpenAI)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+}
+
+func TestRequirePlatformEnabledRejectsDisabledResolvedCompositeTarget(t *testing.T) {
+	router := newPlatformAccessTestRouter(service.PlatformComposite, service.PlatformAnthropic)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Contains(t, w.Body.String(), "anthropic platform interface is disabled")
+}
+
+func TestRequirePlatformEnabledDefersUnresolvedCompositeTarget(t *testing.T) {
+	router := newPlatformAccessTestRouter(service.PlatformComposite, "")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+}
+
+func newPlatformAccessTestRouter(groupPlatform, resolvedPlatform string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	settingService := service.NewSettingService(platformAccessSettingRepoStub{}, &config.Config{})
 	settingService.SetPlatformConfigRepository(platformAccessConfigRepoStub{})
@@ -57,15 +95,13 @@ func TestRequirePlatformEnabledRejectsDisabledGroupPlatform(t *testing.T) {
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		groupID := int64(1)
-		c.Set(string(ContextKeyAPIKey), &service.APIKey{GroupID: &groupID, Group: &service.Group{Platform: service.PlatformAnthropic}})
+		c.Set(string(ContextKeyAPIKey), &service.APIKey{GroupID: &groupID, Group: &service.Group{Platform: groupPlatform}})
+		if resolvedPlatform != "" {
+			c.Request = c.Request.WithContext(service.WithResolvedTargetPlatform(c.Request.Context(), resolvedPlatform))
+		}
 		c.Next()
 	})
 	router.Use(RequirePlatformEnabled(settingService, AnthropicErrorWriter))
 	router.GET("/test", func(c *gin.Context) { c.Status(http.StatusNoContent) })
-
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
-
-	require.Equal(t, http.StatusForbidden, w.Code)
-	require.Contains(t, w.Body.String(), "disabled")
+	return router
 }

@@ -133,6 +133,15 @@ func RequirePlatformEnabled(settingService *service.SettingService, writeError G
 				return
 			}
 			platform = apiKey.Group.Platform
+			if platform == service.PlatformComposite {
+				resolvedPlatform, resolved := service.ResolvedTargetPlatformFromContext(c.Request.Context())
+				if !resolved {
+					// The composite handler owns unresolved-route validation and its error contract.
+					c.Next()
+					return
+				}
+				platform = resolvedPlatform
+			}
 		}
 		if settingService.IsPlatformEnabled(c.Request.Context(), platform) {
 			c.Next()
