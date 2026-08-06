@@ -104,6 +104,15 @@ func (s *FrontendServer) Middleware() gin.HandlerFunc {
 			cleanPath = "index.html"
 		}
 
+		// robots.txt / sitemap.xml：先尊重 data/public 覆盖，再按请求 Origin 动态生成。
+		if seoStaticPaths[cleanPath] {
+			if s.tryServeOverride(c, cleanPath) {
+				return
+			}
+			serveSEOFile(c, cleanPath, requestOrigin(c))
+			return
+		}
+
 		// For index.html or SPA routes, serve with injected settings
 		if cleanPath == "index.html" || !s.fileExists(cleanPath) {
 			s.serveIndexHTML(c)
@@ -334,7 +343,8 @@ func injectSiteTitle(html, settingsJSON []byte) []byte {
 		return html
 	}
 
-	newTitle := []byte("<title>" + htmlpkg.EscapeString(cfg.SiteName) + " - AI API Gateway</title>")
+	// 标题后缀与 frontend/src/constants/site.ts 的 SITE_TITLE_SUFFIX 保持一致。
+	newTitle := []byte("<title>" + htmlpkg.EscapeString(cfg.SiteName) + " - AI 开发工具与交流社区</title>")
 	var buf bytes.Buffer
 	buf.Write(html[:titleStart])
 	buf.Write(newTitle)
@@ -368,6 +378,15 @@ func ServeEmbeddedFrontend() gin.HandlerFunc {
 		cleanPath := strings.TrimPrefix(path, "/")
 		if cleanPath == "" {
 			cleanPath = "index.html"
+		}
+
+		// robots.txt / sitemap.xml：先尊重 data/public 覆盖，再按请求 Origin 动态生成。
+		if seoStaticPaths[cleanPath] {
+			if tryServeOverrideFile(c, overrideDir, cleanPath) {
+				return
+			}
+			serveSEOFile(c, cleanPath, requestOrigin(c))
+			return
 		}
 
 		if file, err := distFS.Open(cleanPath); err == nil {

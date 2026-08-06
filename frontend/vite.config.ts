@@ -2,6 +2,7 @@ import { defineConfig, loadEnv, Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import checker from 'vite-plugin-checker'
 import { resolve } from 'path'
+import { SITE_TITLE_SUFFIX } from './src/constants/site'
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({
@@ -32,7 +33,7 @@ function injectBranding(html: string, config: { site_name?: string; site_logo?: 
   if (siteName) {
     brandedHtml = brandedHtml.replace(
       /<title>[^<]*<\/title>/i,
-      `<title>${escapeHtml(siteName)} - AI API Gateway</title>`,
+      `<title>${escapeHtml(siteName)} - ${SITE_TITLE_SUFFIX}</title>`,
     )
   }
 

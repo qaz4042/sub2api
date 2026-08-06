@@ -15,12 +15,12 @@ export default {
     getStarted: '立即开始',
     goToDashboard: '进入控制台',
     // 新增：面向用户的价值主张
-    heroSubtitle: '一个密钥，畅用多个 AI 模型',
-    heroDescription: '无需管理多个订阅账号，一站式接入 Claude、GPT、Gemini 等主流 AI 服务',
+    heroSubtitle: 'Codex 开发者工具与交流社区',
+    heroDescription: '以 Codex 为主的 AI 开发工具站与交流社区：Codex 接入教程、CC Switch 配置、API Key 与 Base URL 管理、模型广场与开发者经验交流',
     tags: {
-      subscriptionToApi: '订阅转 API',
-      stickySession: '会话保持',
-      realtimeBilling: '按量计费'
+      subscriptionToApi: 'Codex 教程',
+      stickySession: 'CC Switch 接入',
+      realtimeBilling: '开发者交流'
     },
     // 用户痛点区块
     painPoints: {
@@ -251,6 +251,11 @@ export default {
       restarting: '服务正在重启，请稍候...',
       timeout: '服务重启时间超出预期，请手动刷新页面。'
     }
+  },
+
+  // SEO
+  seo: {
+    legalDescription: '查看本站服务条款、使用政策、支持的国家和地区及其他法律文档。'
   },
 
   // Common

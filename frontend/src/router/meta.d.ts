@@ -64,5 +64,21 @@ declare module 'vue-router' {
      * i18n key for the page description
      */
     descriptionKey?: string
+
+    /**
+     * 静态页面描述（无 descriptionKey 或翻译缺失时的兜底）
+     */
+    description?: string
+
+    /**
+     * 是否允许搜索引擎收录；默认不收录（fail-closed），
+     * 仅明确标记的公共内容页可被索引。
+     */
+    indexable?: boolean
+
+    /**
+     * 即使 indexable 为 true 也强制 noindex（如登录、注册、回调页）。
+     */
+    noindex?: boolean
   }
 }

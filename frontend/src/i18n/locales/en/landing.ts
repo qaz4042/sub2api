@@ -15,12 +15,12 @@ export default {
     getStarted: 'Get Started',
     goToDashboard: 'Go to Dashboard',
     // User-focused value proposition
-    heroSubtitle: 'One Key, All AI Models',
-    heroDescription: 'No need to manage multiple subscriptions. Access Claude, GPT, Gemini and more with a single API key',
+    heroSubtitle: 'Codex Dev Tools & Community',
+    heroDescription: 'An AI development tools hub built around Codex: setup guides, CC Switch configuration, API Key and Base URL management, a model plaza, and a community of developers sharing experience',
     tags: {
-      subscriptionToApi: 'Subscription to API',
-      stickySession: 'Session Persistence',
-      realtimeBilling: 'Pay As You Go'
+      subscriptionToApi: 'Codex Tutorials',
+      stickySession: 'CC Switch Setup',
+      realtimeBilling: 'Developer Community'
     },
     // Pain points section
     painPoints: {
@@ -251,6 +251,11 @@ export default {
       restarting: 'Service is restarting, please wait...',
       timeout: 'Service restart is taking longer than expected. Please refresh the page manually.'
     }
+  },
+
+  // SEO
+  seo: {
+    legalDescription: 'Read the terms of service, usage policy, supported regions and other legal documents.'
   },
 
   // Common
