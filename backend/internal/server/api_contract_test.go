@@ -709,6 +709,7 @@ func TestAPIContracts(t *testing.T) {
 				"data": {
 					"registration_enabled": true,
 					"email_verify_enabled": false,
+					"email_oauth_clients": [],
 					"registration_email_suffix_whitelist": [],
 					"promo_code_enabled": true,
 					"password_reset_enabled": false,
@@ -816,6 +817,7 @@ func TestAPIContracts(t *testing.T) {
 						"api_key_acl_trust_forwarded_ip": false,
 					"forwarded_client_ip_headers": [],
 					"contact_info": "support",
+					"contact_methods": [],
 					"doc_url": "https://docs.example.com",
 					"auth_source_default_email_balance": 0,
 					"auth_source_default_email_concurrency": 5,
@@ -1055,6 +1057,7 @@ func TestAPIContracts(t *testing.T) {
 				"data": {
 					"registration_enabled": true,
 					"email_verify_enabled": false,
+					"email_oauth_clients": [],
 					"registration_email_suffix_whitelist": [],
 					"promo_code_enabled": true,
 					"password_reset_enabled": false,
@@ -1159,6 +1162,7 @@ func TestAPIContracts(t *testing.T) {
 					"api_key_acl_trust_forwarded_ip": false,
 					"forwarded_client_ip_headers": [],
 					"contact_info": "",
+					"contact_methods": [],
 					"doc_url": "",
 					"home_content": "",
 					"hide_ccs_import_button": false,

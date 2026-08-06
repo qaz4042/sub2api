@@ -64,7 +64,7 @@ func TestAccountHandlerSetPrivacyReportsUpstreamFailure(t *testing.T) {
 				},
 				mode: test.mode,
 			}
-			handler := NewAccountHandler(adminService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+			handler := NewAccountHandler(adminService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 			router := gin.New()
 			router.POST("/api/v1/admin/accounts/:id/set-privacy", handler.SetPrivacy)
 

@@ -38,6 +38,8 @@ frontend/dist/
 *.tsbuildinfo
 vite.config.d.ts
 vite.config.js.timestamp-*
+frontend/src/constants/site.d.ts
+frontend/src/constants/site.js
 
 # 日志
 npm-debug.log*
