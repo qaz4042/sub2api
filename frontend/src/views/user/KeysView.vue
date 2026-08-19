@@ -1122,7 +1122,8 @@
 <script setup lang="ts">
 	import { ref, reactive, computed, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
-	import { useAppStore } from '@/stores/app'
+import { useAppStore } from '@/stores/app'
+import { DEFAULT_SITE_NAME } from '@/constants/site'
 	import { useOnboardingStore } from '@/stores/onboarding'
 	import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -1923,7 +1924,7 @@ const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
       };
     }
   })`
-  const providerName = (publicSettings.value?.site_name || 'sub2api').trim() || 'sub2api'
+  const providerName = (publicSettings.value?.site_name || appStore.siteName || DEFAULT_SITE_NAME).trim() || DEFAULT_SITE_NAME
   const deeplink = buildCcSwitchImportDeeplink({
     baseUrl,
     platform,

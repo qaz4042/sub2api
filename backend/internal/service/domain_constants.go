@@ -347,6 +347,9 @@ const (
 	SettingKeyGoogleOAuthFrontendRedirectURL = "google_oauth_frontend_redirect_url"
 
 	// OEM设置
+	defaultSiteName     = "Kaka Codex"
+	defaultSiteSubtitle = "AI 开发工具与交流社区"
+
 	SettingKeySiteName                    = "site_name"                     // 网站名称
 	SettingKeySiteLogo                    = "site_logo"                     // 网站Logo (base64)
 	SettingKeySiteSubtitle                = "site_subtitle"                 // 网站副标题

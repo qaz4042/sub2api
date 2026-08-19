@@ -764,6 +764,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize, setPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useAppStore } from '@/stores/app'
+import { DEFAULT_SITE_NAME } from '@/constants/site'
 import { keysAPI } from '@/api'
 import {
   cancelBatchImageJob,
@@ -1031,7 +1032,7 @@ const endpointBase = computed(() => {
   const configured = appStore.apiBaseUrl?.trim()
   if (configured) return configured.replace(/\/+$/, '')
   if (typeof window !== 'undefined') return window.location.origin.replace(/\/+$/, '')
-  return '<你的 Sub2API API 端点>'
+  return `<你的 ${appStore.siteName || DEFAULT_SITE_NAME} API 端点>`
 })
 
 const selectedModelReferenceLimit = computed(() => referenceImageLimitForModel(form.model))
