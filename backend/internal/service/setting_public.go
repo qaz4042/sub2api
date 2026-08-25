@@ -242,6 +242,7 @@ func (s *SettingService) GetPublicSettingsForOrigin(ctx context.Context, request
 		SettingKeyAvailableChannelsEnabled,
 		SettingKeyModelPlazaEnabled,
 		SettingKeyModelPlazaRequireAuth,
+		SettingKeyPluginManagementEnabled,
 		SettingKeyAffiliateEnabled,
 		SettingKeyRiskControlEnabled,
 		SettingKeyAllowUserViewErrorRequests,
@@ -374,8 +375,9 @@ func (s *SettingService) GetPublicSettingsForOrigin(ctx context.Context, request
 		AvailableChannelsEnabled: settings[SettingKeyAvailableChannelsEnabled] == "true",
 		PlatformConfigs:          platformConfigs,
 
-		ModelPlazaEnabled:     settings[SettingKeyModelPlazaEnabled] == "true",
-		ModelPlazaRequireAuth: settings[SettingKeyModelPlazaRequireAuth] == "true",
+		ModelPlazaEnabled:       settings[SettingKeyModelPlazaEnabled] == "true",
+		ModelPlazaRequireAuth:   settings[SettingKeyModelPlazaRequireAuth] == "true",
+		PluginManagementEnabled: settings[SettingKeyPluginManagementEnabled] == "true",
 
 		AffiliateEnabled: settings[SettingKeyAffiliateEnabled] == "true",
 
@@ -632,14 +634,15 @@ type PublicSettingsInjectionPayload struct {
 	ChannelMonitorHideThroughput bool `json:"channel_monitor_hide_throughput"`
 	// ChannelMonitorShowQuota gates the user-facing quota/balance display on
 	// monitors; fail-closed (absent/false = hidden). Admin UI always shows it.
-	ChannelMonitorShowQuota        bool             `json:"channel_monitor_show_quota"`
-	AvailableChannelsEnabled       bool             `json:"available_channels_enabled"`
-	PlatformConfigs                []PlatformConfig `json:"platform_configs"`
-	ModelPlazaEnabled              bool             `json:"model_plaza_enabled"`
-	ModelPlazaRequireAuth          bool             `json:"model_plaza_require_auth"`
-	AffiliateEnabled               bool             `json:"affiliate_enabled"`
-	RiskControlEnabled             bool             `json:"risk_control_enabled"`
-	AllowUserViewErrorRequests     bool             `json:"allow_user_view_error_requests"`
+	ChannelMonitorShowQuota    bool             `json:"channel_monitor_show_quota"`
+	AvailableChannelsEnabled   bool             `json:"available_channels_enabled"`
+	PlatformConfigs            []PlatformConfig `json:"platform_configs"`
+	ModelPlazaEnabled          bool             `json:"model_plaza_enabled"`
+	ModelPlazaRequireAuth      bool             `json:"model_plaza_require_auth"`
+	PluginManagementEnabled    bool             `json:"plugin_management_enabled"`
+	AffiliateEnabled           bool             `json:"affiliate_enabled"`
+	RiskControlEnabled         bool             `json:"risk_control_enabled"`
+	AllowUserViewErrorRequests bool             `json:"allow_user_view_error_requests"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -732,6 +735,7 @@ func (s *SettingService) getPublicSettingsForInjection(ctx context.Context, orig
 		PlatformConfigs:                      settings.PlatformConfigs,
 		ModelPlazaEnabled:                    settings.ModelPlazaEnabled,
 		ModelPlazaRequireAuth:                settings.ModelPlazaRequireAuth,
+		PluginManagementEnabled:              settings.PluginManagementEnabled,
 		AffiliateEnabled:                     settings.AffiliateEnabled,
 		RiskControlEnabled:                   settings.RiskControlEnabled,
 		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,
