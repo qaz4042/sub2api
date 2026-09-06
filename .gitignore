@@ -137,6 +137,13 @@ vite.config.js
 docs/**/*.dmg
 docs/**/*.msi
 docs/**/*.exe
+docs/*
+!docs/PAYMENT.md
+!docs/PAYMENT_CN.md
+!docs/ADMIN_PAYMENT_INTEGRATION_API.md
+!docs/WECHAT_PERSONAL_VIRTUAL_PAYMENT_PILOT_CN.md
+!docs/legal/
+!docs/legal/*.md
 .serena/
 .codex/
 frontend/coverage/
