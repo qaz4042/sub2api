@@ -189,8 +189,13 @@
               <Select
                 :model-value="apiTestModel"
                 :options="apiTestModelOptions"
+                :disabled="apiModelsLoading || !apiTestModelOptions.length"
+                :placeholder="apiModelsLoading ? t('common.loading') : t('common.noData')"
                 @update:model-value="updateApiTestModel"
               />
+              <button v-if="apiModelsError" type="button" class="mt-1 text-xs text-red-600" @click="loadApiModels">
+                {{ t('keys.useKeyModal.apiExample.modelsLoadFailed') }}
+              </button>
             </div>
             <span
               :class="[
@@ -218,7 +223,7 @@
             <button
               type="button"
               class="btn btn-primary"
-              :disabled="apiTestStatus === 'connecting' || !apiTestConfig"
+              :disabled="apiTestStatus === 'connecting' || apiModelsLoading || !apiTestModel || !apiTestConfig"
               @click="startApiTest"
             >
               {{ apiTestStatus === 'connecting' ? t('keys.useKeyModal.apiExample.quickTestConnecting') : apiTestStatus === 'idle' ? t('keys.useKeyModal.apiExample.quickTestStart') : t('keys.useKeyModal.apiExample.quickTestRetry') }}
@@ -359,6 +364,7 @@ import { maskApiKey } from '@/utils/maskApiKey'
 import { useAppStore } from '@/stores/app'
 import { DEFAULT_SITE_NAME } from '@/constants/site'
 import { fetchCodexModelsManifest } from '@/api/codex'
+import { fetchKeyModels } from '@/api/keyModels'
 import type { GroupPlatform } from '@/types'
 import {
   findCodexCatalogModel,
@@ -437,19 +443,39 @@ const apiTestErrorMessage = ref('')
 const apiTestModel = ref('')
 let apiTestAbortController: AbortController | null = null
 
-const apiTestModelPresets: Record<string, string[]> = {
-  openai: ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini'],
-  gemini: ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.5-pro'],
-  anthropic: ['claude-sonnet-4-6', 'claude-fable-5'],
-  antigravity: ['claude-sonnet-4-6', 'claude-fable-5']
+const apiTestModelOptions = ref<ApiTestModelOption[]>([])
+const apiModelsLoading = ref(false)
+const apiModelsError = ref(false)
+let apiModelsController: AbortController | null = null
+
+async function loadApiModels() {
+  apiModelsController?.abort()
+  const controller = new AbortController()
+  apiModelsController = controller
+  apiModelsLoading.value = true
+  apiModelsError.value = false
+  try {
+    const models = await fetchKeyModels(props.baseUrl, props.apiKey, props.platform ?? undefined, controller.signal)
+    if (controller.signal.aborted) return
+    apiTestModelOptions.value = models.map((model) => ({ ...model }))
+    if (!models.some((model) => model.value === apiTestModel.value)) {
+      apiTestModel.value = models[0]?.value ?? ''
+    }
+  } catch {
+    if (!controller.signal.aborted) apiModelsError.value = true
+  } finally {
+    if (!controller.signal.aborted) apiModelsLoading.value = false
+  }
 }
 
-const apiTestModelOptions = computed<ApiTestModelOption[]>(() =>
-  (apiTestModelPresets[props.platform ?? 'anthropic'] ?? apiTestModelPresets.anthropic).map((model) => ({
-    value: model,
-    label: model
-  }))
-)
+watch([() => props.show, () => props.apiKey, () => props.baseUrl, () => props.platform, activeClientTab], () => {
+  apiModelsController?.abort()
+  apiTestModelOptions.value = []
+  apiTestModel.value = ''
+  apiModelsLoading.value = false
+  apiModelsError.value = false
+  if (props.show && props.apiKey && activeClientTab.value === 'api-example') void loadApiModels()
+}, { immediate: true })
 
 const apiTestStatusLabel = computed(() => {
   switch (apiTestStatus.value) {
@@ -1150,7 +1176,7 @@ function resetApiTest() {
 
 async function startApiTest() {
   const config = apiTestConfig.value
-  if (!config || apiTestStatus.value === 'connecting') return
+  if (!config || !apiTestModel.value || apiModelsLoading.value || apiTestStatus.value === 'connecting') return
 
   apiTestAbortController?.abort()
   const controller = new AbortController()
@@ -1196,6 +1222,7 @@ watch(() => props.show, (show) => {
 })
 
 onBeforeUnmount(() => {
+  apiModelsController?.abort()
   resetApiTest()
 })
 

@@ -166,6 +166,7 @@ export default {
         quickTestTitle: 'Quick test',
         quickTestDescription: 'Send one minimal request with the selected API key and show the response status.',
         quickTestModelLabel: 'Test model',
+        modelsLoadFailed: 'Could not load models. Click to retry.',
         quickTestStart: 'Start test',
         quickTestRetry: 'Retry test',
         quickTestCancel: 'Cancel',

@@ -167,6 +167,7 @@ export default {
         quickTestTitle: '快速测试',
         quickTestDescription: '使用当前密钥发送一次最小请求，并展示响应状态。',
         quickTestModelLabel: '测试模型',
+        modelsLoadFailed: '模型列表加载失败，点击重试',
         quickTestStart: '开始测试',
         quickTestRetry: '重新测试',
         quickTestCancel: '取消',

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
@@ -29,6 +29,9 @@ vi.mock('file-saver', () => ({
 
 import UseKeyModal from '../UseKeyModal.vue'
 import Select from '@/components/common/Select.vue'
+import { fetchKeyModels } from '@/api/keyModels'
+
+vi.mock('@/api/keyModels', () => ({ fetchKeyModels: vi.fn() }))
 
 function readBlobAsText(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -40,9 +43,46 @@ function readBlobAsText(blob: Blob): Promise<string> {
 }
 
 describe('UseKeyModal', () => {
+  beforeEach(() => {
+    vi.mocked(fetchKeyModels).mockImplementation(async (_base, _key, platform) => {
+      const models: Record<string, string[]> = {
+        openai: ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini'],
+        gemini: ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.5-pro'],
+        anthropic: ['claude-sonnet-4-6', 'claude-fable-5'],
+        antigravity: ['claude-sonnet-4-6', 'claude-fable-5']
+      }
+      return (models[platform ?? 'anthropic'] ?? []).map((value) => ({ value, label: value }))
+    })
+  })
   afterEach(() => {
     vi.unstubAllGlobals()
     saveAsMock.mockClear()
+  })
+
+  it('discards stale key models and supports retry and an empty catalog', async () => {
+    let resolveOld!: (models: { value: string; label: string }[]) => void
+    vi.mocked(fetchKeyModels).mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve }))
+      .mockRejectedValueOnce(new Error('unavailable'))
+      .mockResolvedValueOnce([{ value: 'gpt-6-astra', label: 'GPT-6 Astra' }])
+      .mockResolvedValueOnce([])
+    const wrapper = mount(UseKeyModal, {
+      props: { show: true, apiKey: 'old-key', baseUrl: 'https://example.com/v1', platform: 'anthropic' },
+      global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Icon: true } }
+    })
+    await wrapper.findAll('button').find((button) => button.text().includes('cliTabs.apiExample'))!.trigger('click')
+    await wrapper.setProps({ apiKey: 'new-key' })
+    await flushPromises()
+    resolveOld([{ value: 'old-private-model', label: 'Old' }])
+    await flushPromises()
+    expect(wrapper.findComponent(Select).props('options')).toEqual([])
+    await wrapper.findAll('button').find((button) => button.text().includes('modelsLoadFailed'))!.trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent(Select).props('modelValue')).toBe('gpt-6-astra')
+    await wrapper.setProps({ apiKey: 'empty-key' })
+    await flushPromises()
+    expect(wrapper.findComponent(Select).props('options')).toEqual([])
+    expect(wrapper.findAll('button').find((button) => button.text().includes('quickTestStart'))!.attributes('disabled')).toBeDefined()
+    wrapper.unmount()
   })
 
   it('omits the attribution override from every standard Claude Code setup form', async () => {
@@ -572,7 +612,7 @@ describe('UseKeyModal', () => {
     vi.unstubAllGlobals()
   })
 
-  it('uses the selected preset model for each quick test platform', async () => {
+  it('uses the selected API model for each quick test platform', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
