@@ -189,7 +189,7 @@ ssh "${SSH_TARGET}" "cp -a '${REMOTE_BASIS}/.' '${REMOTE_INCOMING}/'"
 mkdir "${STAGING_DIR}/resources"
 rsync -a "${ROOT_DIR}/backend/resources/" "${STAGING_DIR}/resources/"
 # Seed independent files for delta support in both Apple openrsync and GNU rsync.
-rsync -az --checksum --no-whole-file --delete --stats \
+rsync -az --checksum --no-whole-file --delete \
   "${STAGING_DIR}/" "${SSH_TARGET}:${REMOTE_INCOMING}/"
 step_done
 

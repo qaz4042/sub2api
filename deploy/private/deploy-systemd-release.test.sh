@@ -75,7 +75,7 @@ if grep -Fq 'mock pnpm detail' "${OUTPUT}"; then
   exit 1
 fi
 
-grep -Fq -- '-az --checksum --no-whole-file --delete --stats' "${RSYNC_LOG}"
+grep -Fq -- '-az --checksum --no-whole-file --delete' "${RSYNC_LOG}"
 grep -Fq 'test-host:/srv/sub2api/releases/.incoming-test-release/' "${RSYNC_LOG}"
 
 FAIL_OUTPUT="${TMP_DIR}/fail-output"
