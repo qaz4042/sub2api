@@ -557,7 +557,7 @@ describe('UseKeyModal', () => {
     expect(antigravityContent).toContain('x-goog-api-key: antigravity-key')
   })
 
-  it('runs a minimal OpenAI request and renders the successful response', async () => {
+  it('runs an OpenAI request on the current origin despite an external configured base URL', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -598,7 +598,7 @@ describe('UseKeyModal', () => {
     await flushPromises()
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://example.com/v1/chat/completions',
+      '/v1/chat/completions',
       expect.objectContaining({
         method: 'POST',
         headers: {
@@ -712,7 +712,7 @@ describe('UseKeyModal', () => {
     )
     await geminiStartButton!.trigger('click')
     await flushPromises()
-    expect(fetchMock.mock.calls[1][0]).toBe('https://example.com/v1beta/models/gemini-2.5-pro:generateContent')
+    expect(fetchMock.mock.calls[1][0]).toBe('/v1beta/models/gemini-2.5-pro:generateContent')
 
     const anthropicWrapper = mount(UseKeyModal, {
       props: {
@@ -749,6 +749,18 @@ describe('UseKeyModal', () => {
     await anthropicStartButton!.trigger('click')
     await flushPromises()
     expect(JSON.parse(fetchMock.mock.calls[2][1].body as string).model).toBe('claude-fable-5')
+    expect(fetchMock.mock.calls[2][0]).toBe('/v1/messages')
+
+    await anthropicWrapper.setProps({ platform: 'antigravity' })
+    await anthropicWrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.apiExample')
+    )!.trigger('click')
+    await flushPromises()
+    await anthropicWrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.apiExample.quickTestStart')
+    )!.trigger('click')
+    await flushPromises()
+    expect(fetchMock.mock.calls[3][0]).toBe('/antigravity/v1/messages')
 
     vi.unstubAllGlobals()
   })

@@ -1096,10 +1096,9 @@ function updateApiTestModel(value: string | number | boolean | null) {
 }
 
 function getApiTestConfig(): ApiTestConfig | null {
-  const baseUrl = props.baseUrl || window.location.origin
-  const baseRoot = baseUrl.replace(/\/(?:v1|v1beta)\/?$/, '').replace(/\/+$/, '')
-  const apiBase = `${baseRoot}/v1`
-  const geminiBase = `${baseRoot}/v1beta`
+  // Browser probes use the current origin; baseUrl is for exported client examples.
+  const apiBase = '/v1'
+  const geminiBase = '/v1beta'
 
   if (!props.apiKey) return null
 
@@ -1130,7 +1129,7 @@ function getApiTestConfig(): ApiTestConfig | null {
     }
   }
 
-  const anthropicBase = props.platform === 'antigravity' ? `${baseRoot}/antigravity/v1` : apiBase
+  const anthropicBase = props.platform === 'antigravity' ? '/antigravity/v1' : apiBase
   return {
     url: `${anthropicBase}/messages`,
     headers: {
