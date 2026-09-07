@@ -4,14 +4,12 @@ export interface KeyModel {
 }
 
 export async function fetchKeyModels(
-  baseUrl: string,
   apiKey: string,
   platform?: string,
   signal?: AbortSignal
 ): Promise<KeyModel[]> {
-  const root = (baseUrl || window.location.origin).trim().replace(/\/+$/, '').replace(/\/(?:v1|v1beta)$/i, '')
-  const prefix = platform === 'antigravity' && !root.endsWith('/antigravity') ? '/antigravity' : ''
-  const response = await fetch(`${root}${prefix}/v1/models`, {
+  const prefix = platform === 'antigravity' ? '/antigravity' : ''
+  const response = await fetch(`${prefix}/v1/models`, {
     headers: { Accept: 'application/json', Authorization: `Bearer ${apiKey}` },
     cache: 'no-store',
     signal

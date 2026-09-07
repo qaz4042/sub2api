@@ -44,7 +44,7 @@ function readBlobAsText(blob: Blob): Promise<string> {
 
 describe('UseKeyModal', () => {
   beforeEach(() => {
-    vi.mocked(fetchKeyModels).mockImplementation(async (_base, _key, platform) => {
+    vi.mocked(fetchKeyModels).mockImplementation(async (_key, platform) => {
       const models: Record<string, string[]> = {
         openai: ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini'],
         gemini: ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.5-pro'],

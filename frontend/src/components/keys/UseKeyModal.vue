@@ -455,7 +455,7 @@ async function loadApiModels() {
   apiModelsLoading.value = true
   apiModelsError.value = false
   try {
-    const models = await fetchKeyModels(props.baseUrl, props.apiKey, props.platform ?? undefined, controller.signal)
+    const models = await fetchKeyModels(props.apiKey, props.platform ?? undefined, controller.signal)
     if (controller.signal.aborted) return
     apiTestModelOptions.value = models.map((model) => ({ ...model }))
     if (!models.some((model) => model.value === apiTestModel.value)) {
