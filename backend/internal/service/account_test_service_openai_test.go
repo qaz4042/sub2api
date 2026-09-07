@@ -165,6 +165,20 @@ func TestAccountTestService_OpenAIOAuthTestNormalizesGPT56Alias(t *testing.T) {
 	require.Equal(t, "gpt-5.6-sol", gjson.GetBytes(body, "model").String())
 }
 
+func TestAccountTestService_FetchOpenAIAccountModelsUsesIDForBlankDisplayName(t *testing.T) {
+	gateway := newCodexModelsAPIKeyTestService(&codexModelsHTTPUpstreamStub{do: func(_ *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
+		return newJSONResponse(http.StatusOK, `{"object":"list","data":[{"id":"gpt-6-astra","display_name":""},{"id":"gpt-5.6-sol","display_name":"GPT-5.6 Sol"}]}`), nil
+	}})
+	svc := &AccountTestService{openaiGatewayService: gateway}
+
+	models, err := svc.FetchOpenAIAccountModels(context.Background(), newCodexModelsAPIKeyTestAccount("https://models.example/v1"))
+
+	require.NoError(t, err)
+	require.Len(t, models, 2)
+	require.Equal(t, "gpt-6-astra", models[0].DisplayName)
+	require.Equal(t, "GPT-5.6 Sol", models[1].DisplayName)
+}
+
 func TestAccountTestService_OpenAIShadowUsesParentCredentialsAndShadowModel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, recorder := newTestContext()
