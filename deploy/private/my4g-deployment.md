@@ -27,16 +27,25 @@ make deploy-my4g
 make deploy-my4g-backend-only
 ```
 
-发布默认拒绝 dirty 工作区。仅在明确需要验证未提交改动时，才显式使用
-`REQUIRE_CLEAN=0`。发布前可执行不会构建、连接或上传的参数检查：
+my4g 两个发布入口默认允许未提交改动，版本会带 `-dirty` 标记。需要校验工作区干净时，使用
+`REQUIRE_CLEAN=1 make deploy-my4g`（仅后端入口同样支持）。通用发布脚本仍默认要求工作区干净。
+发布前可执行不会构建、连接或上传的参数检查：
 
 ```bash
-DRY_RUN=1 REQUIRE_CLEAN=0 TAG=check make deploy-my4g
+DRY_RUN=1 TAG=check make deploy-my4g
 ```
 
 正式发布按“远端预检、前端构建、后端构建、上传 release、切换重启与本机健康检查”五步执行。
-成功时仅显示阶段与耗时；任一构建步骤失败时才展开该步骤的完整输出。远端预检会确认
+前端阶段分别记录依赖安装、类型检查和打包耗时；生产构建只执行一次类型检查，开发模式继续启用 checker。
+成功时显示阶段、耗时及 rsync 传输统计；任一构建步骤失败时才展开该步骤的完整输出。远端预检会确认
 `releases/`、`current`、systemd service 和 `sub2api.env` 均已准备。
+
+上传以开始上传时 `current` 指向的 release 为基准，先在远端复制到临时目录，再使用 rsync 校验和及压缩增量
+传输原始二进制和 resources，并删除新版中已移除的文件。此方式兼容 macOS 自带的 openrsync。
+新 release 不与旧版本共享硬链接；无需上一版
+保留 gzip 文件。数据先写入独立 `.incoming-*` 目录，完整上传后沿用切换、健康检查和回滚流程。
+`Literal data`（或 `Unmatched data`）表示需要传输的新数据，`Matched data` 表示复用的数据；实际网络发送量见统计中的
+sent/bytes sent。收益取决于构建产物差异，首次或大改动仍可能接近全量传输。避免同时运行多个发布。
 
 ## 验证
 

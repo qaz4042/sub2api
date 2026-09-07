@@ -16,9 +16,15 @@ make_mock() {
   chmod +x "${MOCK_BIN}/${name}"
 }
 
-make_mock ssh 'if [[ ! -t 0 ]]; then cat >/dev/null; fi'
-make_mock scp ':'
-make_mock rsync ':'
+make_mock ssh '
+if [[ "${2:-}" == readlink* ]]; then
+  echo /srv/sub2api/releases/previous
+elif [[ ! -t 0 ]]; then
+  cat >/dev/null
+fi
+'
+make_mock rsync 'printf "%s\n" "$*" >>"${RSYNC_LOG}"'
+export RSYNC_LOG="${TMP_DIR}/rsync.log"
 make_mock pnpm '
 echo "mock pnpm detail"
 if [[ "${FAIL_PNPM:-0}" == "1" ]]; then
@@ -53,6 +59,9 @@ TAG=test-release \
 for expected in \
   '开始 1/5 远端环境' \
   '开始 2/5 前端构建' \
+  '完成 前端依赖安装 (' \
+  '完成 前端类型检查 (' \
+  '完成 前端打包 (' \
   '开始 3/5 后端构建 linux/amd64' \
   '开始 4/5 上传 release' \
   '开始 5/5 切换重启 + 本机健康' \
@@ -65,6 +74,9 @@ if grep -Fq 'mock pnpm detail' "${OUTPUT}"; then
   echo "成功构建时不应输出 pnpm 详情" >&2
   exit 1
 fi
+
+grep -Fq -- '-az --checksum --no-whole-file --delete --stats' "${RSYNC_LOG}"
+grep -Fq 'test-host:/srv/sub2api/releases/.incoming-test-release/' "${RSYNC_LOG}"
 
 FAIL_OUTPUT="${TMP_DIR}/fail-output"
 if PATH="${MOCK_BIN}:${PATH}" \

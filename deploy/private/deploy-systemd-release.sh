@@ -73,7 +73,7 @@ if [[ "${DRY_RUN}" == "1" ]]; then
   exit 0
 fi
 
-for command in git go ssh scp rsync curl mktemp gzip; do
+for command in git go ssh rsync curl mktemp; do
   command -v "${command}" >/dev/null 2>&1 || fail "缺少本地命令: ${command}"
 done
 if [[ "${BUILD_FRONTEND}" == "1" ]]; then
@@ -81,8 +81,9 @@ if [[ "${BUILD_FRONTEND}" == "1" ]]; then
 fi
 
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/sub2api-release.XXXXXX")"
-ARTIFACT="${TMP_DIR}/sub2api"
-COMPRESSED_ARTIFACT="${TMP_DIR}/sub2api.gz"
+STAGING_DIR="${TMP_DIR}/release"
+mkdir "${STAGING_DIR}"
+ARTIFACT="${STAGING_DIR}/sub2api"
 REMOTE_PREPARED=false
 
 STEP_STARTED=0
@@ -102,12 +103,14 @@ run_quiet() {
   local label="$1"
   shift
   local output
+  local started=${SECONDS}
   output="$(mktemp "${TMP_DIR}/deploy-step.XXXXXX")"
   if ! "$@" >"${output}" 2>&1; then
     log "${label} 失败，输出如下：" >&2
     cat "${output}" >&2
     return 1
   fi
+  log "完成 ${label} ($((SECONDS - started))s)"
 }
 
 cleanup() {
@@ -134,7 +137,7 @@ remote_dir="$1"
 remote_release="$2"
 service_name="$3"
 required_file="$4"
-for command in systemctl curl rsync readlink gzip; do
+for command in systemctl curl rsync readlink; do
   command -v "${command}" >/dev/null
 done
 test -d "${remote_dir}/releases"
@@ -154,7 +157,8 @@ step_done
 if [[ "${BUILD_FRONTEND}" == "1" ]]; then
   step_start "2/5 前端构建"
   run_quiet "前端依赖安装" pnpm --dir "${ROOT_DIR}/frontend" install --frozen-lockfile
-  run_quiet "前端构建" pnpm --dir "${ROOT_DIR}/frontend" run build
+  run_quiet "前端类型检查" pnpm --dir "${ROOT_DIR}/frontend" run build:typecheck
+  run_quiet "前端打包" pnpm --dir "${ROOT_DIR}/frontend" run build:bundle
 else
   step_start "2/5 复用前端 dist"
   test -f "${ROOT_DIR}/backend/internal/web/dist/index.html"
@@ -177,11 +181,16 @@ run_quiet "后端构建" bash -c '
 step_done
 
 step_start "4/5 上传 release"
-ssh "${SSH_TARGET}" "mkdir -p '${REMOTE_INCOMING}/resources'"
+REMOTE_BASIS="$(ssh "${SSH_TARGET}" "readlink -f '${REMOTE_DIR}/current'")"
+[[ "${REMOTE_BASIS}" == /* && "${REMOTE_BASIS}" =~ ^/[A-Za-z0-9._/-]+$ ]] || fail "远端 current 未解析为有效绝对路径。"
+ssh "${SSH_TARGET}" "mkdir '${REMOTE_INCOMING}'"
 REMOTE_PREPARED=true
-gzip -1 -c "${ARTIFACT}" >"${COMPRESSED_ARTIFACT}"
-scp -q "${COMPRESSED_ARTIFACT}" "${SSH_TARGET}:${REMOTE_INCOMING}/sub2api.gz"
-rsync -a --delete "${ROOT_DIR}/backend/resources/" "${SSH_TARGET}:${REMOTE_INCOMING}/resources/"
+ssh "${SSH_TARGET}" "cp -a '${REMOTE_BASIS}/.' '${REMOTE_INCOMING}/'"
+mkdir "${STAGING_DIR}/resources"
+rsync -a "${ROOT_DIR}/backend/resources/" "${STAGING_DIR}/resources/"
+# Seed independent files for delta support in both Apple openrsync and GNU rsync.
+rsync -az --checksum --no-whole-file --delete --stats \
+  "${STAGING_DIR}/" "${SSH_TARGET}:${REMOTE_INCOMING}/"
 step_done
 
 step_start "5/5 切换重启 + 本机健康"
@@ -229,10 +238,8 @@ rollback() {
 }
 trap rollback ERR
 
-test -f "${incoming}/sub2api.gz"
+test -f "${incoming}/sub2api"
 test -d "${incoming}/resources"
-gzip -dc "${incoming}/sub2api.gz" >"${incoming}/sub2api"
-rm -f "${incoming}/sub2api.gz"
 chmod 0755 "${incoming}/sub2api"
 if [[ -n "${remote_owner}" ]]; then
   chown -R "${remote_owner}" "${incoming}"

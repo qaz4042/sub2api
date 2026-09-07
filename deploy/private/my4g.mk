@@ -7,6 +7,7 @@ deploy-my4g:
 	HEALTH_URL=http://127.0.0.1:8080/health \
 	REMOTE_REQUIRED_FILE=/opt/sub2api/sub2api.env \
 	REMOTE_OWNER=root:root \
+	REQUIRE_CLEAN=$${REQUIRE_CLEAN:-0} \
 	./deploy/private/deploy-systemd-release.sh
 
 deploy-my4g-backend-only:
@@ -16,5 +17,6 @@ deploy-my4g-backend-only:
 	HEALTH_URL=http://127.0.0.1:8080/health \
 	REMOTE_REQUIRED_FILE=/opt/sub2api/sub2api.env \
 	REMOTE_OWNER=root:root \
+	REQUIRE_CLEAN=$${REQUIRE_CLEAN:-0} \
 	BUILD_FRONTEND=0 \
 	./deploy/private/deploy-systemd-release.sh
