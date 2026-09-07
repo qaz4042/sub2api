@@ -19,8 +19,8 @@ describe('ccswitchImport utils', () => {
     expect(resolveCcSwitchBaseUrl({}, 'https://web.example.com///')).toBe('https://web.example.com')
   })
 
-  it('defaults OpenAI CC Switch imports to the current Codex model', () => {
-    expect(OPENAI_CC_SWITCH_CODEX_MODEL).toBe('gpt-5.6-luna')
+  it('defaults OpenAI CC Switch imports to GPT-6 Astra with low reasoning effort', () => {
+    expect(OPENAI_CC_SWITCH_CODEX_MODEL).toBe('gpt-6-astra-low')
   })
 
   it('defaults Grok Build imports to the current Grok model', () => {
