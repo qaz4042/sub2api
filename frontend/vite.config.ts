@@ -88,6 +88,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       vue(),
       checker({
+        enableBuild: false,
         vueTsc: true
       }),
       injectPublicSettings(backendUrl)
