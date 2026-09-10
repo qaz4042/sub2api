@@ -188,9 +188,7 @@ func (s *SettingService) GetPublicSettingsForOrigin(ctx context.Context, request
 		SettingKeySiteLogo,
 		SettingKeySiteSubtitle,
 		SettingKeyAPIBaseURL,
-		SettingKeyCcsImportBaseURL,
 		SettingKeyContactInfo,
-		SettingKeyContactMethods,
 		SettingKeyDocURL,
 		SettingKeyHomeContent,
 		SettingKeyCompactHomeEnabled,
@@ -229,7 +227,6 @@ func (s *SettingService) GetPublicSettingsForOrigin(ctx context.Context, request
 		SettingKeyGoogleOAuthEnabled,
 		SettingKeyGoogleOAuthClientID,
 		SettingKeyGoogleOAuthClientSecret,
-		SettingKeyEmailOAuthClients,
 		SettingKeyBalanceLowNotifyEnabled,
 		SettingKeyBalanceLowNotifyThreshold,
 		SettingKeyBalanceLowNotifyRechargeURL,
@@ -239,6 +236,7 @@ func (s *SettingService) GetPublicSettingsForOrigin(ctx context.Context, request
 		SettingKeyChannelMonitorDefaultIntervalSeconds,
 		SettingKeyChannelMonitorHideThroughput,
 		SettingKeyChannelMonitorShowQuota,
+		SettingKeyChannelMonitorHideUserRanking,
 		SettingKeyAvailableChannelsEnabled,
 		SettingKeyModelPlazaEnabled,
 		SettingKeyModelPlazaRequireAuth,
@@ -332,13 +330,11 @@ func (s *SettingService) GetPublicSettingsForOrigin(ctx context.Context, request
 		AliyunCaptchaSceneID:                settings[SettingKeyAliyunCaptchaSceneID],
 		AliyunCaptchaPrefix:                 settings[SettingKeyAliyunCaptchaPrefix],
 		AliyunCaptchaRegion:                 normalizeAliyunCaptchaRegion(settings[SettingKeyAliyunCaptchaRegion]),
-		SiteName:                            s.getStringOrDefault(settings, SettingKeySiteName, defaultSiteName),
+		SiteName:                            s.getStringOrDefault(settings, SettingKeySiteName, "Sub2API"),
 		SiteLogo:                            settings[SettingKeySiteLogo],
-		SiteSubtitle:                        s.getStringOrDefault(settings, SettingKeySiteSubtitle, defaultSiteSubtitle),
+		SiteSubtitle:                        s.getStringOrDefault(settings, SettingKeySiteSubtitle, "Subscription to API Conversion Platform"),
 		APIBaseURL:                          settings[SettingKeyAPIBaseURL],
-		CcsImportBaseURL:                    strings.TrimSpace(settings[SettingKeyCcsImportBaseURL]),
 		ContactInfo:                         settings[SettingKeyContactInfo],
-		ContactMethods:                      settings[SettingKeyContactMethods],
 		DocURL:                              settings[SettingKeyDocURL],
 		HomeContent:                         settings[SettingKeyHomeContent],
 		CompactHomeEnabled:                  settings[SettingKeyCompactHomeEnabled] == "true",
@@ -371,6 +367,7 @@ func (s *SettingService) GetPublicSettingsForOrigin(ctx context.Context, request
 		ChannelMonitorDefaultIntervalSeconds: parseChannelMonitorInterval(settings[SettingKeyChannelMonitorDefaultIntervalSeconds]),
 		ChannelMonitorHideThroughput:         !isFalseSettingValue(settings[SettingKeyChannelMonitorHideThroughput]),
 		ChannelMonitorShowQuota:              settings[SettingKeyChannelMonitorShowQuota] == "true",
+		ChannelMonitorHideUserRanking:        isTrueSettingValue(settings[SettingKeyChannelMonitorHideUserRanking]),
 
 		AvailableChannelsEnabled: settings[SettingKeyAvailableChannelsEnabled] == "true",
 		PlatformConfigs:          platformConfigs,
@@ -444,6 +441,9 @@ type ChannelMonitorRuntime struct {
 	// snapshots; otherwise the user handler strips them server-side.
 	// Parsed fail-closed (only literal "true" enables). Admin always sees them.
 	ShowQuota bool
+	// HideUserRanking: when true, user-facing V2 views hide the user ranking tab
+	// and the /users payload. Parsed fail-open (only literal "true" hides it).
+	HideUserRanking bool
 }
 
 // ActiveProbesAllowed reports whether V1 active provider probes may run.
@@ -473,6 +473,7 @@ func (s *SettingService) GetChannelMonitorRuntime(ctx context.Context) ChannelMo
 		SettingKeyChannelMonitorDefaultIntervalSeconds,
 		SettingKeyChannelMonitorHideThroughput,
 		SettingKeyChannelMonitorShowQuota,
+		SettingKeyChannelMonitorHideUserRanking,
 	})
 	if err != nil {
 		return ChannelMonitorRuntime{
@@ -488,6 +489,7 @@ func (s *SettingService) GetChannelMonitorRuntime(ctx context.Context) ChannelMo
 		DefaultIntervalSeconds: parseChannelMonitorInterval(vals[SettingKeyChannelMonitorDefaultIntervalSeconds]),
 		HideThroughput:         !isFalseSettingValue(vals[SettingKeyChannelMonitorHideThroughput]),
 		ShowQuota:              vals[SettingKeyChannelMonitorShowQuota] == "true",
+		HideUserRanking:        isTrueSettingValue(vals[SettingKeyChannelMonitorHideUserRanking]),
 	}
 }
 
@@ -589,9 +591,7 @@ type PublicSettingsInjectionPayload struct {
 	SiteLogo                            string                   `json:"site_logo"`
 	SiteSubtitle                        string                   `json:"site_subtitle"`
 	APIBaseURL                          string                   `json:"api_base_url"`
-	CcsImportBaseURL                    string                   `json:"ccs_import_base_url"`
 	ContactInfo                         string                   `json:"contact_info"`
-	ContactMethods                      json.RawMessage          `json:"contact_methods"`
 	DocURL                              string                   `json:"doc_url"`
 	HomeContent                         string                   `json:"home_content"`
 	CompactHomeEnabled                  bool                     `json:"compact_home_enabled"`
@@ -634,15 +634,18 @@ type PublicSettingsInjectionPayload struct {
 	ChannelMonitorHideThroughput bool `json:"channel_monitor_hide_throughput"`
 	// ChannelMonitorShowQuota gates the user-facing quota/balance display on
 	// monitors; fail-closed (absent/false = hidden). Admin UI always shows it.
-	ChannelMonitorShowQuota    bool             `json:"channel_monitor_show_quota"`
-	AvailableChannelsEnabled   bool             `json:"available_channels_enabled"`
-	PlatformConfigs            []PlatformConfig `json:"platform_configs"`
-	ModelPlazaEnabled          bool             `json:"model_plaza_enabled"`
-	ModelPlazaRequireAuth      bool             `json:"model_plaza_require_auth"`
-	PluginManagementEnabled    bool             `json:"plugin_management_enabled"`
-	AffiliateEnabled           bool             `json:"affiliate_enabled"`
-	RiskControlEnabled         bool             `json:"risk_control_enabled"`
-	AllowUserViewErrorRequests bool             `json:"allow_user_view_error_requests"`
+	// ChannelMonitorHideUserRanking hides the user ranking tab and /users payload
+	// from non-admin channel-monitor v2 viewers; default false (visible).
+	ChannelMonitorHideUserRanking bool             `json:"channel_monitor_hide_user_ranking"`
+	ChannelMonitorShowQuota       bool             `json:"channel_monitor_show_quota"`
+	AvailableChannelsEnabled      bool             `json:"available_channels_enabled"`
+	PlatformConfigs               []PlatformConfig `json:"platform_configs"`
+	ModelPlazaEnabled             bool             `json:"model_plaza_enabled"`
+	ModelPlazaRequireAuth         bool             `json:"model_plaza_require_auth"`
+	PluginManagementEnabled       bool             `json:"plugin_management_enabled"`
+	AffiliateEnabled              bool             `json:"affiliate_enabled"`
+	RiskControlEnabled            bool             `json:"risk_control_enabled"`
+	AllowUserViewErrorRequests    bool             `json:"allow_user_view_error_requests"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -693,9 +696,7 @@ func (s *SettingService) getPublicSettingsForInjection(ctx context.Context, orig
 		SiteLogo:                            settings.SiteLogo,
 		SiteSubtitle:                        settings.SiteSubtitle,
 		APIBaseURL:                          settings.APIBaseURL,
-		CcsImportBaseURL:                    settings.CcsImportBaseURL,
 		ContactInfo:                         settings.ContactInfo,
-		ContactMethods:                      safeRawJSONArray(settings.ContactMethods),
 		DocURL:                              settings.DocURL,
 		HomeContent:                         settings.HomeContent,
 		CompactHomeEnabled:                  settings.CompactHomeEnabled,
@@ -731,6 +732,7 @@ func (s *SettingService) getPublicSettingsForInjection(ctx context.Context, orig
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 		ChannelMonitorHideThroughput:         settings.ChannelMonitorHideThroughput,
 		ChannelMonitorShowQuota:              settings.ChannelMonitorShowQuota,
+		ChannelMonitorHideUserRanking:        settings.ChannelMonitorHideUserRanking,
 		AvailableChannelsEnabled:             settings.AvailableChannelsEnabled,
 		PlatformConfigs:                      settings.PlatformConfigs,
 		ModelPlazaEnabled:                    settings.ModelPlazaEnabled,

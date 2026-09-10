@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "pnpm run build:typecheck && pnpm run build:bundle",
+    "check:i18n": "vitest run src/i18n/__tests__/localeKeyCompleteness.spec.ts",
+    "build": "pnpm run check:i18n && pnpm run build:typecheck && pnpm run build:bundle",
     "build:typecheck": "vue-tsc -b",
     "build:bundle": "vite build",
     "preview": "vite preview",
