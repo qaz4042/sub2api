@@ -244,6 +244,25 @@
             </div>
           </template>
 
+          <template #cell-auto_failover="{ row }">
+            <div v-if="row.fallback_mode === 'proxy'" class="flex min-w-[120px] flex-col gap-1 text-xs">
+              <span
+                class="badge w-fit"
+                :class="autoFailoverClass(row.auto_failover_status)"
+                :title="row.auto_failover_last_reason || t('admin.proxies.autoFailoverHint')"
+              >
+                {{ autoFailoverLabel(row.auto_failover_status) }}
+              </span>
+              <span v-if="row.auto_failover_failures" class="text-gray-500 dark:text-gray-400">
+                {{ t('admin.proxies.autoFailoverFailures', { count: row.auto_failover_failures }) }}
+              </span>
+              <span v-if="row.auto_failover_last_switch" class="text-gray-500 dark:text-gray-400">
+                {{ t('admin.proxies.autoFailoverSwitchedAt', { time: formatDateTime(row.auto_failover_last_switch) }) }}
+              </span>
+            </div>
+            <span v-else class="text-sm text-gray-400">-</span>
+          </template>
+
           <template #cell-expiry="{ row }">
             <span v-if="!row.expires_at" class="text-sm text-gray-400">{{ t('admin.proxies.neverExpires') }}</span>
             <div v-else class="flex flex-col text-xs">
@@ -526,6 +545,7 @@
         <div v-if="createForm.fallback_mode === 'proxy'">
           <label class="input-label">{{ t('admin.proxies.backupProxy') }}</label>
           <Select v-model="createForm.backup_proxy_id" :options="backupProxyOptions()" />
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.proxies.autoFailoverHint') }}</p>
         </div>
 
       </form>
@@ -759,6 +779,7 @@
         <div v-if="editForm.fallback_mode === 'proxy'">
           <label class="input-label">{{ t('admin.proxies.backupProxy') }}</label>
           <Select v-model="editForm.backup_proxy_id" :options="backupProxyOptions(editingProxy?.id)" />
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.proxies.autoFailoverHint') }}</p>
         </div>
 
       </form>
@@ -1002,6 +1023,7 @@ const columns = computed<Column[]>(() => [
   { key: 'location', label: t('admin.proxies.columns.location'), sortable: false },
   { key: 'account_count', label: t('admin.proxies.columns.accounts'), sortable: true },
   { key: 'latency', label: t('admin.proxies.columns.latency'), sortable: false },
+  { key: 'auto_failover', label: t('admin.proxies.columns.autoFailover'), sortable: false },
   { key: 'expiry', label: t('admin.proxies.columns.expiry'), sortable: true },
   { key: 'created_at', label: t('admin.proxies.columns.createdAt'), sortable: true },
   { key: 'status', label: t('admin.proxies.columns.status'), sortable: true },
@@ -1797,6 +1819,23 @@ const qualityTargetLabel = (target: string) => {
     default:
       return target
   }
+}
+
+const autoFailoverClass = (status?: string) => {
+  if (status === 'switched') return 'badge-warning'
+  if (status === 'degraded' || status === 'recovering') return 'badge-danger'
+  if (status === 'healthy') return 'badge-success'
+  if (status === 'disabled') return 'badge-gray'
+  return 'badge-gray'
+}
+
+const autoFailoverLabel = (status?: string) => {
+  if (status === 'switched') return t('admin.proxies.autoFailoverSwitched')
+  if (status === 'degraded') return t('admin.proxies.autoFailoverDegraded')
+  if (status === 'recovering') return t('admin.proxies.autoFailoverRecovering')
+  if (status === 'healthy') return t('admin.proxies.autoFailoverHealthy')
+  if (status === 'disabled') return t('admin.proxies.autoFailoverDisabled')
+  return t('admin.proxies.autoFailoverUnknown')
 }
 
 const fetchAllProxiesForBatch = async (): Promise<Proxy[]> => {

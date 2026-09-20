@@ -37,6 +37,14 @@ type ProxyRepository interface {
 	CountExpiringSoon(ctx context.Context, now time.Time) (int64, error)
 }
 
+// ProxyAutoFailoverRepository is the narrow write surface used by the
+// automatic failover worker. Keeping it separate from ProxyRepository lets
+// existing callers and test doubles keep the original contract.
+type ProxyAutoFailoverRepository interface {
+	SwitchAccountsToBackup(ctx context.Context, sourceProxyID, backupProxyID int64) (changed int64, err error)
+	RestoreAccountsFromBackup(ctx context.Context, sourceProxyID, backupProxyID int64) (changed int64, err error)
+}
+
 // CreateProxyRequest 创建代理请求
 type CreateProxyRequest struct {
 	Name     string `json:"name"`

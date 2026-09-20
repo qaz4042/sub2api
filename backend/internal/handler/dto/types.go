@@ -450,20 +450,28 @@ type Proxy struct {
 
 type ProxyWithAccountCount struct {
 	Proxy
-	AccountCount   int64  `json:"account_count"`
-	LatencyMs      *int64 `json:"latency_ms,omitempty"`
-	LatencyStatus  string `json:"latency_status,omitempty"`
-	LatencyMessage string `json:"latency_message,omitempty"`
-	IPAddress      string `json:"ip_address,omitempty"`
-	Country        string `json:"country,omitempty"`
-	CountryCode    string `json:"country_code,omitempty"`
-	Region         string `json:"region,omitempty"`
-	City           string `json:"city,omitempty"`
-	QualityStatus  string `json:"quality_status,omitempty"`
-	QualityScore   *int   `json:"quality_score,omitempty"`
-	QualityGrade   string `json:"quality_grade,omitempty"`
-	QualitySummary string `json:"quality_summary,omitempty"`
-	QualityChecked *int64 `json:"quality_checked,omitempty"`
+	AccountCount            int64      `json:"account_count"`
+	LatencyMs               *int64     `json:"latency_ms,omitempty"`
+	LatencyStatus           string     `json:"latency_status,omitempty"`
+	LatencyMessage          string     `json:"latency_message,omitempty"`
+	IPAddress               string     `json:"ip_address,omitempty"`
+	Country                 string     `json:"country,omitempty"`
+	CountryCode             string     `json:"country_code,omitempty"`
+	Region                  string     `json:"region,omitempty"`
+	City                    string     `json:"city,omitempty"`
+	QualityStatus           string     `json:"quality_status,omitempty"`
+	QualityScore            *int       `json:"quality_score,omitempty"`
+	QualityGrade            string     `json:"quality_grade,omitempty"`
+	QualitySummary          string     `json:"quality_summary,omitempty"`
+	QualityChecked          *int64     `json:"quality_checked,omitempty"`
+	AutoFailoverStatus      string     `json:"auto_failover_status,omitempty"`
+	AutoFailoverFailures    int        `json:"auto_failover_failures,omitempty"`
+	AutoFailoverRecoveries  int        `json:"auto_failover_recoveries,omitempty"`
+	AutoFailoverLastFailure *time.Time `json:"auto_failover_last_failure,omitempty"`
+	AutoFailoverLastSuccess *time.Time `json:"auto_failover_last_success,omitempty"`
+	AutoFailoverLastSwitch  *time.Time `json:"auto_failover_last_switch,omitempty"`
+	AutoFailoverLastReason  string     `json:"auto_failover_last_reason,omitempty"`
+	AutoFailoverTargetProxy *int64     `json:"auto_failover_target_proxy,omitempty"`
 }
 
 // AdminProxy 是管理员接口使用的 proxy DTO（包含密码等敏感字段）。
@@ -476,20 +484,28 @@ type AdminProxy struct {
 // AdminProxyWithAccountCount 是管理员接口使用的带账号统计的 proxy DTO。
 type AdminProxyWithAccountCount struct {
 	AdminProxy
-	AccountCount   int64  `json:"account_count"`
-	LatencyMs      *int64 `json:"latency_ms,omitempty"`
-	LatencyStatus  string `json:"latency_status,omitempty"`
-	LatencyMessage string `json:"latency_message,omitempty"`
-	IPAddress      string `json:"ip_address,omitempty"`
-	Country        string `json:"country,omitempty"`
-	CountryCode    string `json:"country_code,omitempty"`
-	Region         string `json:"region,omitempty"`
-	City           string `json:"city,omitempty"`
-	QualityStatus  string `json:"quality_status,omitempty"`
-	QualityScore   *int   `json:"quality_score,omitempty"`
-	QualityGrade   string `json:"quality_grade,omitempty"`
-	QualitySummary string `json:"quality_summary,omitempty"`
-	QualityChecked *int64 `json:"quality_checked,omitempty"`
+	AccountCount            int64      `json:"account_count"`
+	LatencyMs               *int64     `json:"latency_ms,omitempty"`
+	LatencyStatus           string     `json:"latency_status,omitempty"`
+	LatencyMessage          string     `json:"latency_message,omitempty"`
+	IPAddress               string     `json:"ip_address,omitempty"`
+	Country                 string     `json:"country,omitempty"`
+	CountryCode             string     `json:"country_code,omitempty"`
+	Region                  string     `json:"region,omitempty"`
+	City                    string     `json:"city,omitempty"`
+	QualityStatus           string     `json:"quality_status,omitempty"`
+	QualityScore            *int       `json:"quality_score,omitempty"`
+	QualityGrade            string     `json:"quality_grade,omitempty"`
+	QualitySummary          string     `json:"quality_summary,omitempty"`
+	QualityChecked          *int64     `json:"quality_checked,omitempty"`
+	AutoFailoverStatus      string     `json:"auto_failover_status,omitempty"`
+	AutoFailoverFailures    int        `json:"auto_failover_failures,omitempty"`
+	AutoFailoverRecoveries  int        `json:"auto_failover_recoveries,omitempty"`
+	AutoFailoverLastFailure *time.Time `json:"auto_failover_last_failure,omitempty"`
+	AutoFailoverLastSuccess *time.Time `json:"auto_failover_last_success,omitempty"`
+	AutoFailoverLastSwitch  *time.Time `json:"auto_failover_last_switch,omitempty"`
+	AutoFailoverLastReason  string     `json:"auto_failover_last_reason,omitempty"`
+	AutoFailoverTargetProxy *int64     `json:"auto_failover_target_proxy,omitempty"`
 }
 
 type ProxyAccountSummary struct {

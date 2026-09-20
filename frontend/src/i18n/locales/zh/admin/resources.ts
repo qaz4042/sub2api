@@ -83,6 +83,7 @@ export default {
         accounts: '账号数',
         latency: '延迟',
         expiry: '有效期',
+        autoFailover: '自动切换',
         createdAt: '创建时间',
         actions: '操作',
         nameLabel: '名称',
@@ -234,6 +235,15 @@ export default {
       fallbackProxy: '指定备用代理',
       fallbackDirect: '回退直连',
       backupProxy: '备用代理',
+      autoFailoverHint: '启用“指定备用代理”后，后台会每 30 秒检测服务器到代理及代理到 OpenAI 的链路；连续 3 次失败自动切换，主代理连续恢复后延迟回切。',
+      autoFailoverFailures: '连续失败 {count} 次',
+      autoFailoverSwitchedAt: '切换于 {time}',
+      autoFailoverHealthy: '自动切换：正常',
+      autoFailoverDegraded: '自动切换：探测失败',
+      autoFailoverRecovering: '自动切换：恢复中',
+      autoFailoverSwitched: '自动切换：已切备用',
+      autoFailoverDisabled: '自动切换：未启用',
+      autoFailoverUnknown: '自动切换：待检测',
     },
 
     // Redeem Codes Management

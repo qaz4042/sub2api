@@ -94,6 +94,7 @@ export default {
         accounts: 'Accounts',
         latency: 'Latency',
         expiry: 'Validity',
+        autoFailover: 'Auto switch',
         createdAt: 'Created',
         actions: 'Actions',
         nameLabel: 'Name',
@@ -236,6 +237,15 @@ export default {
       fallbackProxy: 'Backup proxy',
       fallbackDirect: 'Direct connection',
       backupProxy: 'Backup proxy',
+      autoFailoverHint: 'With a backup proxy, the worker checks the server-to-proxy and proxy-to-OpenAI paths every 30 seconds. Three consecutive failures switch traffic; recovery is delayed before switching back.',
+      autoFailoverFailures: '{count} consecutive failures',
+      autoFailoverSwitchedAt: 'Switched at {time}',
+      autoFailoverHealthy: 'Auto switch: healthy',
+      autoFailoverDegraded: 'Auto switch: probe failed',
+      autoFailoverRecovering: 'Auto switch: recovering',
+      autoFailoverSwitched: 'Auto switch: using backup',
+      autoFailoverDisabled: 'Auto switch: disabled',
+      autoFailoverUnknown: 'Auto switch: pending',
     },
 
     // Redeem Codes

@@ -808,3 +808,96 @@ func (r *proxyRepository) CountExpiringSoon(ctx context.Context, now time.Time) 
 		[]any{service.StatusActive, now}, &c)
 	return c, err
 }
+
+// SwitchAccountsToBackup atomically moves OpenAI accounts that still use the
+// source proxy to its healthy backup and invalidates scheduler snapshots. The
+// source condition makes a manual account rebind authoritative.
+func (r *proxyRepository) SwitchAccountsToBackup(ctx context.Context, sourceProxyID, backupProxyID int64) (int64, error) {
+	if sourceProxyID <= 0 || backupProxyID <= 0 || sourceProxyID == backupProxyID {
+		return 0, nil
+	}
+	return r.updateAutoFailoverBindings(ctx, sourceProxyID, backupProxyID, false)
+}
+
+// RestoreAccountsFromBackup only restores OpenAI rows that carry the source
+// proxy as their fallback origin. Accounts manually assigned elsewhere are untouched.
+func (r *proxyRepository) RestoreAccountsFromBackup(ctx context.Context, sourceProxyID, backupProxyID int64) (int64, error) {
+	if sourceProxyID <= 0 || backupProxyID <= 0 || sourceProxyID == backupProxyID {
+		return 0, nil
+	}
+	return r.updateAutoFailoverBindings(ctx, sourceProxyID, backupProxyID, true)
+}
+
+func (r *proxyRepository) updateAutoFailoverBindings(ctx context.Context, sourceProxyID, backupProxyID int64, restore bool) (int64, error) {
+	var changedIDs []int64
+	tx, txErr := r.client.Tx(ctx)
+	if txErr != nil && txErr != dbent.ErrTxStarted {
+		return 0, txErr
+	}
+	exec := r.sql
+	if tx != nil {
+		defer func() { _ = tx.Rollback() }()
+		exec = tx.Client()
+	}
+	var rows *sql.Rows
+	var err error
+	if restore {
+		rows, err = exec.QueryContext(ctx, `
+			UPDATE accounts
+			SET proxy_id=$1, proxy_fallback_origin_id=NULL,
+				extra=CASE
+					WHEN type='apikey' AND extra ? 'upstream_billing_probe'
+						THEN extra - 'upstream_billing_probe'
+					WHEN platform IN (`+ollamaCloudUsagePlatformsSQL+`) AND extra ? 'ollama_cloud_usage_snapshot'
+						THEN extra - 'ollama_cloud_usage_snapshot'
+					ELSE extra
+				END,
+				updated_at=NOW()
+			WHERE proxy_id=$2 AND proxy_fallback_origin_id=$1 AND platform='openai' AND deleted_at IS NULL
+			RETURNING id`, sourceProxyID, backupProxyID)
+	} else {
+		rows, err = exec.QueryContext(ctx, `
+			UPDATE accounts
+			SET proxy_id=$2, proxy_fallback_origin_id=COALESCE(proxy_fallback_origin_id,$1),
+				extra=CASE
+					WHEN type='apikey' AND extra ? 'upstream_billing_probe'
+						THEN extra - 'upstream_billing_probe'
+					WHEN platform IN (`+ollamaCloudUsagePlatformsSQL+`) AND extra ? 'ollama_cloud_usage_snapshot'
+						THEN extra - 'ollama_cloud_usage_snapshot'
+					ELSE extra
+				END,
+				updated_at=NOW()
+			WHERE proxy_id=$1 AND platform='openai' AND deleted_at IS NULL
+			RETURNING id`, sourceProxyID, backupProxyID)
+	}
+	if err != nil {
+		return 0, err
+	}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			_ = rows.Close()
+			return 0, err
+		}
+		changedIDs = append(changedIDs, id)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return 0, err
+	}
+	if err := rows.Close(); err != nil {
+		return 0, err
+	}
+	if len(changedIDs) > 0 {
+		payload := map[string]any{"account_ids": sortedUniqueAccountIDs(changedIDs)}
+		if err := enqueueSchedulerOutbox(ctx, exec, service.SchedulerOutboxEventAccountBulkChanged, nil, nil, payload); err != nil {
+			return 0, err
+		}
+	}
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return 0, err
+		}
+	}
+	return int64(len(changedIDs)), nil
+}

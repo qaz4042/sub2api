@@ -972,6 +972,14 @@ export interface Proxy {
   quality_grade?: string
   quality_summary?: string
   quality_checked?: number
+  auto_failover_status?: 'healthy' | 'degraded' | 'switched' | 'disabled' | 'unknown' | 'recovering'
+  auto_failover_failures?: number
+  auto_failover_recoveries?: number
+  auto_failover_last_failure?: string
+  auto_failover_last_success?: string
+  auto_failover_last_switch?: string
+  auto_failover_last_reason?: string
+  auto_failover_target_proxy?: number | null
   expires_at: string | null
   fallback_mode: 'none' | 'proxy' | 'direct'
   backup_proxy_id?: number | null

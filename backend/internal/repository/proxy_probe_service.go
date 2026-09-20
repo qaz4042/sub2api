@@ -80,6 +80,37 @@ type proxyProbeService struct {
 	configuredProbeURLs []configuredProbeTarget
 }
 
+// ProbeProxyTarget performs a lightweight request through a proxy and returns
+// the upstream status. Any HTTP response proves the route is reachable; the
+// caller decides which status classes are acceptable for its target.
+func (s *proxyProbeService) ProbeProxyTarget(ctx context.Context, proxyURL, targetURL string) (int, int64, error) {
+	client, err := httpclient.GetClient(httpclient.Options{
+		ProxyURL:           proxyURL,
+		Timeout:            defaultProxyProbeTimeout,
+		InsecureSkipVerify: s.insecureSkipVerify,
+		ValidateResolvedIP: s.validateResolvedIP,
+		AllowPrivateHosts:  s.allowPrivateHosts,
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to create proxy target client: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+	if err != nil {
+		return 0, 0, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "sub2api-proxy-health/1")
+	start := time.Now()
+	resp, err := client.Do(req)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		return 0, latency, fmt.Errorf("proxy target request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	_, _ = io.CopyN(io.Discard, resp.Body, 4096)
+	return resp.StatusCode, latency, nil
+}
+
 func (s *proxyProbeService) ProbeProxy(ctx context.Context, proxyURL string) (*service.ProxyExitInfo, int64, error) {
 	client, err := httpclient.GetClient(httpclient.Options{
 		ProxyURL:           proxyURL,

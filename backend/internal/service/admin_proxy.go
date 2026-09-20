@@ -587,6 +587,14 @@ func (s *adminServiceImpl) attachProxyLatency(ctx context.Context, proxies []Pro
 		proxies[i].QualityGrade = info.QualityGrade
 		proxies[i].QualitySummary = info.QualitySummary
 		proxies[i].QualityChecked = info.QualityCheckedAt
+		proxies[i].AutoFailoverStatus = info.AutoFailoverStatus
+		proxies[i].AutoFailoverFailures = info.AutoFailoverFailures
+		proxies[i].AutoFailoverRecoveries = info.AutoFailoverRecoveries
+		proxies[i].AutoFailoverLastFailure = info.AutoFailoverLastFailure
+		proxies[i].AutoFailoverLastSuccess = info.AutoFailoverLastSuccess
+		proxies[i].AutoFailoverLastSwitch = info.AutoFailoverLastSwitch
+		proxies[i].AutoFailoverLastReason = info.AutoFailoverLastReason
+		proxies[i].AutoFailoverTargetProxy = info.AutoFailoverTargetProxy
 	}
 }
 
@@ -610,6 +618,16 @@ func (s *adminServiceImpl) saveProxyLatency(ctx context.Context, proxyID int64, 
 				merged.QualitySummary = existing.QualitySummary
 				merged.QualityCheckedAt = existing.QualityCheckedAt
 				merged.QualityCFRay = existing.QualityCFRay
+			}
+			if merged.AutoFailoverStatus == "" {
+				merged.AutoFailoverStatus = existing.AutoFailoverStatus
+				merged.AutoFailoverFailures = existing.AutoFailoverFailures
+				merged.AutoFailoverRecoveries = existing.AutoFailoverRecoveries
+				merged.AutoFailoverLastFailure = existing.AutoFailoverLastFailure
+				merged.AutoFailoverLastSuccess = existing.AutoFailoverLastSuccess
+				merged.AutoFailoverLastSwitch = existing.AutoFailoverLastSwitch
+				merged.AutoFailoverLastReason = existing.AutoFailoverLastReason
+				merged.AutoFailoverTargetProxy = existing.AutoFailoverTargetProxy
 			}
 		}
 	}

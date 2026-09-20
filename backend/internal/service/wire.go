@@ -413,6 +413,14 @@ func ProvideProxyExpiryService(proxyRepo ProxyRepository) *ProxyExpiryService {
 	return svc
 }
 
+// ProvideProxyAutoFailoverService starts the bounded main/backup proxy
+// health loop. fallback_mode=proxy is the explicit opt-in flag.
+func ProvideProxyAutoFailoverService(proxyRepo ProxyRepository, prober ProxyExitInfoProber, cache ProxyLatencyCache) *ProxyAutoFailoverService {
+	svc := NewProxyAutoFailoverService(proxyRepo, prober, cache)
+	svc.Start()
+	return svc
+}
+
 // ProvideSubscriptionExpiryService creates and starts SubscriptionExpiryService.
 func ProvideSubscriptionExpiryService(userSubRepo UserSubscriptionRepository, settingRepo SettingRepository, notificationEmailService *NotificationEmailService, lockCache LeaderLockCache, db *sql.DB) *SubscriptionExpiryService {
 	svc := NewSubscriptionExpiryService(userSubRepo, time.Minute)
@@ -916,6 +924,7 @@ var ProviderSet = wire.NewSet(
 	ProvideAccountExpiryService,
 	ProvideOpenAICodexVersionSyncService,
 	ProvideProxyExpiryService,
+	ProvideProxyAutoFailoverService,
 	ProvideSubscriptionExpiryService,
 	ProvideTimingWheelService,
 	ProvideDashboardAggregationService,
