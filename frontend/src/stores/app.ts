@@ -381,6 +381,8 @@ export const useAppStore = defineStore('app', () => {
           { key: 'antigravity', label: 'Antigravity', description: '', enabled: true, core: false, sort_order: 40 },
           { key: 'grok', label: 'Grok', description: '', enabled: true, core: false, sort_order: 50 },
         ],
+        subscription_enabled: true,
+        payment_balance_disabled: false,
         model_plaza_enabled: false,
         model_plaza_require_auth: false,
         plugin_management_enabled: false,
