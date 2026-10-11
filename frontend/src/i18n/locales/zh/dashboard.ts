@@ -187,7 +187,8 @@ export default {
         codexCliWs: 'Codex CLI (WebSocket)',
         opencode: 'OpenCode',
         apiExample: 'API 示例',
-        grokCli: 'Grok CLI'
+        grokCli: 'Grok CLI',
+        systemOne: 'System One'
       },
       apiExample: {
         description: '复制最小 curl 请求，在终端验证接口，或以此作为业务系统对接起点。',
@@ -206,6 +207,10 @@ export default {
         quickTestStatusError: '失败',
         quickTestEmptyResponse: '请求成功，但响应为空。',
         quickTestRequestFailed: '请求失败。'
+      },
+      typesafe: {
+        description: '通过 TypeSafe 原生 System One 端点调用 Jev。',
+        note: 'System One 不支持流式请求，也不兼容 Chat Completions、Responses、Claude Code 或 Codex 客户端。'
       },
       antigravity: {
         description: '为 Antigravity 分组配置 API 访问。请根据您使用的客户端选择对应的配置方式。',
@@ -417,6 +422,8 @@ export default {
     latency: '延迟',
     latencyFirstToken: '首字',
     latencyDuration: '总耗时',
+    outputTps: '输出 TPS',
+    outputTpsHint: '输出 Token ÷ 总耗时（包含首字等待），单位 tok/s。输出 Token 可能包含推理 Token。',
     time: '时间',
     ws: 'WS',
     stream: '流式',
