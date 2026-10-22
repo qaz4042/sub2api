@@ -917,14 +917,17 @@ func (r *usageLogRepository) GetUpstreamEndpointStatsWithFilters(ctx context.Con
 
 // GetAccountUsageStats returns comprehensive usage statistics for an account over a time range
 func (r *usageLogRepository) GetAccountUsageStats(ctx context.Context, accountID int64, startTime, endTime time.Time) (resp *AccountUsageStatsResponse, err error) {
-	daysCount := int(endTime.Sub(startTime).Hours()/24) + 1
+	daysCount := 0
+	for day := startTime; day.Before(endTime); day = day.AddDate(0, 0, 1) {
+		daysCount++
+	}
 	if daysCount <= 0 {
 		daysCount = 30
 	}
 
 	query := `
 		SELECT
-			TO_CHAR(created_at, 'YYYY-MM-DD') as date,
+			TO_CHAR(created_at AT TIME ZONE $4, 'YYYY-MM-DD') as date,
 			COUNT(*) as requests,
 			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as tokens,
 			COALESCE(SUM(total_cost), 0) as cost,
@@ -936,7 +939,7 @@ func (r *usageLogRepository) GetAccountUsageStats(ctx context.Context, accountID
 		ORDER BY date ASC
 	`
 
-	rows, err := r.sql.QueryContext(ctx, query, accountID, startTime, endTime)
+	rows, err := r.sql.QueryContext(ctx, query, accountID, startTime, endTime, startTime.Location().String())
 	if err != nil {
 		return nil, err
 	}
@@ -1021,7 +1024,7 @@ func (r *usageLogRepository) GetAccountUsageStats(ctx context.Context, accountID
 		AvgDurationMs:     avgDuration,
 	}
 
-	todayStr := timezone.Now().Format("2006-01-02")
+	todayStr := time.Now().In(startTime.Location()).Format("2006-01-02")
 	for i := range history {
 		if history[i].Date == todayStr {
 			summary.Today = &struct {

@@ -290,6 +290,7 @@ type ClaudeUsageFetcher interface {
 
 // AccountUsageService 账号使用量查询服务
 type AccountUsageService struct {
+	errorStats              accountErrorStatsEnricher
 	accountRepo             AccountRepository
 	usageLogRepo            UsageLogRepository
 	usageFetcher            ClaudeUsageFetcher
@@ -1553,6 +1554,9 @@ func (s *AccountUsageService) GetAccountUsageStats(ctx context.Context, accountI
 	stats, err := s.usageLogRepo.GetAccountUsageStats(ctx, accountID, startTime, endTime)
 	if err != nil {
 		return nil, fmt.Errorf("get account usage stats failed: %w", err)
+	}
+	if stats != nil && s.errorStats != nil {
+		s.errorStats.enrich(ctx, stats, accountID, startTime, endTime, time.Now())
 	}
 	return stats, nil
 }

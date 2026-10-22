@@ -167,6 +167,8 @@
           </div>
         </div>
 
+        <AccountErrorStats :stats="stats.errors" :unavailable-reason="stats.errors_unavailable_reason" />
+
         <!-- Row 2: Today, Highest Cost, Highest Requests -->
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <!-- Today Overview -->
@@ -500,6 +502,7 @@ import {
 import { Line } from 'vue-chartjs'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import AccountErrorStats from '@/components/account/AccountErrorStats.vue'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'

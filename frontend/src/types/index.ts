@@ -2,6 +2,9 @@
  * Core Type Definitions for Sub2API Frontend
  */
 
+import type { AccountErrorStats } from './accountErrorStats'
+export type { AccountErrorStats } from './accountErrorStats'
+
 // ==================== Common Types ====================
 
 export interface SelectOption {
@@ -2308,6 +2311,8 @@ export interface AccountUsageStatsResponse {
   models: ModelStat[]
   endpoints: EndpointStat[]
   upstream_endpoints: EndpointStat[]
+  errors?: AccountErrorStats | null
+  errors_unavailable_reason?: 'unavailable' | 'monitoring_disabled' | 'outside_retention'
 }
 
 // ==================== User Attribute Types ====================

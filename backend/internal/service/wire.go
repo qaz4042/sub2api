@@ -234,6 +234,7 @@ func ProvideAccountUsageService(
 	identityCache IdentityCache,
 	tlsFPProfileService *TLSFingerprintProfileService,
 	openAIGatewayService *OpenAIGatewayService,
+	opsService *OpsService,
 ) *AccountUsageService {
 	service := NewAccountUsageService(
 		accountRepo,
@@ -249,6 +250,9 @@ func ProvideAccountUsageService(
 		tlsFPProfileService,
 	)
 	service.agentIdentityWS = openAIGatewayService
+	if reader, ok := usageLogRepo.(accountErrorStatsReader); ok {
+		service.errorStats = &accountErrorStatsService{reader: reader, opsService: opsService}
+	}
 	return service
 }
 
