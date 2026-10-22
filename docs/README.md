@@ -13,6 +13,7 @@
 - `internal/当前风控流程.md`：当前代码实现里的风控流程。
 - `internal/标准风控机制.md`：建议落地的标准风控机制。
 - `internal/风控中心配置与关键词库建议.md`：风控中心配置、关键词库和策略建议。
+- [my4g mihomo 代理排查与修复记录](developer/internal/my4g-mihomo-proxy-troubleshooting.md)：排查证据、最终端口映射、测试结果、中间产物与回滚入口（本地运维文档，目录受 Git 忽略规则管理）。
 
 ## platform
 
