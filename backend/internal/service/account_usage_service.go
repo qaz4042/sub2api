@@ -1551,14 +1551,7 @@ func codexWindowStatsStart(progress *UsageProgress, fallbackWindow time.Duration
 }
 
 func (s *AccountUsageService) GetAccountUsageStats(ctx context.Context, accountID int64, startTime, endTime time.Time) (*usagestats.AccountUsageStatsResponse, error) {
-	stats, err := s.usageLogRepo.GetAccountUsageStats(ctx, accountID, startTime, endTime)
-	if err != nil {
-		return nil, fmt.Errorf("get account usage stats failed: %w", err)
-	}
-	if stats != nil && s.errorStats != nil {
-		s.errorStats.enrich(ctx, stats, accountID, startTime, endTime, time.Now())
-	}
-	return stats, nil
+	return s.GetAccountUsageStatsWithGranularity(ctx, accountID, startTime, endTime, "day")
 }
 
 // fetchOAuthUsageRaw 从 Anthropic API 获取原始响应（不构建 UsageInfo）

@@ -25,12 +25,12 @@ func TestAccountErrorStats(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			db, mock := newSQLMock(t)
 			repo := &usageLogRepository{sql: db}
-			rows := sqlmock.NewRows([]string{"date", "requests", "error_count", "uncorrelated_ws"})
+			rows := sqlmock.NewRows([]string{"date", "requests", "error_count", "uncorrelated_ws", "uncorrelated"})
 			if !tc.empty {
-				rows.AddRow("2026-03-07", 10, 2, 0).AddRow("2026-03-09", 2, 2, 0)
+				rows.AddRow("2026-03-07", 10, 2, 0, 0).AddRow("2026-03-09", 2, 2, 0, 0)
 			}
 			mock.ExpectQuery(`(?s)WITH request_records.*is_count_tokens = FALSE.*GROUP BY request_key, api_key_id.*AT TIME ZONE \$4`).
-				WithArgs(int64(7), start, end, loc.String()).WillReturnRows(rows).RowsWillBeClosed()
+				WithArgs(int64(7), start, end, loc.String(), "day").WillReturnRows(rows).RowsWillBeClosed()
 			stats, err := repo.GetAccountErrorStats(context.Background(), 7, start, end)
 			require.NoError(t, err)
 			require.Len(t, stats.History, 3)

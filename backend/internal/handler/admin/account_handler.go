@@ -1769,12 +1769,25 @@ func (h *AccountHandler) GetStats(c *gin.Context) {
 	}
 
 	// Calculate time range
+	granularity := c.DefaultQuery("granularity", "day")
+	if granularity != "day" && granularity != "hour" {
+		response.BadRequest(c, "granularity must be day or hour")
+		return
+	}
+	includeTests := false // Existing API consumers retain the business-only scope.
+	if value, supplied := c.GetQuery("include_tests"); supplied {
+		includeTests, err = strconv.ParseBool(value)
+		if err != nil {
+			response.BadRequest(c, "include_tests must be a boolean")
+			return
+		}
+	}
 	userTZ := c.Query("timezone")
 	now := timezone.NowInUserLocation(userTZ)
 	endTime := timezone.StartOfDayInUserLocation(now.AddDate(0, 0, 1), userTZ)
 	startTime := timezone.StartOfDayInUserLocation(now.AddDate(0, 0, -days+1), userTZ)
 
-	stats, err := h.accountUsageService.GetAccountUsageStats(c.Request.Context(), accountID, startTime, endTime)
+	stats, err := h.accountUsageService.GetAccountUsageStatsWithOptions(c.Request.Context(), accountID, startTime, endTime, granularity, includeTests)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

@@ -20,7 +20,7 @@
           <div>
             <div class="font-semibold text-gray-900 dark:text-gray-100">{{ account.name }}</div>
             <div class="text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.last30DaysUsage') }}
+              {{ days === 1 ? t('admin.accounts.stats.rangeToday') : t('admin.accounts.stats.rangeDays', { days }) }}
             </div>
           </div>
         </div>
@@ -36,6 +36,16 @@
         </span>
       </div>
 
+      <AccountStatsFilters
+        v-model:days="days"
+        v-model:granularity="granularity"
+        v-model:include-tests="includeTests"
+        :tests="stats?.scheduled_tests"
+      />
+      <p v-if="error" role="alert" class="text-sm text-red-600 dark:text-red-400">
+        {{ t('admin.accounts.stats.loadError') }}
+      </p>
+
       <!-- Loading State -->
       <div v-if="loading" class="flex items-center justify-center py-12">
         <LoadingSpinner />
@@ -44,7 +54,7 @@
       <template v-else-if="stats">
         <!-- Row 1: Main Stats Cards -->
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <!-- 30-Day Total Cost -->
+          <!-- Total Cost -->
           <div
             class="card border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 dark:border-emerald-800/30 dark:from-emerald-900/10 dark:to-dark-700"
           >
@@ -82,7 +92,7 @@
             </p>
           </div>
 
-          <!-- 30-Day Total Requests -->
+          <!-- Total Requests -->
           <div
             class="card border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 dark:border-blue-800/30 dark:from-blue-900/10 dark:to-dark-700"
           >
@@ -464,7 +474,7 @@
 
       <!-- No Data State -->
       <div
-        v-else-if="!loading"
+        v-else-if="!loading && !error"
         class="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400"
       >
         <Icon name="chartBar" size="xl" class="mb-4 h-12 w-12" :stroke-width="1.5" />
@@ -486,7 +496,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Chart as ChartJS,
@@ -506,8 +516,9 @@ import AccountErrorStats from '@/components/account/AccountErrorStats.vue'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { adminAPI } from '@/api/admin'
-import type { Account, AccountUsageStatsResponse } from '@/types'
+import { useAccountStats } from '@/composables/useAccountStats'
+import AccountStatsFilters from '@/components/account/AccountStatsFilters.vue'
+import type { Account } from '@/types'
 
 ChartJS.register(
   CategoryScale,
@@ -531,8 +542,9 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
-const loading = ref(false)
-const stats = ref<AccountUsageStatsResponse | null>(null)
+const { loading, stats, error, days, granularity, includeTests } = useAccountStats(
+  () => props.show, () => props.account?.id
+)
 
 // Dark mode detection
 const isDarkMode = computed(() => {
@@ -628,6 +640,7 @@ const lineChartOptions = computed(() => ({
         font: {
           size: 10
         },
+        maxTicksLimit: 12,
         maxRotation: 45,
         minRotation: 0
       }
@@ -680,32 +693,6 @@ const lineChartOptions = computed(() => ({
     }
   }
 }))
-
-// Load stats when modal opens
-watch(
-  () => props.show,
-  async (newVal) => {
-    if (newVal && props.account) {
-      await loadStats()
-    } else {
-      stats.value = null
-    }
-  }
-)
-
-const loadStats = async () => {
-  if (!props.account) return
-
-  loading.value = true
-  try {
-    stats.value = await adminAPI.accounts.getStats(props.account.id, 30)
-  } catch (error) {
-    console.error('Failed to load account stats:', error)
-    stats.value = null
-  } finally {
-    loading.value = false
-  }
-}
 
 const handleClose = () => {
   emit('close')

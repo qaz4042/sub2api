@@ -330,7 +330,7 @@ type BatchAPIKeyUsageStats struct {
 	TotalActualCost float64 `json:"total_actual_cost"`
 }
 
-// AccountUsageHistory represents daily usage history for an account
+// AccountUsageHistory represents usage history at the selected trend resolution.
 type AccountUsageHistory struct {
 	Date       string  `json:"date"`
 	Label      string  `json:"label"`
@@ -380,11 +380,13 @@ type AccountUsageSummary struct {
 
 // AccountUsageStatsResponse represents the full usage statistics response for an account
 type AccountUsageStatsResponse struct {
-	History                 []AccountUsageHistory `json:"history"`
-	Summary                 AccountUsageSummary   `json:"summary"`
-	Models                  []ModelStat           `json:"models"`
-	Endpoints               []EndpointStat        `json:"endpoints"`
-	UpstreamEndpoints       []EndpointStat        `json:"upstream_endpoints"`
-	Errors                  *AccountErrorStats    `json:"errors"`
-	ErrorsUnavailableReason string                `json:"errors_unavailable_reason,omitempty"`
+	Granularity             string                     `json:"granularity"`
+	History                 []AccountUsageHistory      `json:"history"`
+	Summary                 AccountUsageSummary        `json:"summary"`
+	Models                  []ModelStat                `json:"models"`
+	Endpoints               []EndpointStat             `json:"endpoints"`
+	UpstreamEndpoints       []EndpointStat             `json:"upstream_endpoints"`
+	Errors                  *AccountErrorStats         `json:"errors"`
+	ErrorsUnavailableReason string                     `json:"errors_unavailable_reason,omitempty"`
+	ScheduledTests          *AccountScheduledTestStats `json:"scheduled_tests,omitempty"`
 }

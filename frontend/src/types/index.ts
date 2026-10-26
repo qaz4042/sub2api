@@ -2259,6 +2259,8 @@ export interface UsageQueryParams {
 
 // ==================== Account Usage Statistics ====================
 
+export type AccountStatsGranularity = 'day' | 'hour'
+
 export interface AccountUsageHistory {
   date: string
   label: string
@@ -2306,6 +2308,7 @@ export interface AccountUsageSummary {
 }
 
 export interface AccountUsageStatsResponse {
+  granularity?: AccountStatsGranularity
   history: AccountUsageHistory[]
   summary: AccountUsageSummary
   models: ModelStat[]
@@ -2313,6 +2316,12 @@ export interface AccountUsageStatsResponse {
   upstream_endpoints: EndpointStat[]
   errors?: AccountErrorStats | null
   errors_unavailable_reason?: 'unavailable' | 'monitoring_disabled' | 'outside_retention'
+  scheduled_tests?: {
+    total_requests: number
+    error_count: number
+    complete_since: string
+    partial: boolean
+  }
 }
 
 // ==================== User Attribute Types ====================

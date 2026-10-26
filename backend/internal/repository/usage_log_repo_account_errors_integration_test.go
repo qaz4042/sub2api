@@ -31,7 +31,7 @@ INSERT INTO usage_logs (account_id, api_key_id, request_id, created_at) VALUES
 INSERT INTO ops_error_logs (account_id, api_key_id, request_id, client_request_id, created_at, status_code, error_type, is_count_tokens) VALUES
  (7, 1, 'failed', NULL, '2026-10-20 16:02Z', 502, '', FALSE),
  (7, 1, 'failed', NULL, '2026-10-20 16:02Z', 502, '', FALSE),
- (7, 1, 'blocked-local', 'blocked', '2026-10-20 16:03Z', 200, 'cyber_policy', FALSE),
+ (7, 1, 'blocked-local', 'blocked', '2026-10-20 16:03Z', 403, '', FALSE),
  (7, 1, 'recovered', NULL, '2026-10-20 16:04Z', 200, '', FALSE),
  (7, 1, NULL, NULL, '2026-10-20 16:05Z', 500, '', FALSE),
  (7, 1, 'count', NULL, '2026-10-20 16:06Z', 500, '', TRUE),
@@ -62,6 +62,74 @@ INSERT INTO ops_error_logs (account_id, api_key_id, request_id, client_request_i
 	require.NoError(t, err)
 	require.EqualValues(t, 5, stats.ErrorCount)
 	require.EqualValues(t, 2, stats.UncorrelatedWSErrors)
+	require.EqualValues(t, 2, stats.UncorrelatedErrors)
 	require.Nil(t, stats.ErrorRate)
 	require.Nil(t, stats.History[0].ErrorRate)
+
+	// Cyber logs use request_type=4 even for WS turns. HTTP cyber usage can
+	// also use a raw ID while the error carries a client ID. Neither case has
+	// a reliable union denominator; repeated turns must remain visible.
+	_, err = tx.ExecContext(ctx, `
+INSERT INTO usage_logs (account_id, api_key_id, request_id, request_type, created_at) VALUES
+ (7, 1, 'cyber-http-raw', 4, '2026-10-20 17:06Z');
+INSERT INTO ops_error_logs (account_id, api_key_id, request_id, client_request_id, request_type, created_at, status_code, error_type) VALUES
+ (7, 1, 'cyber-http-raw', 'cyber-http-client', 4, '2026-10-20 17:06Z', 400, 'cyber_policy'),
+ (7, 1, 'cyber-ws', 'cyber-connection', 4, '2026-10-20 17:07Z', 200, 'cyber_policy'),
+ (7, 1, 'cyber-ws', 'cyber-connection', 4, '2026-10-20 17:08Z', 200, 'cyber_policy')`)
+	require.NoError(t, err)
+	stats, err = repo.GetAccountErrorStats(ctx, 7, start, start.AddDate(0, 0, 2))
+	require.NoError(t, err)
+	require.EqualValues(t, 8, stats.ErrorCount)
+	require.EqualValues(t, 2, stats.UncorrelatedWSErrors)
+	require.EqualValues(t, 5, stats.UncorrelatedErrors)
+	require.Nil(t, stats.ErrorRate)
+	for _, point := range stats.History {
+		require.Nil(t, point.ErrorRate)
+	}
+}
+
+func TestAccountHourlyStatsSQL(t *testing.T) {
+	ctx := context.Background()
+	tx, err := integrationDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.ExecContext(ctx, `
+CREATE TEMP TABLE usage_logs (id BIGSERIAL, account_id BIGINT, api_key_id BIGINT, request_id TEXT, created_at TIMESTAMPTZ,
+ input_tokens INT DEFAULT 0, output_tokens INT DEFAULT 0, cache_creation_tokens INT DEFAULT 0, cache_read_tokens INT DEFAULT 0,
+ total_cost NUMERIC DEFAULT 0, account_stats_cost NUMERIC, account_rate_multiplier NUMERIC DEFAULT 1, actual_cost NUMERIC DEFAULT 0) ON COMMIT DROP;
+CREATE TEMP TABLE ops_error_logs (id BIGSERIAL, account_id BIGINT, api_key_id BIGINT, request_id TEXT, client_request_id TEXT, created_at TIMESTAMPTZ, status_code INT, error_type TEXT DEFAULT '', request_type SMALLINT DEFAULT 1, is_count_tokens BOOLEAN DEFAULT FALSE) ON COMMIT DROP;
+INSERT INTO usage_logs (account_id, api_key_id, request_id, created_at, input_tokens, total_cost, account_stats_cost, account_rate_multiplier, actual_cost) VALUES
+ (7, 1, 'local:a', '2026-11-01 05:15Z', 10, 2, 3, 2, 1),
+ (7, 1, 'local:b', '2026-11-01 06:15Z', 20, 5, NULL, 2, 4),
+ (8, 1, 'other', '2026-11-01 06:15Z', 30, 9, NULL, 1, 9);
+INSERT INTO ops_error_logs (account_id, api_key_id, request_id, created_at, status_code) VALUES
+ (7, 1, 'a', '2026-11-01 05:16Z', 502),
+ (7, 1, 'c', '2026-11-01 06:30Z', 500)`)
+	require.NoError(t, err)
+	loc, err := time.LoadLocation("America/New_York")
+	require.NoError(t, err)
+	start := time.Date(2026, 11, 1, 0, 0, 0, 0, loc)
+	end := start.AddDate(0, 0, 1) // Fall DST day has two distinct 01:00 hours.
+	repo := &usageLogRepository{sql: tx}
+	history, err := repo.GetAccountHourlyUsageHistory(ctx, 7, start, end)
+	require.NoError(t, err)
+	require.Len(t, history, 25)
+	require.Equal(t, "2026-11-01T05:00:00Z", history[1].Date)
+	require.Equal(t, "2026-11-01T06:00:00Z", history[2].Date)
+	require.EqualValues(t, 1, history[1].Requests)
+	require.Equal(t, 6.0, history[1].ActualCost)
+	require.Equal(t, 10.0, history[2].ActualCost)
+	require.EqualValues(t, 20, history[2].Tokens)
+	require.Equal(t, 4.0, history[2].UserCost)
+	require.Zero(t, history[0].Requests)
+
+	errors, err := repo.GetAccountErrorStats(ctx, 7, start, end, "hour")
+	require.NoError(t, err)
+	require.Len(t, errors.History, 25)
+	require.Equal(t, history[1].Date, errors.History[1].Date)
+	require.Equal(t, 100.0, *errors.History[1].ErrorRate)
+	require.Equal(t, 50.0, *errors.History[2].ErrorRate)
+	require.Nil(t, errors.History[0].ErrorRate)
+	require.EqualValues(t, 3, errors.TotalRequests)
+	require.InDelta(t, 200.0/3, *errors.ErrorRate, 1e-9)
 }

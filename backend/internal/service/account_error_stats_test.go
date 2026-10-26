@@ -21,7 +21,7 @@ func (r *accountErrorStatsRepoStub) GetAccountUsageStats(context.Context, int64,
 	return &usagestats.AccountUsageStatsResponse{Summary: usagestats.AccountUsageSummary{TotalCost: 12, TotalRequests: 7}}, nil
 }
 
-func (r *accountErrorStatsRepoStub) GetAccountErrorStats(ctx context.Context, _ int64, start, end time.Time) (*usagestats.AccountErrorStats, error) {
+func (r *accountErrorStatsRepoStub) GetAccountErrorStats(ctx context.Context, _ int64, start, end time.Time, _ ...string) (*usagestats.AccountErrorStats, error) {
 	r.called, r.start, r.end = true, start, end
 	if _, ok := ctx.Deadline(); !ok {
 		return nil, errors.New("missing query deadline")
@@ -53,18 +53,20 @@ func TestAccountErrorStatsCoverage(t *testing.T) {
 		days             int
 		wantStart        time.Time
 		reason           string
+		granularity      string
 	}{
 		{name: "disabled", days: 30, reason: "monitoring_disabled"},
 		{name: "retention clipped", enabled: true, cleanup: true, days: 7, wantStart: time.Date(2026, 10, 16, 0, 0, 0, 0, loc)},
 		{name: "cleanup disabled", enabled: true, days: 7, wantStart: start},
 		{name: "zero retention truncates logs", enabled: true, cleanup: true, reason: "outside_retention"},
+		{name: "hourly retention preserves complete hours", enabled: true, cleanup: true, days: 7, granularity: "hour", wantStart: time.Date(2026, 10, 15, 15, 0, 0, 0, loc)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &accountErrorStatsRepoStub{}
 			ops := &OpsService{}
 			ops.runtimeSettings.Store(&opsRuntimeSettingsSnapshot{monitoringEnabled: tc.enabled, advanced: OpsAdvancedSettings{DataRetention: OpsDataRetentionSettings{CleanupEnabled: tc.cleanup, ErrorLogRetentionDays: tc.days}}})
 			svc := &accountErrorStatsService{reader: repo, opsService: ops}
-			stats := &usagestats.AccountUsageStatsResponse{}
+			stats := &usagestats.AccountUsageStatsResponse{Granularity: tc.granularity}
 			svc.enrich(context.Background(), stats, 7, start, end, now)
 			require.Equal(t, tc.reason, stats.ErrorsUnavailableReason)
 			if tc.reason != "" {

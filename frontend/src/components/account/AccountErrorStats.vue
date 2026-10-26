@@ -4,7 +4,15 @@
       {{ t('admin.accounts.stats.errorStatistics') }}
     </h3>
     <template v-if="stats">
-      <div class="mt-4 grid grid-cols-2 gap-4">
+      <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div>
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.stats.totalRequests') }}
+          </p>
+          <p class="mt-1 text-2xl font-bold text-blue-600 dark:text-blue-400" data-testid="total-requests">
+            {{ hasUncorrelatedErrors ? '—' : stats.total_requests.toLocaleString() }}
+          </p>
+        </div>
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.accounts.stats.errorCount') }}
@@ -22,7 +30,7 @@
           </p>
         </div>
       </div>
-      <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+      <p v-if="!hasUncorrelatedErrors" class="mt-2 text-xs text-gray-500 dark:text-gray-400">
         {{ t('admin.accounts.stats.errorRateBasis', { count: stats.total_requests.toLocaleString() }) }}
       </p>
       <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -31,8 +39,8 @@
       <p v-if="stats.partial" class="mt-2 text-xs text-amber-600 dark:text-amber-400">
         {{ t('admin.accounts.stats.errorStatsPartial') }}
       </p>
-      <p v-if="stats.uncorrelated_ws_errors > 0" class="mt-1 text-xs text-amber-600 dark:text-amber-400">
-        {{ t('admin.accounts.stats.errorStatsLegacyWS') }}
+      <p v-if="hasUncorrelatedErrors" class="mt-1 text-xs text-amber-600 dark:text-amber-400">
+        {{ t('admin.accounts.stats.errorStatsUncorrelated') }}
       </p>
       <h4 class="mb-2 mt-4 text-xs font-medium text-gray-700 dark:text-gray-300">
         {{ t('admin.accounts.stats.errorTrend') }}
@@ -70,6 +78,9 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 
 const props = defineProps<{ stats?: AccountErrorStats | null; unavailableReason?: string }>()
 const { t } = useI18n()
+const hasUncorrelatedErrors = computed(() =>
+  (props.stats?.uncorrelated_errors ?? props.stats?.uncorrelated_ws_errors ?? 0) > 0
+)
 const unavailableMessage = computed(() => {
   if (props.unavailableReason === 'monitoring_disabled') return 'admin.accounts.stats.errorMonitoringDisabled'
   if (props.unavailableReason === 'outside_retention') return 'admin.accounts.stats.errorOutsideRetention'
@@ -82,6 +93,14 @@ const formatCoverage = (value: string) => new Date(value).toLocaleString(undefin
 const chartData = computed(() => ({
   labels: props.stats?.history.map((point) => point.label) ?? [],
   datasets: [
+    ...(!hasUncorrelatedErrors.value ? [{
+      label: t('admin.accounts.stats.totalRequests'),
+      data: props.stats?.history.map((point) => point.requests) ?? [],
+      borderColor: '#2563eb',
+      backgroundColor: '#2563eb',
+      yAxisID: 'y',
+      tension: 0.2
+    }] : []),
     {
       label: t('admin.accounts.stats.errorCount'),
       data: props.stats?.history.map((point) => point.error_count) ?? [],
@@ -128,7 +147,7 @@ const chartOptions = computed<ChartOptions<'line'>>(() => {
         beginAtZero: true,
         ticks: { color: text, precision: 0 },
         grid: { color: grid },
-        title: { display: true, text: t('admin.accounts.stats.errorCount'), color: text }
+        title: { display: true, text: t('admin.accounts.stats.requests'), color: text }
       },
       rate: {
         position: 'right',

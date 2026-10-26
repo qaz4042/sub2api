@@ -9,7 +9,7 @@ import (
 )
 
 type accountErrorStatsReader interface {
-	GetAccountErrorStats(context.Context, int64, time.Time, time.Time) (*usagestats.AccountErrorStats, error)
+	GetAccountErrorStats(context.Context, int64, time.Time, time.Time, ...string) (*usagestats.AccountErrorStats, error)
 }
 
 type accountErrorStatsEnricher interface {
@@ -42,11 +42,13 @@ func (s *accountErrorStatsService) enrich(ctx context.Context, stats *usagestats
 		return
 	}
 	if retention.CleanupEnabled && retention.ErrorLogRetentionDays > 0 {
-		// Cleanup uses a rolling cutoff. Exclude its partially retained calendar
-		// day, so the numerator and denominator cover the same whole days.
+		// Exclude the partially retained bucket so both sides cover the same interval.
 		cutoff := now.AddDate(0, 0, -retention.ErrorLogRetentionDays).In(start.Location())
 		day := time.Date(cutoff.Year(), cutoff.Month(), cutoff.Day(), 0, 0, 0, 0, start.Location())
-		if day.Before(cutoff) {
+		if stats.Granularity == "hour" && cutoff.After(start) {
+			elapsed := cutoff.Sub(start)
+			day = start.Add(((elapsed + time.Hour - 1) / time.Hour) * time.Hour)
+		} else if day.Before(cutoff) {
 			day = day.AddDate(0, 0, 1)
 		}
 		if day.After(start) {
@@ -62,7 +64,7 @@ func (s *accountErrorStatsService) enrich(ctx context.Context, stats *usagestats
 	}
 	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	errors, err := s.reader.GetAccountErrorStats(queryCtx, accountID, start, end)
+	errors, err := s.reader.GetAccountErrorStats(queryCtx, accountID, start, end, stats.Granularity)
 	if err != nil {
 		slog.Warn("account_error_stats.query_failed", "account_id", accountID, "error", err)
 		return
@@ -72,7 +74,7 @@ func (s *accountErrorStatsService) enrich(ctx context.Context, stats *usagestats
 	}
 	errors.CoverageStart = start
 	errors.CoverageEnd = end
-	errors.Partial = start.After(originalStart) || errors.UncorrelatedWSErrors > 0
+	errors.Partial = start.After(originalStart) || errors.UncorrelatedErrors > 0
 	stats.Errors = errors
 	stats.ErrorsUnavailableReason = ""
 }
