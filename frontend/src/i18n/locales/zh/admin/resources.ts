@@ -82,6 +82,7 @@ export default {
         status: '状态',
         accounts: '账号数',
         latency: '延迟',
+        openaiLatency: 'OpenAI 延迟',
         expiry: '有效期',
         autoFailover: '自动切换',
         createdAt: '创建时间',

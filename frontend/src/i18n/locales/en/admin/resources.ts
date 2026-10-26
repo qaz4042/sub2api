@@ -93,6 +93,7 @@ export default {
         status: 'Status',
         accounts: 'Accounts',
         latency: 'Latency',
+        openaiLatency: 'OpenAI Latency',
         expiry: 'Validity',
         autoFailover: 'Auto switch',
         createdAt: 'Created',

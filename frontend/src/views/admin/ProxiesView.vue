@@ -215,6 +215,10 @@
             </span>
           </template>
 
+          <template #cell-openai_latency="{ row }">
+            <OpenAIProxyTest :proxy="row" />
+          </template>
+
           <template #cell-latency="{ row }">
             <div class="flex flex-col gap-1">
               <span
@@ -1001,6 +1005,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import ImportDataModal from '@/components/admin/proxy/ImportDataModal.vue'
 import Select from '@/components/common/Select.vue'
 import ProxyAdBanner from '@/components/common/ProxyAdBanner.vue'
+import OpenAIProxyTest from '@/features/proxy-openai-latency/OpenAIProxyTest.vue'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
 import { useClipboard } from '@/composables/useClipboard'
@@ -1023,6 +1028,7 @@ const columns = computed<Column[]>(() => [
   { key: 'location', label: t('admin.proxies.columns.location'), sortable: false },
   { key: 'account_count', label: t('admin.proxies.columns.accounts'), sortable: true },
   { key: 'latency', label: t('admin.proxies.columns.latency'), sortable: false },
+  { key: 'openai_latency', label: t('admin.proxies.columns.openaiLatency'), sortable: false },
   { key: 'auto_failover', label: t('admin.proxies.columns.autoFailover'), sortable: false },
   { key: 'expiry', label: t('admin.proxies.columns.expiry'), sortable: true },
   { key: 'created_at', label: t('admin.proxies.columns.createdAt'), sortable: true },
