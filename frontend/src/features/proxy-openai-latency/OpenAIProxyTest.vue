@@ -8,6 +8,15 @@
     >
       {{ busy ? testing : result ? (result.success ? `${result.latency_ms}ms` : failed) : '—' }}
     </span>
+    <button
+      type="button"
+      class="text-xs text-primary-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-primary-400"
+      :disabled="busy || loading || state.batchRunning.value"
+      :title="description"
+      @click="runTest"
+    >
+      {{ busy ? testing : label }}
+    </button>
     <span v-if="error" class="max-w-40 whitespace-normal text-xs text-red-600" role="alert">{{ error }}</span>
   </div>
 </template>
@@ -21,6 +30,7 @@ import { useOpenAIProxyTests } from './state'
 const props = defineProps<{ proxy: Proxy }>()
 const { locale } = useI18n()
 const zh = computed(() => locale.value.startsWith('zh'))
+const label = computed(() => zh.value ? '测试 OpenAI' : 'Test OpenAI')
 const testing = computed(() => zh.value ? '测试中…' : 'Testing…')
 const failed = computed(() => zh.value ? '连接失败' : 'Failed')
 const description = computed(() => zh.value
@@ -30,12 +40,14 @@ const state = useOpenAIProxyTests()
 const current = computed(() => state.entry(props.proxy.id))
 const result = computed(() => current.value.result)
 const busy = computed(() => current.value.busy)
+const loading = computed(() => current.value.loading)
 const error = computed(() => {
   if (!current.value.error) return ''
   return zh.value
-    ? (current.value.error === 'test' ? '测试请求失败，请使用顶部批量测试重试' : '历史结果加载失败，请使用顶部批量测试')
-    : (current.value.error === 'test' ? 'Test request failed. Retry using the batch button.' : 'Could not load history. Use the batch button.')
+    ? (current.value.error === 'test' ? '测试请求失败，请重试' : '历史结果加载失败，请重新测试')
+    : (current.value.error === 'test' ? 'Test request failed. Retry.' : 'Could not load history. Run a new test.')
 })
+const runTest = () => state.test(props.proxy.id)
 watch(() => [props.proxy.id, props.proxy.protocol, props.proxy.host, props.proxy.port,
   props.proxy.username, props.proxy.password], () => {
   void state.load(props.proxy)

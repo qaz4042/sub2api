@@ -16,13 +16,16 @@ beforeEach(() => {
   vi.mocked(loadOpenAILatency).mockResolvedValue(null)
 })
 describe('OpenAI proxy latency', () => {
-  it('loads independent history without a per-row test button', async () => {
+  it('loads history and supports individual testing alongside batch testing', async () => {
     vi.mocked(loadOpenAILatency).mockResolvedValue(success)
     const wrapper = render()
     await flushPromises()
     expect(wrapper.text()).toContain('123ms')
-    expect(wrapper.find('button').exists()).toBe(false)
-    expect(testOpenAILatency).not.toHaveBeenCalled()
+    vi.mocked(testOpenAILatency).mockResolvedValue({ ...success, latency_ms: 77 })
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('77ms')
+    expect(testOpenAILatency).toHaveBeenCalledWith(11, expect.any(AbortSignal))
     wrapper.unmount()
   })
   it('shows failed connectivity from history', async () => {
@@ -43,12 +46,12 @@ describe('OpenAI proxy latency', () => {
     expect(wrapper.text()).not.toContain('123ms')
     wrapper.unmount()
   })
-  it('directs history load failures to the batch button', async () => {
+  it('allows individual testing after history load fails', async () => {
     vi.mocked(loadOpenAILatency).mockRejectedValue(new Error('offline'))
     const wrapper = render()
     await flushPromises()
-    expect(wrapper.get('[role="alert"]').text()).toContain('顶部批量测试')
-    expect(wrapper.find('button').exists()).toBe(false)
+    expect(wrapper.get('[role="alert"]').text()).toContain('重新测试')
+    expect(wrapper.get('button').attributes('disabled')).toBeUndefined()
     wrapper.unmount()
   })
 })
