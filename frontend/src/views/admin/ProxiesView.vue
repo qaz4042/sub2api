@@ -55,6 +55,11 @@
               <Icon name="play" size="md" class="mr-2" />
               {{ t('admin.proxies.testConnection') }}
             </button>
+            <OpenAIBatchTest
+              :proxy-ids="selectedProxyIds.size ? [...selectedProxyIds] : proxies.map(proxy => proxy.id)"
+              :selected="selectedProxyIds.size > 0"
+              :disabled="loading"
+            />
             <button
               @click="handleBatchQualityCheck"
               :disabled="batchQualityChecking || loading"
@@ -1006,6 +1011,8 @@ import ImportDataModal from '@/components/admin/proxy/ImportDataModal.vue'
 import Select from '@/components/common/Select.vue'
 import ProxyAdBanner from '@/components/common/ProxyAdBanner.vue'
 import OpenAIProxyTest from '@/features/proxy-openai-latency/OpenAIProxyTest.vue'
+import OpenAIBatchTest from '@/features/proxy-openai-latency/OpenAIBatchTest.vue'
+import { provideOpenAIProxyTests } from '@/features/proxy-openai-latency/state'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
 import { useClipboard } from '@/composables/useClipboard'
@@ -1014,6 +1021,8 @@ import { useTableSelection } from '@/composables/useTableSelection'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { formatDateTime } from '@/utils/format'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
+
+provideOpenAIProxyTests()
 
 const { t } = useI18n()
 const appStore = useAppStore()

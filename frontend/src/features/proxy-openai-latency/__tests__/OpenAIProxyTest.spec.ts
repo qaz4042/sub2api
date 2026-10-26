@@ -16,27 +16,20 @@ beforeEach(() => {
   vi.mocked(loadOpenAILatency).mockResolvedValue(null)
 })
 describe('OpenAI proxy latency', () => {
-  it('loads independent history and updates the displayed latency after testing', async () => {
+  it('loads independent history without a per-row test button', async () => {
     vi.mocked(loadOpenAILatency).mockResolvedValue(success)
-    vi.mocked(testOpenAILatency).mockResolvedValue({ ...success, latency_ms: 77 })
     const wrapper = render()
     await flushPromises()
     expect(wrapper.text()).toContain('123ms')
-    await wrapper.get('button').trigger('click')
-    await flushPromises()
-    expect(wrapper.text()).toContain('77ms')
-    expect(testOpenAILatency).toHaveBeenCalledWith(11, expect.any(AbortSignal))
+    expect(wrapper.find('button').exists()).toBe(false)
+    expect(testOpenAILatency).not.toHaveBeenCalled()
     wrapper.unmount()
   })
-  it('shows failed connectivity instead of an older successful result', async () => {
-    vi.mocked(loadOpenAILatency).mockResolvedValue(success)
-    vi.mocked(testOpenAILatency).mockResolvedValue({ ...success, success: false, latency_ms: undefined, http_status: 403 })
+  it('shows failed connectivity from history', async () => {
+    vi.mocked(loadOpenAILatency).mockResolvedValue({ ...success, success: false, latency_ms: undefined, http_status: 403 })
     const wrapper = render()
     await flushPromises()
-    await wrapper.get('button').trigger('click')
-    await flushPromises()
     expect(wrapper.text()).toContain('连接失败')
-    expect(wrapper.text()).not.toContain('123ms')
     wrapper.unmount()
   })
   it('ignores a stale response when switching proxies', async () => {
@@ -50,14 +43,12 @@ describe('OpenAI proxy latency', () => {
     expect(wrapper.text()).not.toContain('123ms')
     wrapper.unmount()
   })
-  it('allows retry after a request error', async () => {
-    vi.mocked(testOpenAILatency).mockRejectedValue(new Error('offline'))
+  it('directs history load failures to the batch button', async () => {
+    vi.mocked(loadOpenAILatency).mockRejectedValue(new Error('offline'))
     const wrapper = render()
     await flushPromises()
-    await wrapper.get('button').trigger('click')
-    await flushPromises()
-    expect(wrapper.get('[role="alert"]').text()).toContain('请重试')
-    expect(wrapper.get('button').attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('[role="alert"]').text()).toContain('顶部批量测试')
+    expect(wrapper.find('button').exists()).toBe(false)
     wrapper.unmount()
   })
 })

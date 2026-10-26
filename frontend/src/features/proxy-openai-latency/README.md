@@ -4,11 +4,17 @@
 
 ## 公共接入点
 
-- `ProxiesView.vue`：导入本 feature 组件，添加列与单元格 slot。
+- `ProxiesView.vue`：导入本 feature 的行组件、批量按钮与页面级 provider，添加列与单元格 slot。
 - 中英文 `admin/resources.ts`：各添加一个列名。
 - 后端 `server/routes/admin.go`：在既有管理员代理路由组调用 `RegisterOpenAILatency`。
 
 其余实现集中在本目录和后端各层的 `proxy_openai_latency.go`，通过可选 service/cache contract 接入，不扩大 `AdminService`、`ProxyLatencyCache` 核心接口，不修改原来的测试、质量检测、代理 DTO 或历史 migration。
+
+## 批量测试
+
+页面顶部“批量测试 OpenAI”优先测试勾选的代理，未勾选时测试当前页；按钮数量与提示明确展示范围，不会自动扫描所有页。开始后固定本次 ID 列表，去重并以最多 3 个 worker 复用既有 POST 接口；单项异常不会中断其余测试。
+
+每行仅展示延迟／失败／测试中状态，不提供测试按钮；统一使用顶部批量测试入口。批量按钮与行组件通过 feature 内页面级 provider 共享状态。结果逐条更新，进度与成功／失败数同步变化；进行中的单条请求会复用，历史读取不会覆盖较新的测试结果。翻页不会取消整个批次，离开页面后取消在途请求并停止发出剩余请求。没有增加后端批量路由或修改核心代理 API。
 
 ## API 与缓存
 
