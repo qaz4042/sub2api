@@ -2513,8 +2513,28 @@ func (s *OpenAIGatewayService) isOpenAIAccountTransportCompatible(account *Accou
 }
 
 func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(account *Account, model string, success bool, firstTokenMs *int, observedErr ...error) bool {
+	return s.reportOpenAIAccountScheduleResult(account, model, "", success, firstTokenMs, observedErr...)
+}
+
+// ReportOpenAIAccountScheduleResultWithTransport supplies comparable ingress
+// type to optional observers while preserving the scheduler's existing result.
+func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResultWithTransport(account *Account, model, transport string, success bool, firstTokenMs *int, observedErr ...error) bool {
+	return s.reportOpenAIAccountScheduleResult(account, model, transport, success, firstTokenMs, observedErr...)
+}
+
+func (s *OpenAIGatewayService) reportOpenAIAccountScheduleResult(account *Account, model, transport string, success bool, firstTokenMs *int, observedErr ...error) bool {
 	if account == nil {
 		return false
+	}
+	if s != nil && s.accountObserver != nil {
+		if success {
+			s.accountObserver.ObserveOpenAIAccount(account, model, transport, true, false, false, firstTokenMs)
+		} else if transport != "" && len(observedErr) > 0 {
+			var upstream *UpstreamFailoverError
+			if errors.As(observedErr[0], &upstream) && !upstream.TransportFailure && !upstream.IsCredentialFailure() && !upstream.RequestScopedTransient && upstream.Scope != GatewayFailureScopeRequest && upstream.StatusCode >= 500 && upstream.StatusCode <= 599 {
+				s.accountObserver.ObserveOpenAIAccount(account, model, transport, false, false, true, nil)
+			}
+		}
 	}
 	accountID := account.ID
 	healthTripped := false

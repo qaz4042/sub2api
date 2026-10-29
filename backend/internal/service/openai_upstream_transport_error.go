@@ -149,14 +149,24 @@ func (s *OpenAIGatewayService) handleOpenAIUpstreamTransportError(ctx context.Co
 	if errors.As(err, &pluginErr) && pluginErr.RequestSent {
 		return err
 	}
-
-	if classifyUpstreamTransportError(err).Persistent {
+	persistent := classifyUpstreamTransportError(err).Persistent
+	if persistent {
 		s.tempUnscheduleOpenAITransportError(ctx, account, safeErr)
+	}
+	if s != nil && s.accountObserver != nil && c != nil && pluginErr == nil {
+		model, _ := c.Get(OpsUpstreamModelKey)
+		modelName, _ := model.(string)
+		transport := "http"
+		if c.Request != nil && strings.EqualFold(c.GetHeader("Upgrade"), "websocket") {
+			transport = "ws"
+		}
+		s.accountObserver.ObserveOpenAIAccount(account, modelName, transport, false, persistent, false, nil)
 	}
 
 	return &UpstreamFailoverError{
-		StatusCode:   http.StatusBadGateway,
-		ResponseBody: openAITransportFailoverBody,
+		TransportFailure: true,
+		StatusCode:       http.StatusBadGateway,
+		ResponseBody:     openAITransportFailoverBody,
 	}
 }
 

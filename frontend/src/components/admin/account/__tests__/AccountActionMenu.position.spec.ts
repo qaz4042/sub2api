@@ -4,7 +4,7 @@ import AccountActionMenu from '../AccountActionMenu.vue'
 import type { Account } from '@/types'
 
 vi.mock('vue-i18n', () => ({
-  useI18n: () => ({ t: (key: string) => key })
+  useI18n: () => ({ t: (key: string) => key, locale: { value: 'zh' } })
 }))
 
 const account = {
