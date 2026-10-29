@@ -137,6 +137,8 @@ vite.config.js
 docs/**/*.dmg
 docs/**/*.msi
 docs/**/*.exe
+!docs/需求/
+!docs/需求/*.md
 docs/*
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
