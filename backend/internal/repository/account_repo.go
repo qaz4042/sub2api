@@ -129,6 +129,9 @@ func (r *accountRepository) Create(ctx context.Context, account *service.Account
 	if scoped := r.accountTransactionScope(ctx); scoped != r {
 		return scoped.Create(ctx, account)
 	}
+	if account != nil && account.ParentAccountID != nil {
+		return r.createShadowWithInheritedProxy(ctx, account)
+	}
 	if err := createAccountRecord(ctx, r.client, account); err != nil {
 		return err
 	}
