@@ -133,12 +133,10 @@ backend/cmd/server/server
 deploy/docker-compose.override.yml
 .gocache/
 vite.config.js
-# 文档目录默认纳入版本控制，仅忽略本地安装包二进制文件。
+# 文档目录采用白名单；需求目录的完整放行规则见文件末尾。
 docs/**/*.dmg
 docs/**/*.msi
 docs/**/*.exe
-!docs/需求/
-!docs/需求/*.md
 docs/*
 !docs/admin-api-keys.md
 !docs/PAYMENT.md
@@ -171,3 +169,7 @@ issues/
 .vite/
 # 本地闭源插件开发目录及构建产物不进入 Sub2API 仓库
 /plugins/
+
+# 需求文档及其子目录全部允许纳入版本控制（覆盖前面的通用忽略规则）。
+!/docs/需求/
+!/docs/需求/**
