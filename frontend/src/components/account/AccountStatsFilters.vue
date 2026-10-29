@@ -1,16 +1,17 @@
 <template>
   <div class="space-y-2">
     <div class="flex flex-wrap items-end gap-3">
-      <div class="w-40">
+      <div class="min-w-0 max-w-full">
         <label for="account-stats-range" class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
           {{ t('admin.accounts.stats.timeRange') }}
         </label>
-        <Select
+        <DateRangePicker
           id="account-stats-range"
-          :model-value="days"
-          :options="rangeOptions"
+          :start-date="startDate"
+          :end-date="endDate"
+          calendar-days-only
           :aria-label="t('admin.accounts.stats.timeRange')"
-          @update:model-value="emit('update:days', Number($event))"
+          @change="emit('change:dateRange', $event)"
         />
       </div>
       <div class="w-40">
@@ -35,6 +36,9 @@
         {{ t('admin.accounts.stats.includeTests') }}
       </label>
     </div>
+    <p v-if="invalidRange" role="alert" class="text-xs text-red-600 dark:text-red-400">
+      {{ t('admin.accounts.stats.invalidDateRange') }}
+    </p>
     <div v-if="includeTests" class="space-y-1 text-xs text-gray-500 dark:text-gray-400">
       <p>{{ t('admin.accounts.stats.includeTestsHint') }}</p>
       <p v-if="tests">
@@ -51,24 +55,23 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Select from '@/components/common/Select.vue'
+import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import type { AccountStatsGranularity, AccountUsageStatsResponse } from '@/types'
 
 defineProps<{
-  days: number
+  startDate: string
+  endDate: string
+  invalidRange: boolean
   granularity: AccountStatsGranularity
   includeTests: boolean
   tests?: AccountUsageStatsResponse['scheduled_tests']
 }>()
 const emit = defineEmits<{
-  'update:days': [value: number]
+  'change:dateRange': [value: { startDate: string; endDate: string }]
   'update:granularity': [value: AccountStatsGranularity]
   'update:includeTests': [value: boolean]
 }>()
 const { t } = useI18n()
-const rangeOptions = computed(() => [
-  { value: 1, label: t('admin.accounts.stats.rangeToday') },
-  ...[7, 30].map((days) => ({ value: days, label: t('admin.accounts.stats.rangeDays', { days }) }))
-])
 const granularityOptions = computed(() => [
   { value: 'day', label: t('admin.accounts.stats.byDay') },
   { value: 'hour', label: t('admin.accounts.stats.byHour') }

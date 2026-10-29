@@ -361,16 +361,21 @@ export async function applyOAuthCredentials(
  * Get account usage statistics
  * @param id - Account ID
  * @param days - Number of days (default: 30)
- * @param options - Trend granularity (default: day) and request cancellation
+ * @param options - Inclusive calendar dates (override days), trend granularity, test scope and cancellation
  * @returns Account usage statistics with history, summary, and models
  */
 export async function getStats(
   id: number,
   days: number = 30,
-  options: { granularity?: 'day' | 'hour'; includeTests?: boolean; signal?: AbortSignal } = {}
+  options: { granularity?: 'day' | 'hour'; includeTests?: boolean; startDate?: string; endDate?: string; signal?: AbortSignal } = {}
 ): Promise<AccountUsageStatsResponse> {
   const { data } = await apiClient.get<AccountUsageStatsResponse>(`/admin/accounts/${id}/stats`, {
-    params: { days, granularity: options.granularity ?? 'day', include_tests: options.includeTests ?? true },
+    params: {
+      ...(options.startDate || options.endDate
+        ? { start_date: options.startDate, end_date: options.endDate }
+        : { days }),
+      granularity: options.granularity ?? 'day', include_tests: options.includeTests ?? true
+    },
     signal: options.signal
   })
   return data

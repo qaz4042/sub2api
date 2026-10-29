@@ -20,7 +20,10 @@ const result = (granularity: 'day' | 'hour') => ({ granularity, history: [] }) a
 
 describe('useAccountStats', () => {
   beforeEach(() => getStats.mockReset())
-  afterEach(() => scopes.splice(0).forEach((scope) => scope.stop()))
+  afterEach(() => {
+    scopes.splice(0).forEach((scope) => scope.stop())
+    vi.useRealTimers()
+  })
 
   it('loads a visible account immediately and reloads the chosen range and interval', async () => {
     getStats.mockResolvedValue(result('day'))
@@ -69,5 +72,73 @@ describe('useAccountStats', () => {
     await flushPromises()
     expect(state.error.value).toBe(false)
     expect(getStats).toHaveBeenLastCalledWith(8, 30, expect.anything())
+  })
+
+  it('loads inclusive custom dates atomically and skips invalid ranges', async () => {
+    getStats.mockResolvedValue(result('day'))
+    const state = setup()
+    await flushPromises()
+    state.setDateRange({ startDate: '2026-10-01', endDate: '2026-10-03' })
+    await flushPromises()
+    expect(getStats).toHaveBeenCalledTimes(2)
+    expect(getStats).toHaveBeenLastCalledWith(7, 30, expect.objectContaining({
+      startDate: '2026-10-01', endDate: '2026-10-03'
+    }))
+    state.includeTests.value = false
+    await flushPromises()
+    expect(getStats).toHaveBeenLastCalledWith(7, 30, expect.objectContaining({
+      startDate: '2026-10-01', endDate: '2026-10-03', includeTests: false
+    }))
+    const count = getStats.mock.calls.length
+    for (const range of [
+      { startDate: '2026-10-03', endDate: '2026-10-01' },
+      { startDate: '2026-01-01', endDate: '2026-04-01' },
+      { startDate: '', endDate: '' },
+      { startDate: '2026-02-30', endDate: '2026-03-01' }
+    ]) {
+      state.setDateRange(range)
+      await flushPromises()
+      expect(state.invalidRange.value).toBe(true)
+      expect(state.stats.value).toBeNull()
+    }
+    expect(getStats).toHaveBeenCalledTimes(count)
+    state.setDateRange({ startDate: '2026-01-01', endDate: '2026-03-31' })
+    await flushPromises()
+    expect(state.invalidRange.value).toBe(false)
+    expect(getStats).toHaveBeenCalledTimes(count + 1)
+  })
+
+  it('refreshes rolling dates after midnight and queries exactly the displayed dates', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 29, 23, 50))
+    getStats.mockResolvedValue(result('day'))
+    const state = setup()
+    await flushPromises()
+    expect(state.endDate.value).toBe('2026-10-29')
+    expect(getStats).toHaveBeenLastCalledWith(7, 30, expect.objectContaining({
+      startDate: state.startDate.value, endDate: state.endDate.value
+    }))
+    state.show.value = false
+    await nextTick()
+    vi.setSystemTime(new Date(2026, 9, 30, 0, 10))
+    state.show.value = true
+    await flushPromises()
+    expect(state.startDate.value).toBe('2026-10-01')
+    expect(state.endDate.value).toBe('2026-10-30')
+    expect(getStats).toHaveBeenLastCalledWith(7, 30, expect.objectContaining({
+      startDate: state.startDate.value, endDate: state.endDate.value
+    }))
+
+    state.setDateRange({ startDate: '2026-10-01', endDate: '2026-10-03' })
+    await flushPromises()
+    state.show.value = false
+    await nextTick()
+    vi.setSystemTime(new Date(2026, 10, 1, 12))
+    state.show.value = true
+    await flushPromises()
+    expect(state.endDate.value).toBe('2026-10-03')
+    expect(getStats).toHaveBeenLastCalledWith(7, 30, expect.objectContaining({
+      startDate: '2026-10-01', endDate: '2026-10-03'
+    }))
   })
 })

@@ -42,9 +42,11 @@ func mergeAccountScheduledTests(stats *usagestats.AccountUsageStatsResponse, tes
 	stats.History = sortedAccountUsageHistory(history)
 	if tests.TotalRequests > 0 {
 		summary := &stats.Summary
-		oldRequests := summary.TotalRequests
+		durationSum := summary.AvgDurationMs * float64(summary.DurationSampleCount)
 		summary.TotalRequests += tests.TotalRequests
-		summary.AvgDurationMs = (summary.AvgDurationMs*float64(oldRequests) + float64(latency)) / float64(summary.TotalRequests)
+		// Scheduled test rollups record a non-null latency for every request.
+		summary.DurationSampleCount += tests.TotalRequests
+		summary.AvgDurationMs = (durationSum + float64(latency)) / float64(summary.DurationSampleCount)
 		updateAccountDailySummary(summary, sortedAccountUsageHistory(days), now)
 	}
 

@@ -1003,25 +1003,27 @@ func (r *usageLogRepository) GetAccountUsageStats(ctx context.Context, accountID
 		actualDaysUsed = 1
 	}
 
-	avgQuery := "SELECT COALESCE(AVG(duration_ms), 0) as avg_duration_ms FROM usage_logs WHERE account_id = $1 AND created_at >= $2 AND created_at < $3"
+	avgQuery := "SELECT COALESCE(AVG(duration_ms), 0) as avg_duration_ms, COUNT(duration_ms) as duration_sample_count FROM usage_logs WHERE account_id = $1 AND created_at >= $2 AND created_at < $3"
 	var avgDuration float64
-	if err := scanSingleRow(ctx, r.sql, avgQuery, []any{accountID, startTime, endTime}, &avgDuration); err != nil {
+	var durationSampleCount int64
+	if err := scanSingleRow(ctx, r.sql, avgQuery, []any{accountID, startTime, endTime}, &avgDuration, &durationSampleCount); err != nil {
 		return nil, err
 	}
 
 	summary := AccountUsageSummary{
-		Days:              daysCount,
-		ActualDaysUsed:    actualDaysUsed,
-		TotalCost:         totalAccountCost,
-		TotalUserCost:     totalUserCost,
-		TotalStandardCost: totalStandardCost,
-		TotalRequests:     totalRequests,
-		TotalTokens:       totalTokens,
-		AvgDailyCost:      totalAccountCost / float64(actualDaysUsed),
-		AvgDailyUserCost:  totalUserCost / float64(actualDaysUsed),
-		AvgDailyRequests:  float64(totalRequests) / float64(actualDaysUsed),
-		AvgDailyTokens:    float64(totalTokens) / float64(actualDaysUsed),
-		AvgDurationMs:     avgDuration,
+		Days:                daysCount,
+		ActualDaysUsed:      actualDaysUsed,
+		TotalCost:           totalAccountCost,
+		TotalUserCost:       totalUserCost,
+		TotalStandardCost:   totalStandardCost,
+		TotalRequests:       totalRequests,
+		TotalTokens:         totalTokens,
+		AvgDailyCost:        totalAccountCost / float64(actualDaysUsed),
+		AvgDailyUserCost:    totalUserCost / float64(actualDaysUsed),
+		AvgDailyRequests:    float64(totalRequests) / float64(actualDaysUsed),
+		AvgDailyTokens:      float64(totalTokens) / float64(actualDaysUsed),
+		AvgDurationMs:       avgDuration,
+		DurationSampleCount: durationSampleCount,
 	}
 
 	todayStr := time.Now().In(startTime.Location()).Format("2006-01-02")

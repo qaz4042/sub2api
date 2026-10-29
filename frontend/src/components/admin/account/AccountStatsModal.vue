@@ -20,7 +20,7 @@
           <div>
             <div class="font-semibold text-gray-900 dark:text-gray-100">{{ account.name }}</div>
             <div class="text-xs text-gray-500 dark:text-gray-400">
-              {{ days === 1 ? t('admin.accounts.stats.rangeToday') : t('admin.accounts.stats.rangeDays', { days }) }}
+              {{ startDate }} ~ {{ endDate }}
             </div>
           </div>
         </div>
@@ -37,10 +37,13 @@
       </div>
 
       <AccountStatsFilters
-        v-model:days="days"
+        :start-date="startDate"
+        :end-date="endDate"
+        :invalid-range="invalidRange"
         v-model:granularity="granularity"
         v-model:include-tests="includeTests"
         :tests="stats?.scheduled_tests"
+        @change:date-range="setDateRange"
       />
       <p v-if="error" role="alert" class="text-sm text-red-600 dark:text-red-400">
         {{ t('admin.accounts.stats.loadError') }}
@@ -53,7 +56,7 @@
 
       <template v-else-if="stats">
         <!-- Row 1: Main Stats Cards -->
-        <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div class="grid grid-cols-2 gap-4 lg:grid-cols-5">
           <!-- Total Cost -->
           <div
             class="card border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 dark:border-emerald-800/30 dark:from-emerald-900/10 dark:to-dark-700"
@@ -97,6 +100,26 @@
             </p>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.accounts.stats.totalCalls') }}
+            </p>
+          </div>
+
+          <!-- Average Request Duration -->
+          <div
+            class="card border-rose-200 bg-gradient-to-br from-rose-50 to-white p-4 dark:border-rose-800/30 dark:from-rose-900/10 dark:to-dark-700"
+          >
+            <div class="mb-2 flex items-center justify-between gap-2">
+              <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{
+                t('admin.accounts.stats.avgRequestDuration')
+              }}</span>
+              <div class="shrink-0 rounded-lg bg-rose-100 p-1.5 dark:bg-rose-900/30">
+                <Icon name="clock" size="sm" class="text-rose-600 dark:text-rose-400" />
+              </div>
+            </div>
+            <p class="text-2xl font-bold text-gray-900 dark:text-white">
+              {{ formatAccountStatsDuration(stats.summary) }}
+            </p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.stats.avgRequestDurationHint') }}
             </p>
           </div>
 
@@ -347,7 +370,7 @@
                   t('admin.accounts.stats.avgResponseTime')
                 }}</span>
                 <span class="text-sm font-semibold text-gray-900 dark:text-white">{{
-                  formatDuration(stats.summary.avg_duration_ms)
+                  formatAccountStatsDuration(stats.summary)
                 }}</span>
               </div>
               <div class="flex items-center justify-between">
@@ -438,7 +461,7 @@
 
       <!-- No Data State -->
       <div
-        v-else-if="!loading && !error"
+        v-else-if="!loading && !error && !invalidRange"
         class="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400"
       >
         <Icon name="chartBar" size="xl" class="mb-4 h-12 w-12" />
@@ -481,6 +504,7 @@ import ModelDistributionChart from '@/components/charts/ModelDistributionChart.v
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAccountStats } from '@/composables/useAccountStats'
+import { formatAccountStatsDuration } from '@/utils/accountStatsDuration'
 import AccountStatsFilters from '@/components/account/AccountStatsFilters.vue'
 import type { Account } from '@/types'
 
@@ -506,7 +530,7 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
-const { loading, stats, error, days, granularity, includeTests } = useAccountStats(
+const { loading, stats, error, startDate, endDate, invalidRange, setDateRange, granularity, includeTests } = useAccountStats(
   () => props.show, () => props.account?.id
 )
 
@@ -694,10 +718,4 @@ const formatTokens = (value: number): string => {
   return value.toLocaleString()
 }
 
-const formatDuration = (ms: number): string => {
-  if (ms >= 1000) {
-    return `${(ms / 1000).toFixed(2)}s`
-  }
-  return `${Math.round(ms)}ms`
-}
 </script>

@@ -89,6 +89,7 @@ interface DatePreset {
 interface Props {
   startDate: string
   endDate: string
+  calendarDaysOnly?: boolean
 }
 
 interface Emits {
@@ -126,7 +127,7 @@ const formatDateToString = (date: Date): string => {
   return `${year}-${month}-${day}`
 }
 
-const presets: DatePreset[] = [
+const allPresets: DatePreset[] = [
   {
     labelKey: 'dates.today',
     value: 'today',
@@ -211,9 +212,11 @@ const presets: DatePreset[] = [
   }
 ]
 
+const presets = computed(() => allPresets.filter((preset) => !props.calendarDaysOnly || preset.value !== 'last24Hours'))
+
 const displayValue = computed(() => {
   if (activePreset.value) {
-    const preset = presets.find((p) => p.value === activePreset.value)
+    const preset = presets.value.find((p) => p.value === activePreset.value)
     if (preset) return t(preset.labelKey)
   }
 
@@ -247,7 +250,7 @@ const selectPreset = (preset: DatePreset) => {
 const onDateChange = () => {
   // Check if current dates match any preset
   activePreset.value = null
-  for (const preset of presets) {
+  for (const preset of presets.value) {
     const range = preset.getRange()
     if (range.start === localStartDate.value && range.end === localEndDate.value) {
       activePreset.value = preset.value

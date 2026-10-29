@@ -26,7 +26,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/typesafe"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -1783,9 +1782,11 @@ func (h *AccountHandler) GetStats(c *gin.Context) {
 		}
 	}
 	userTZ := c.Query("timezone")
-	now := timezone.NowInUserLocation(userTZ)
-	endTime := timezone.StartOfDayInUserLocation(now.AddDate(0, 0, 1), userTZ)
-	startTime := timezone.StartOfDayInUserLocation(now.AddDate(0, 0, -days+1), userTZ)
+	startTime, endTime, err := accountStatsTimeRange(days, c.Query("start_date"), c.Query("end_date"), userTZ)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
 
 	stats, err := h.accountUsageService.GetAccountUsageStatsWithOptions(c.Request.Context(), accountID, startTime, endTime, granularity, includeTests)
 	if err != nil {

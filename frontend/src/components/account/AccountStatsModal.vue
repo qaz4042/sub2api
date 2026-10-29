@@ -20,7 +20,7 @@
           <div>
             <div class="font-semibold text-gray-900 dark:text-gray-100">{{ account.name }}</div>
             <div class="text-xs text-gray-500 dark:text-gray-400">
-              {{ days === 1 ? t('admin.accounts.stats.rangeToday') : t('admin.accounts.stats.rangeDays', { days }) }}
+              {{ startDate }} ~ {{ endDate }}
             </div>
           </div>
         </div>
@@ -37,10 +37,13 @@
       </div>
 
       <AccountStatsFilters
-        v-model:days="days"
+        :start-date="startDate"
+        :end-date="endDate"
+        :invalid-range="invalidRange"
         v-model:granularity="granularity"
         v-model:include-tests="includeTests"
         :tests="stats?.scheduled_tests"
+        @change:date-range="setDateRange"
       />
       <p v-if="error" role="alert" class="text-sm text-red-600 dark:text-red-400">
         {{ t('admin.accounts.stats.loadError') }}
@@ -378,7 +381,7 @@
                   t('admin.accounts.stats.avgResponseTime')
                 }}</span>
                 <span class="text-sm font-semibold text-gray-900 dark:text-white">{{
-                  formatDuration(stats.summary.avg_duration_ms)
+                  formatAccountStatsDuration(stats.summary)
                 }}</span>
               </div>
               <div class="flex items-center justify-between">
@@ -474,7 +477,7 @@
 
       <!-- No Data State -->
       <div
-        v-else-if="!loading && !error"
+        v-else-if="!loading && !error && !invalidRange"
         class="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400"
       >
         <Icon name="chartBar" size="xl" class="mb-4 h-12 w-12" :stroke-width="1.5" />
@@ -517,6 +520,7 @@ import ModelDistributionChart from '@/components/charts/ModelDistributionChart.v
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAccountStats } from '@/composables/useAccountStats'
+import { formatAccountStatsDuration } from '@/utils/accountStatsDuration'
 import AccountStatsFilters from '@/components/account/AccountStatsFilters.vue'
 import type { Account } from '@/types'
 
@@ -542,7 +546,7 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
-const { loading, stats, error, days, granularity, includeTests } = useAccountStats(
+const { loading, stats, error, startDate, endDate, invalidRange, setDateRange, granularity, includeTests } = useAccountStats(
   () => props.show, () => props.account?.id
 )
 
@@ -730,10 +734,4 @@ const formatTokens = (value: number): string => {
   return value.toLocaleString()
 }
 
-const formatDuration = (ms: number): string => {
-  if (ms >= 1000) {
-    return `${(ms / 1000).toFixed(2)}s`
-  }
-  return `${Math.round(ms)}ms`
-}
 </script>

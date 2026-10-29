@@ -15,4 +15,11 @@ describe('account statistics API', () => {
       params: { days: 1, granularity: 'hour', include_tests: false }, signal: controller.signal
     })
   })
+  it('sends custom calendar dates instead of a rolling day count', async () => {
+    await getStats(7, 30, { startDate: '2026-10-01', endDate: '2026-10-03' })
+    expect(get).toHaveBeenLastCalledWith('/admin/accounts/7/stats', {
+      params: { start_date: '2026-10-01', end_date: '2026-10-03', granularity: 'day', include_tests: true },
+      signal: undefined
+    })
+  })
 })

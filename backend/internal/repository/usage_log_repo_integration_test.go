@@ -1504,6 +1504,7 @@ func (s *UsageLogRepoSuite) TestGetAccountUsageStats() {
 	account := mustCreateAccount(s.T(), s.client, &service.Account{Name: "acc-accstats"})
 
 	base := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+	zeroDuration := 0
 
 	// Create logs on different days
 	log1 := &service.UsageLog{
@@ -1516,6 +1517,7 @@ func (s *UsageLogRepoSuite) TestGetAccountUsageStats() {
 		TotalCost:    0.5,
 		ActualCost:   0.4,
 		CreatedAt:    base.Add(12 * time.Hour),
+		DurationMs:   &zeroDuration,
 	}
 	_, err := s.repo.Create(s.ctx, log1)
 	s.Require().NoError(err)
@@ -1543,8 +1545,15 @@ func (s *UsageLogRepoSuite) TestGetAccountUsageStats() {
 	s.Require().Len(resp.History, 2, "expected 2 days of history")
 	s.Require().Equal(3, resp.Summary.Days)
 	s.Require().Equal(int64(2), resp.Summary.TotalRequests)
+	s.Require().EqualValues(1, resp.Summary.DurationSampleCount, "count measured zero but exclude missing duration")
+	s.Require().Zero(resp.Summary.AvgDurationMs)
 	s.Require().Equal(int64(450), resp.Summary.TotalTokens)
 	s.Require().Len(resp.Models, 2)
+
+	missing, err := s.repo.GetAccountUsageStats(s.ctx, account.ID, base.AddDate(0, 0, 1), endTime)
+	s.Require().NoError(err)
+	s.Require().EqualValues(1, missing.Summary.TotalRequests)
+	s.Require().Zero(missing.Summary.DurationSampleCount, "requests without duration must not become measured zero samples")
 }
 
 func (s *UsageLogRepoSuite) TestGetAccountUsageStats_EmptyRange() {
@@ -1559,6 +1568,7 @@ func (s *UsageLogRepoSuite) TestGetAccountUsageStats_EmptyRange() {
 
 	s.Require().Len(resp.History, 0)
 	s.Require().Equal(int64(0), resp.Summary.TotalRequests)
+	s.Require().Zero(resp.Summary.DurationSampleCount)
 }
 
 // --- GetUserUsageTrend ---

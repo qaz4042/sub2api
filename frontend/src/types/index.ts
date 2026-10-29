@@ -2284,6 +2284,7 @@ export interface AccountUsageSummary {
   avg_daily_requests: number
   avg_daily_tokens: number
   avg_duration_ms: number
+  duration_sample_count?: number // Absent on older servers; zero means no recorded durations.
   today: {
     date: string
     cost: number

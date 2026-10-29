@@ -21,7 +21,7 @@ func (r *scheduledStatsRepoStub) GetAccountUsageStats(context.Context, int64, ti
 	date, label := usagestats.AccountStatsBucket(r.start.AddDate(0, 0, 1), "day")
 	return &usagestats.AccountUsageStatsResponse{
 		History: []usagestats.AccountUsageHistory{{Date: date, Label: label, Requests: 5, Tokens: 50, Cost: 10, ActualCost: 10, UserCost: 8}},
-		Summary: usagestats.AccountUsageSummary{Days: 2, ActualDaysUsed: 1, TotalRequests: 5, TotalTokens: 50, TotalCost: 10, TotalUserCost: 8, TotalStandardCost: 10, AvgDurationMs: 100},
+		Summary: usagestats.AccountUsageSummary{Days: 2, ActualDaysUsed: 1, TotalRequests: 5, TotalTokens: 50, TotalCost: 10, TotalUserCost: 8, TotalStandardCost: 10, AvgDurationMs: 100, DurationSampleCount: 5},
 	}, nil
 }
 
@@ -76,6 +76,7 @@ func TestAccountStatsIncludeScheduledTests(t *testing.T) {
 			require.Equal(t, 2, combined.Summary.ActualDaysUsed)
 			require.Equal(t, 5.0, combined.Summary.AvgDailyRequests)
 			require.Equal(t, 150.0, combined.Summary.AvgDurationMs)
+			require.EqualValues(t, 10, combined.Summary.DurationSampleCount)
 			require.EqualValues(t, 7, combined.Summary.HighestRequestDay.Requests)
 			require.Equal(t, 10.0, combined.Summary.TotalCost)
 			require.EqualValues(t, 50, combined.Summary.TotalTokens)
@@ -88,6 +89,35 @@ func TestAccountStatsIncludeScheduledTests(t *testing.T) {
 			require.InDelta(t, 100.0/3, *combined.Errors.ErrorRate, 1e-9)
 			require.EqualValues(t, 9, combined.Errors.History[0].Requests)
 			require.InDelta(t, 100.0/3, *combined.Errors.History[0].ErrorRate, 1e-9)
+		})
+	}
+}
+
+func TestAccountScheduledTestsDurationSamples(t *testing.T) {
+	start := time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name                                      string
+		businessSamples                           int64
+		businessAverage, testLatency, wantAverage float64
+	}{
+		{"missing business duration", 1, 100, 200, 150},
+		{"all business durations missing", 0, 0, 200, 200},
+		{"measured zero", 1, 0, 200, 100},
+		{"zero test latency", 1, 100, 0, 50},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			stats := &usagestats.AccountUsageStatsResponse{
+				Granularity: "day",
+				Summary:     usagestats.AccountUsageSummary{TotalRequests: 2, DurationSampleCount: tc.businessSamples, AvgDurationMs: tc.businessAverage},
+			}
+			tests := &usagestats.AccountScheduledTestStats{
+				TotalRequests: 1,
+				History:       []usagestats.AccountScheduledTestBucket{{Start: start, Requests: 1, LatencyMs: int64(tc.testLatency)}},
+			}
+			mergeAccountScheduledTests(stats, tests, nil, start)
+			require.EqualValues(t, 3, stats.Summary.TotalRequests)
+			require.Equal(t, tc.businessSamples+1, stats.Summary.DurationSampleCount)
+			require.Equal(t, tc.wantAverage, stats.Summary.AvgDurationMs)
 		})
 	}
 }
