@@ -1481,6 +1481,13 @@ func TestApplyCodexOAuthTransform_EmptyInput(t *testing.T) {
 	require.Len(t, input, 0)
 }
 
+func TestNormalizeCodexModel_GPT61Terra(t *testing.T) {
+	for _, model := range []string{"gpt-6.1-terra", "openai/gpt-6.1-terra", "GPT_6.1_TERRA", "gpt-6.1-terra-high", "gpt-6.1-terra-openai-compact"} {
+		require.Equal(t, "gpt-6.1-terra", normalizeCodexModel(model), model)
+	}
+	require.Equal(t, "gpt-6.1-terra-preview", normalizeCodexModel("gpt-6.1-terra-preview"))
+}
+
 func TestNormalizeCodexModel_Gpt53(t *testing.T) {
 	cases := map[string]string{
 		"gpt-6-astra":               "gpt-6-astra",

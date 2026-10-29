@@ -72,3 +72,7 @@ func TestGPT61SolIdentityAndEffort(t *testing.T) {
 	}
 	require.Contains(t, CodexBaseInstructionsForModel("gpt-6.1-sol"), "based on GPT-6")
 }
+
+func TestDefaultModelsIncludeGPT61Terra(t *testing.T) {
+	require.Contains(t, DefaultModelIDs(), "gpt-6.1-terra")
+}
