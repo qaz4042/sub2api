@@ -504,7 +504,7 @@ import ModelDistributionChart from '@/components/charts/ModelDistributionChart.v
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAccountStats } from '@/composables/useAccountStats'
-import { formatAccountStatsDuration } from '@/utils/accountStatsDuration'
+import { accountStatsDurationSeconds, accountStatsTrendHistory, formatAccountStatsDuration } from '@/utils/accountStatsDuration'
 import AccountStatsFilters from '@/components/account/AccountStatsFilters.vue'
 import type { Account } from '@/types'
 
@@ -546,15 +546,19 @@ const chartColors = computed(() => ({
 }))
 
 // Line chart data
+const trendHistory = computed(() => stats.value ? accountStatsTrendHistory(
+  stats.value.history, granularity.value, startDate.value, endDate.value
+) : [])
+
 const trendChartData = computed(() => {
-  if (!stats.value?.history?.length) return null
+  if (!trendHistory.value.length) return null
 
   return {
-    labels: stats.value.history.map((h) => h.label),
+    labels: trendHistory.value.map((h) => h.label),
     datasets: [
       {
         label: t('usage.accountBilled') + ' (USD)',
-        data: stats.value.history.map((h) => h.actual_cost),
+        data: trendHistory.value.map((h) => h.actual_cost),
         borderColor: '#3b82f6',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
         fill: true,
@@ -563,7 +567,7 @@ const trendChartData = computed(() => {
       },
       {
         label: t('usage.userBilled') + ' (USD)',
-        data: stats.value.history.map((h) => h.user_cost),
+        data: trendHistory.value.map((h) => h.user_cost),
         borderColor: '#10b981',
         backgroundColor: 'rgba(16, 185, 129, 0.08)',
         fill: false,
@@ -573,18 +577,30 @@ const trendChartData = computed(() => {
       },
       {
         label: t('admin.accounts.stats.requests'),
-        data: stats.value.history.map((h) => h.requests),
+        data: trendHistory.value.map((h) => h.requests),
         borderColor: '#f97316',
         backgroundColor: 'rgba(249, 115, 22, 0.1)',
         fill: false,
         tension: 0.3,
         yAxisID: 'y1'
+      },
+      {
+        label: t('admin.accounts.stats.avgRequestDuration'),
+        data: trendHistory.value.map(accountStatsDurationSeconds),
+        borderColor: '#f43f5e',
+        backgroundColor: 'rgba(244, 63, 94, 0.1)',
+        fill: false,
+        tension: 0,
+        spanGaps: false,
+        pointRadius: trendHistory.value.length > 100 ? 0 : 2,
+        pointHitRadius: 8,
+        yAxisID: 'y2'
       }
     ]
   }
 })
 
-// Line chart options with dual Y-axis
+// Keep duration, request count and cost on independent scales.
 const lineChartOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
@@ -610,6 +626,9 @@ const lineChartOptions = computed(() => ({
         label: (context: any) => {
           const label = context.dataset.label || ''
           const value = context.raw
+          if (context.dataset.yAxisID === 'y2') {
+            return `${label}: ${Number(value).toFixed(2)}s`
+          }
           if (label.includes('USD')) {
             return `${label}: $${formatCost(value)}`
           }
@@ -654,6 +673,23 @@ const lineChartOptions = computed(() => ({
         font: {
           size: 11
         }
+      }
+    },
+    y2: {
+      type: 'linear' as const,
+      position: 'right' as const,
+      beginAtZero: true,
+      grid: { drawOnChartArea: false },
+      ticks: {
+        color: '#f43f5e',
+        font: { size: 10 },
+        callback: (value: string | number) => `${value}s`
+      },
+      title: {
+        display: true,
+        text: t('admin.accounts.stats.avgRequestDuration') + ' (s)',
+        color: '#f43f5e',
+        font: { size: 11 }
       }
     },
     y1: {

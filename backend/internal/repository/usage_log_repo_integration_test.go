@@ -1547,6 +1547,9 @@ func (s *UsageLogRepoSuite) TestGetAccountUsageStats() {
 	s.Require().Equal(int64(2), resp.Summary.TotalRequests)
 	s.Require().EqualValues(1, resp.Summary.DurationSampleCount, "count measured zero but exclude missing duration")
 	s.Require().Zero(resp.Summary.AvgDurationMs)
+	s.Require().EqualValues(1, resp.History[0].DurationSampleCount)
+	s.Require().Zero(resp.History[0].AvgDurationMs)
+	s.Require().Zero(resp.History[1].DurationSampleCount)
 	s.Require().Equal(int64(450), resp.Summary.TotalTokens)
 	s.Require().Len(resp.Models, 2)
 

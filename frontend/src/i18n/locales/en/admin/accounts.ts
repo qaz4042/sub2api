@@ -1656,7 +1656,7 @@ export default {
         todayRequests: 'Today Requests',
         todayTokens: 'Today Tokens',
         todayCost: 'Today Cost',
-        usageTrend: 'Cost & Requests Trend',
+        usageTrend: 'Cost, Requests & Duration Trend',
         noData: 'No usage data available for this account'
       },
       usageWindow: {

@@ -14,7 +14,7 @@ func (r *usageLogRepository) GetAccountHourlyUsageHistory(ctx context.Context, a
  COUNT(*), COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0),
  COALESCE(SUM(total_cost), 0),
  COALESCE(SUM(COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)), 0),
- COALESCE(SUM(actual_cost), 0)
+ COALESCE(SUM(actual_cost), 0), COALESCE(AVG(duration_ms), 0), COUNT(duration_ms)
  FROM usage_logs WHERE account_id = $1 AND created_at >= $2 AND created_at < $3
  GROUP BY bucket ORDER BY bucket`
 	rows, err := r.sql.QueryContext(ctx, query, accountID, start, end)
@@ -26,7 +26,7 @@ func (r *usageLogRepository) GetAccountHourlyUsageHistory(ctx context.Context, a
 	for rows.Next() {
 		var at time.Time
 		var point usagestats.AccountUsageHistory
-		if err := rows.Scan(&at, &point.Requests, &point.Tokens, &point.Cost, &point.ActualCost, &point.UserCost); err != nil {
+		if err := rows.Scan(&at, &point.Requests, &point.Tokens, &point.Cost, &point.ActualCost, &point.UserCost, &point.AvgDurationMs, &point.DurationSampleCount); err != nil {
 			return nil, err
 		}
 		points[at.UTC().Format(time.RFC3339)] = point

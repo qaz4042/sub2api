@@ -96,12 +96,12 @@ func TestAccountHourlyStatsSQL(t *testing.T) {
 	_, err = tx.ExecContext(ctx, `
 CREATE TEMP TABLE usage_logs (id BIGSERIAL, account_id BIGINT, api_key_id BIGINT, request_id TEXT, created_at TIMESTAMPTZ,
  input_tokens INT DEFAULT 0, output_tokens INT DEFAULT 0, cache_creation_tokens INT DEFAULT 0, cache_read_tokens INT DEFAULT 0,
- total_cost NUMERIC DEFAULT 0, account_stats_cost NUMERIC, account_rate_multiplier NUMERIC DEFAULT 1, actual_cost NUMERIC DEFAULT 0) ON COMMIT DROP;
+ total_cost NUMERIC DEFAULT 0, account_stats_cost NUMERIC, account_rate_multiplier NUMERIC DEFAULT 1, actual_cost NUMERIC DEFAULT 0, duration_ms INT) ON COMMIT DROP;
 CREATE TEMP TABLE ops_error_logs (id BIGSERIAL, account_id BIGINT, api_key_id BIGINT, request_id TEXT, client_request_id TEXT, created_at TIMESTAMPTZ, status_code INT, error_type TEXT DEFAULT '', request_type SMALLINT DEFAULT 1, is_count_tokens BOOLEAN DEFAULT FALSE) ON COMMIT DROP;
-INSERT INTO usage_logs (account_id, api_key_id, request_id, created_at, input_tokens, total_cost, account_stats_cost, account_rate_multiplier, actual_cost) VALUES
- (7, 1, 'local:a', '2026-11-01 05:15Z', 10, 2, 3, 2, 1),
- (7, 1, 'local:b', '2026-11-01 06:15Z', 20, 5, NULL, 2, 4),
- (8, 1, 'other', '2026-11-01 06:15Z', 30, 9, NULL, 1, 9);
+INSERT INTO usage_logs (account_id, api_key_id, request_id, created_at, input_tokens, total_cost, account_stats_cost, account_rate_multiplier, actual_cost, duration_ms) VALUES
+ (7, 1, 'local:a', '2026-11-01 05:15Z', 10, 2, 3, 2, 1, 1200),
+ (7, 1, 'local:b', '2026-11-01 06:15Z', 20, 5, NULL, 2, 4, NULL),
+ (8, 1, 'other', '2026-11-01 06:15Z', 30, 9, NULL, 1, 9, 9000);
 INSERT INTO ops_error_logs (account_id, api_key_id, request_id, created_at, status_code) VALUES
  (7, 1, 'a', '2026-11-01 05:16Z', 502),
  (7, 1, 'c', '2026-11-01 06:30Z', 500)`)
@@ -122,6 +122,10 @@ INSERT INTO ops_error_logs (account_id, api_key_id, request_id, created_at, stat
 	require.EqualValues(t, 20, history[2].Tokens)
 	require.Equal(t, 4.0, history[2].UserCost)
 	require.Zero(t, history[0].Requests)
+	require.EqualValues(t, 1, history[1].DurationSampleCount)
+	require.Equal(t, 1200.0, history[1].AvgDurationMs)
+	require.Zero(t, history[2].DurationSampleCount)
+	require.Zero(t, history[0].DurationSampleCount)
 
 	errors, err := repo.GetAccountErrorStats(ctx, 7, start, end, "hour")
 	require.NoError(t, err)

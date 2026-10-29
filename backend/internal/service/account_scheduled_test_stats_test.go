@@ -20,14 +20,14 @@ type scheduledStatsRepoStub struct {
 func (r *scheduledStatsRepoStub) GetAccountUsageStats(context.Context, int64, time.Time, time.Time) (*usagestats.AccountUsageStatsResponse, error) {
 	date, label := usagestats.AccountStatsBucket(r.start.AddDate(0, 0, 1), "day")
 	return &usagestats.AccountUsageStatsResponse{
-		History: []usagestats.AccountUsageHistory{{Date: date, Label: label, Requests: 5, Tokens: 50, Cost: 10, ActualCost: 10, UserCost: 8}},
+		History: []usagestats.AccountUsageHistory{{Date: date, Label: label, Requests: 5, Tokens: 50, Cost: 10, ActualCost: 10, UserCost: 8, AvgDurationMs: 100, DurationSampleCount: 5}},
 		Summary: usagestats.AccountUsageSummary{Days: 2, ActualDaysUsed: 1, TotalRequests: 5, TotalTokens: 50, TotalCost: 10, TotalUserCost: 8, TotalStandardCost: 10, AvgDurationMs: 100, DurationSampleCount: 5},
 	}, nil
 }
 
 func (r *scheduledStatsRepoStub) GetAccountHourlyUsageHistory(context.Context, int64, time.Time, time.Time) ([]usagestats.AccountUsageHistory, error) {
 	date, label := usagestats.AccountStatsBucket(r.start.AddDate(0, 0, 1), "hour")
-	return []usagestats.AccountUsageHistory{{Date: date, Label: label, Requests: 5, Tokens: 50, Cost: 10, ActualCost: 10, UserCost: 8}}, nil
+	return []usagestats.AccountUsageHistory{{Date: date, Label: label, Requests: 5, Tokens: 50, Cost: 10, ActualCost: 10, UserCost: 8, AvgDurationMs: 100, DurationSampleCount: 5}}, nil
 }
 
 func (r *scheduledStatsRepoStub) GetAccountScheduledTestStats(_ context.Context, _ int64, _, _ time.Time, _ string) (*usagestats.AccountScheduledTestStats, error) {
@@ -83,6 +83,10 @@ func TestAccountStatsIncludeScheduledTests(t *testing.T) {
 			require.Len(t, combined.History, 2)
 			require.EqualValues(t, 3, combined.History[0].Requests)
 			require.EqualValues(t, 7, combined.History[1].Requests)
+			require.EqualValues(t, 3, combined.History[0].DurationSampleCount)
+			require.Equal(t, 200.0, combined.History[0].AvgDurationMs)
+			require.EqualValues(t, 7, combined.History[1].DurationSampleCount)
+			require.InDelta(t, 900.0/7, combined.History[1].AvgDurationMs, 1e-9)
 			require.EqualValues(t, 5, combined.ScheduledTests.TotalRequests)
 			require.EqualValues(t, 9, combined.Errors.TotalRequests, "respect business error retention")
 			require.EqualValues(t, 3, combined.Errors.ErrorCount)
@@ -109,6 +113,7 @@ func TestAccountScheduledTestsDurationSamples(t *testing.T) {
 			stats := &usagestats.AccountUsageStatsResponse{
 				Granularity: "day",
 				Summary:     usagestats.AccountUsageSummary{TotalRequests: 2, DurationSampleCount: tc.businessSamples, AvgDurationMs: tc.businessAverage},
+				History:     []usagestats.AccountUsageHistory{{Date: start.Format(time.DateOnly), Requests: 2, DurationSampleCount: tc.businessSamples, AvgDurationMs: tc.businessAverage}},
 			}
 			tests := &usagestats.AccountScheduledTestStats{
 				TotalRequests: 1,
@@ -118,6 +123,9 @@ func TestAccountScheduledTestsDurationSamples(t *testing.T) {
 			require.EqualValues(t, 3, stats.Summary.TotalRequests)
 			require.Equal(t, tc.businessSamples+1, stats.Summary.DurationSampleCount)
 			require.Equal(t, tc.wantAverage, stats.Summary.AvgDurationMs)
+			require.Len(t, stats.History, 1)
+			require.Equal(t, tc.wantAverage, stats.History[0].AvgDurationMs)
+			require.Equal(t, tc.businessSamples+1, stats.History[0].DurationSampleCount)
 		})
 	}
 }

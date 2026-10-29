@@ -1744,7 +1744,7 @@ export default {
         todayRequests: '今日请求',
         todayTokens: '今日 Token',
         todayCost: '今日费用',
-        usageTrend: '费用与请求趋势',
+        usageTrend: '费用、请求与耗时趋势',
         noData: '该账号暂无使用数据'
       }
     },

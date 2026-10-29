@@ -332,13 +332,15 @@ type BatchAPIKeyUsageStats struct {
 
 // AccountUsageHistory represents usage history at the selected trend resolution.
 type AccountUsageHistory struct {
-	Date       string  `json:"date"`
-	Label      string  `json:"label"`
-	Requests   int64   `json:"requests"`
-	Tokens     int64   `json:"tokens"`
-	Cost       float64 `json:"cost"`        // 标准计费（total_cost）
-	ActualCost float64 `json:"actual_cost"` // 账号口径费用（total_cost * account_rate_multiplier）
-	UserCost   float64 `json:"user_cost"`   // 用户口径费用（actual_cost，受分组倍率影响）
+	Date                string  `json:"date"`
+	Label               string  `json:"label"`
+	Requests            int64   `json:"requests"`
+	Tokens              int64   `json:"tokens"`
+	Cost                float64 `json:"cost"`        // 标准计费（total_cost）
+	ActualCost          float64 `json:"actual_cost"` // 账号口径费用（total_cost * account_rate_multiplier）
+	UserCost            float64 `json:"user_cost"`   // 用户口径费用（actual_cost，受分组倍率影响）
+	AvgDurationMs       float64 `json:"avg_duration_ms"`
+	DurationSampleCount int64   `json:"duration_sample_count"`
 }
 
 // AccountUsageSummary represents summary statistics for an account

@@ -932,7 +932,9 @@ func (r *usageLogRepository) GetAccountUsageStats(ctx context.Context, accountID
 			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as tokens,
 			COALESCE(SUM(total_cost), 0) as cost,
 			COALESCE(SUM(COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)), 0) as actual_cost,
-			COALESCE(SUM(actual_cost), 0) as user_cost
+			COALESCE(SUM(actual_cost), 0) as user_cost,
+			COALESCE(AVG(duration_ms), 0) as avg_duration_ms,
+			COUNT(duration_ms) as duration_sample_count
 		FROM usage_logs
 		WHERE account_id = $1 AND created_at >= $2 AND created_at < $3
 		GROUP BY date
@@ -960,18 +962,22 @@ func (r *usageLogRepository) GetAccountUsageStats(ctx context.Context, accountID
 		var cost float64
 		var actualCost float64
 		var userCost float64
-		if err = rows.Scan(&date, &requests, &tokens, &cost, &actualCost, &userCost); err != nil {
+		var avgDuration float64
+		var durationSampleCount int64
+		if err = rows.Scan(&date, &requests, &tokens, &cost, &actualCost, &userCost, &avgDuration, &durationSampleCount); err != nil {
 			return nil, err
 		}
 		t, _ := time.Parse("2006-01-02", date)
 		history = append(history, AccountUsageHistory{
-			Date:       date,
-			Label:      t.Format("01/02"),
-			Requests:   requests,
-			Tokens:     tokens,
-			Cost:       cost,
-			ActualCost: actualCost,
-			UserCost:   userCost,
+			Date:                date,
+			Label:               t.Format("01/02"),
+			Requests:            requests,
+			Tokens:              tokens,
+			Cost:                cost,
+			ActualCost:          actualCost,
+			UserCost:            userCost,
+			AvgDurationMs:       avgDuration,
+			DurationSampleCount: durationSampleCount,
 		})
 	}
 	if err = rows.Err(); err != nil {

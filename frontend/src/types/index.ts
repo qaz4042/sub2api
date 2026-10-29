@@ -2269,6 +2269,8 @@ export interface AccountUsageHistory {
   cost: number
   actual_cost: number // Account cost (account multiplier)
   user_cost: number // User/API key billed cost (group multiplier)
+  avg_duration_ms?: number
+  duration_sample_count?: number
 }
 
 export interface AccountUsageSummary {

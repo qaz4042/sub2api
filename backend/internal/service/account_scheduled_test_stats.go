@@ -35,6 +35,11 @@ func mergeAccountScheduledTests(stats *usagestats.AccountUsageStatsResponse, tes
 		date, label = usagestats.AccountStatsBucket(test.Start, stats.Granularity)
 		point := history[date]
 		point.Date, point.Label = date, label
+		durationSum := point.AvgDurationMs*float64(point.DurationSampleCount) + float64(test.LatencyMs)
+		point.DurationSampleCount += test.Requests
+		if point.DurationSampleCount > 0 {
+			point.AvgDurationMs = durationSum / float64(point.DurationSampleCount)
+		}
 		point.Requests += test.Requests
 		history[date] = point
 		latency += test.LatencyMs
