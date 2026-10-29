@@ -89,13 +89,14 @@ func TestFailureMustMatchCohortAndHTTP5xxNeedsRecentCandidateSuccess(t *testing.
 		{ProxyID: 1, Model: "healthy", Transport: "http", RecentTotal: 1},
 		{ProxyID: 2, Model: "healthy", Transport: "http", Total: 5, Successes: 5, Last: &now},
 	}}
-	target, _ := choose(1, qs, actual, now, nil)
-	require.Zero(t, target)
+	target, reason := choose(1, qs, actual, now, nil)
+	require.EqualValues(t, 2, target)
+	require.Equal(t, "business_degraded", reason)
 	actual.Metrics = []businessMetric{
 		{ProxyID: 1, Model: "gpt", Transport: "http", RecentHTTP5xx: 3, FirstHTTP5xx: &first},
 		{ProxyID: 2, Model: "gpt", Transport: "http", Total: 5, Successes: 5, TTFTCount: 3, Median: &fast, Last: &now, RecentSuccesses: 2, LastRecentSuccess: &success},
 	}
-	target, reason := choose(1, qs, actual, now, nil)
+	target, reason = choose(1, qs, actual, now, nil)
 	require.EqualValues(t, 2, target)
 	require.Equal(t, "business_5xx", reason)
 	older := first.Add(-time.Second)
@@ -107,6 +108,37 @@ func TestFailureMustMatchCohortAndHTTP5xxNeedsRecentCandidateSuccess(t *testing.
 	target, _ = choose(1, qs, actual, now, nil)
 	require.Zero(t, target)
 	_ = slow
+}
+
+func TestTransportFailureCanUseMonitorOnlyCandidate(t *testing.T) {
+	now := time.Now()
+	qs := []proxyopen.Quality{good(1, 1500, now), good(2, 300, now)}
+	actual := businessSummary{Metrics: []businessMetric{
+		{ProxyID: 1, Model: "gpt", Transport: "http", RecentTotal: 3, RecentFailures: 3},
+	}}
+	target, reason := choose(1, qs, actual, now, nil)
+	require.EqualValues(t, 2, target)
+	require.Equal(t, "business_degraded", reason)
+}
+
+func TestUnavailableCurrentCanUseMonitorOnlyCandidate(t *testing.T) {
+	now := time.Now()
+	qs := []proxyopen.Quality{{ID: 1, Eligible: false}, good(2, 300, now)}
+	target, reason := choose(1, qs, businessSummary{}, now, nil)
+	require.EqualValues(t, 2, target)
+	require.Equal(t, "business_degraded", reason)
+}
+
+func TestHTTP5xxStillRequiresCandidateHistory(t *testing.T) {
+	now := time.Now()
+	first := now.Add(-time.Minute)
+	qs := []proxyopen.Quality{good(1, 1500, now), good(2, 300, now)}
+	actual := businessSummary{Metrics: []businessMetric{
+		{ProxyID: 1, Model: "gpt", Transport: "http", RecentHTTP5xx: 3, FirstHTTP5xx: &first},
+	}}
+	target, reason := choose(1, qs, actual, now, nil)
+	require.Zero(t, target)
+	require.Equal(t, "business_insufficient", reason)
 }
 
 func TestCandidateCountRequiresComparableHealthyHistory(t *testing.T) {

@@ -68,8 +68,15 @@ func choose(current int64, quality []proxyopen.Quality, actual businessSummary, 
 	if len(candidates) == 0 {
 		return 0, "no_candidate"
 	}
+	// An ineligible current connection is an explicit availability failure. A
+	// fresh, healthy monitor candidate may take over even without account
+	// history; the first real request after the switch supplies that history.
+	if unavailable {
+		return lowestCandidate(candidates), "business_degraded"
+	}
 	var bestID int64
 	var failureID int64
+	var coldFailureID int64
 	failureReason := ""
 	bestImprovement := 0.0
 	compared := false
@@ -120,9 +127,17 @@ func choose(current int64, quality []proxyopen.Quality, actual businessSummary, 
 				bestImprovement = improvement
 			}
 		}
+		// Transport failures are sufficient to use a monitor-only candidate.
+		// HTTP 5xx remains history-gated because it may be account/model-specific.
+		if degraded && coldFailureID == 0 {
+			coldFailureID = lowestCandidate(candidates)
+		}
 	}
 	if failureID != 0 {
 		return failureID, failureReason
+	}
+	if coldFailureID != 0 {
+		return coldFailureID, "business_degraded"
 	}
 	if bestID != 0 {
 		return bestID, "business_improved"
@@ -134,6 +149,16 @@ func choose(current int64, quality []proxyopen.Quality, actual businessSummary, 
 		return 0, "business_stable"
 	}
 	return 0, "business_insufficient"
+}
+
+func lowestCandidate(candidates map[int64]bool) int64 {
+	var result int64
+	for id := range candidates {
+		if result == 0 || id < result {
+			result = id
+		}
+	}
+	return result
 }
 
 // Counts qualified alternatives with comparable actual history, not an immediate
