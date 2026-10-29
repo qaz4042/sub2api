@@ -525,6 +525,7 @@ func registerCNProviderRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 func registerProxyRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAuth middleware.StepUpAuthMiddleware) {
 	proxies := admin.Group("/proxies")
 	h.Admin.Proxy.RegisterOpenAILatency(proxies)
+	h.Admin.Proxy.RegisterOpenAIMonitor(proxies)
 	{
 		proxies.GET("", h.Admin.Proxy.List)
 		proxies.GET("/all", h.Admin.Proxy.GetAll)

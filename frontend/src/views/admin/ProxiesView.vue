@@ -221,7 +221,10 @@
           </template>
 
           <template #cell-openai_latency="{ row }">
-            <OpenAIProxyTest :proxy="row" />
+            <div class="flex flex-col items-start gap-1">
+              <OpenAIProxyTest :proxy="row" />
+              <ProxyMonitorDialog :proxy="row" />
+            </div>
           </template>
 
           <template #cell-latency="{ row }">
@@ -1010,6 +1013,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import ImportDataModal from '@/components/admin/proxy/ImportDataModal.vue'
 import Select from '@/components/common/Select.vue'
 import ProxyAdBanner from '@/components/common/ProxyAdBanner.vue'
+import ProxyMonitorDialog from '@/features/proxy-openai-monitor/MonitorDialog.vue'
 import OpenAIProxyTest from '@/features/proxy-openai-latency/OpenAIProxyTest.vue'
 import OpenAIBatchTest from '@/features/proxy-openai-latency/OpenAIBatchTest.vue'
 import { provideOpenAIProxyTests } from '@/features/proxy-openai-latency/state'

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/features/proxyopen"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -16,6 +17,7 @@ import (
 // ProxyHandler handles admin proxy management
 type ProxyHandler struct {
 	adminService service.AdminService
+	monitor      *proxyopen.Runner
 }
 
 // NewProxyHandler creates a new admin proxy handler

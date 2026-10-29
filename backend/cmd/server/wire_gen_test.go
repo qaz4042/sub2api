@@ -72,6 +72,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		codexVersionSyncSvc,
 		claudeCodeVersionSyncSvc,
 		proxyExpirySvc,
+		nil, // proxyMonitor
 		proxyAutoFailoverSvc,
 		subscriptionExpirySvc,
 		&service.UsageCleanupService{},

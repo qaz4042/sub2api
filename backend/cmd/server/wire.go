@@ -12,6 +12,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/features/proxyopen"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/Wei-Shaw/sub2api/internal/repository"
@@ -101,6 +102,7 @@ func provideCleanup(
 	codexVersionSync *service.OpenAICodexVersionSyncService,
 	claudeCodeVersionSync *service.ClaudeCodeVersionSyncService,
 	proxyExpiry *service.ProxyExpiryService,
+	proxyMonitor *proxyopen.Runner,
 	proxyAutoFailover *service.ProxyAutoFailoverService,
 	subscriptionExpiry *service.SubscriptionExpiryService,
 	usageCleanup *service.UsageCleanupService,
@@ -279,6 +281,7 @@ func provideCleanup(
 				claudeCodeVersionSync.Stop()
 				return nil
 			}},
+			{"ProxyOpenAIMonitor", func() error { proxyMonitor.Stop(); return nil }},
 			{"ProxyExpiryService", func() error {
 				proxyExpiry.Stop()
 				return nil

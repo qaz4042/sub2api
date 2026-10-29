@@ -130,7 +130,7 @@ export default {
       batchTestFailed: 'Batch test failed',
       batchDeleteAction: 'Delete',
       batchDelete: 'Batch delete',
-      batchDeleteConfirm: 'Delete {count} selected proxies? In-use ones will be skipped.',
+      batchDeleteConfirm: 'Delete {count} selected proxies? In-use ones will be skipped. Monitoring stops for deleted proxies; monitor settings and history are cleaned in batches.',
       batchDeleteDone: 'Deleted {deleted} proxies, skipped {skipped}',
       batchDeleteSkipped: 'Skipped {skipped} proxies',
       batchDeleteFailed: 'Batch delete failed',
@@ -223,7 +223,7 @@ export default {
       hostRequired: 'Please enter host address',
       portInvalid: 'Port must be between 1-65535',
       deleteConfirm:
-        "Are you sure you want to delete '{name}'? Accounts using this proxy will have their proxy removed.",
+        "Are you sure you want to delete '{name}'? Accounts using this proxy will have their proxy removed. Background monitoring stops; monitor settings and history are cleaned in batches.",
       neverExpires: 'Never',
       expired: 'Expired',
       overdueDays: 'Overdue {days}d',
