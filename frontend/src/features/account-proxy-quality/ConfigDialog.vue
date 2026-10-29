@@ -13,7 +13,14 @@
           <div><dt class="text-xs text-gray-500">{{ text.status }}</dt><dd>{{ reason(settings.reason) }}</dd></div>
           <div class="sm:col-span-2"><dt class="text-xs text-gray-500">{{ text.evaluated }}</dt><dd>{{ date(settings.last_evaluated_at) }}</dd></div>
         </dl>
-        <fieldset :disabled="busy || saving" class="min-w-0 space-y-2">
+        <fieldset :disabled="busy || saving" class="space-y-2">
+          <legend class="mb-2 font-medium">{{ text.scope }}</legend>
+          <label class="mr-4 inline-flex items-center gap-2"><input v-model="allEligible" type="radio" :value="true" />{{ text.allEligible }}</label>
+          <label class="inline-flex items-center gap-2"><input v-model="allEligible" type="radio" :value="false" />{{ text.selected }}</label>
+          <p v-if="allEligible" class="text-xs text-gray-500">{{ text.allHint }}</p>
+        </fieldset>
+        <p class="text-xs text-gray-500" role="status">{{ text.candidates(settings.candidate_count) }} {{ text.candidateHint }}<span v-if="!settings.candidate_count"> {{ text.noCandidateHint }}</span></p>
+        <fieldset v-if="!allEligible" :disabled="busy || saving" class="min-w-0 space-y-2">
           <legend class="mb-2 font-medium">{{ text.pool }} · {{ ids.length }}/10</legend>
           <input v-model="search" class="input" :placeholder="text.search" :aria-label="text.search" />
           <div class="max-h-52 space-y-1 overflow-y-auto rounded-lg border border-gray-200 p-2 dark:border-dark-700">
@@ -63,9 +70,9 @@ const emit = defineEmits<{ close: []; updated: [] }>()
 const { locale } = useI18n()
 const text = computed(() => locale.value.startsWith('zh') ? copy.zh : copy.en)
 const state = useProxyQuality()
-const { settings, enabled, ids, busy, saving, error, saved } = state
+const { settings, enabled, allEligible, ids, busy, saving, error, saved } = state
 const search = ref('')
-const invalid = computed(() => enabled.value && (ids.value.length < 2 || ids.value.length > 10 || !settings.value?.current_proxy_id || !ids.value.includes(settings.value.current_proxy_id)))
+const invalid = computed(() => enabled.value && !allEligible.value && (ids.value.length < 2 || ids.value.length > 10 || !settings.value?.current_proxy_id || !ids.value.includes(settings.value.current_proxy_id)))
 const choices = computed(() => {
   const all = new Map((settings.value?.choices || []).map(p => [p.id, { ...p, available: true }]))
   for (const id of ids.value) if (!all.has(id)) all.set(id, { id, name: `#${id}`, available: false })

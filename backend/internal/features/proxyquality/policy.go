@@ -135,3 +135,28 @@ func choose(current int64, quality []proxyopen.Quality, actual businessSummary, 
 	}
 	return 0, "business_insufficient"
 }
+
+// Counts qualified alternatives with comparable actual history, not an immediate
+// switch promise: cooldown and trigger-specific checks still apply in choose.
+func candidateCount(current int64, quality []proxyopen.Quality, actual businessSummary, now time.Time) int {
+	if actual.Gap {
+		return 0
+	}
+	ids := map[int64]bool{}
+	for _, q := range quality {
+		if q.ID == current || !qualified(q, now) {
+			continue
+		}
+		for _, target := range actual.Metrics {
+			if target.ProxyID != q.ID || target.Transport == "" || target.Total < 5 || target.Successes*100 < target.Total*80 || target.Last == nil {
+				continue
+			}
+			for _, source := range actual.Metrics {
+				if source.ProxyID == current && source.Model == target.Model && source.Transport == target.Transport && (source.RecentTotal > 0 || source.RecentHTTP5xx > 0) {
+					ids[q.ID] = true
+				}
+			}
+		}
+	}
+	return len(ids)
+}

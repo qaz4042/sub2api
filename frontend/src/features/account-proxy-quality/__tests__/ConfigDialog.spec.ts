@@ -8,7 +8,7 @@ import type { Account } from '@/types'
 
 vi.mock('../api', () => ({ loadSettings: vi.fn(), saveSettings: vi.fn() }))
 const makeAccount = (overrides: Partial<Account> = {}) => ({ id: 1, name: '账号 A', platform: 'openai', parent_account_id: null, ...overrides }) as Account
-const fixture: Settings = { enabled: false, proxy_ids: [], version: 0, current_proxy_id: 1, reason: 'disabled', last_evaluated_at: null, last_switch_at: null, choices: [{ id: 1, name: '代理 A' }, { id: 2, name: '代理 B' }], events: [], samples: [] }
+const fixture: Settings = { enabled: false, all_eligible: false, candidate_count: 0, proxy_ids: [], version: 0, current_proxy_id: 1, reason: 'disabled', last_evaluated_at: null, last_switch_at: null, choices: [{ id: 1, name: '代理 A' }, { id: 2, name: '代理 B' }], events: [], samples: [] }
 const global = () => ({ plugins: [createI18n({ legacy: false, locale: 'zh' })], stubs: { BaseDialog: { template: '<div><slot /><slot name="footer" /></div>' } } })
 
 describe('proxy quality dialog', () => {
@@ -57,4 +57,21 @@ describe('proxy quality dialog', () => {
     expect(wrapper.find('button').exists()).toBe(false)
     wrapper.unmount()
   })
+})
+
+it('enables dynamic scope without selecting a pool and sends the scope explicitly', async () => {
+  vi.mocked(loadSettings).mockResolvedValue({ ...fixture, all_eligible: true })
+  vi.mocked(saveSettings).mockResolvedValue()
+  const wrapper = mount(ConfigDialog, { props: { account: makeAccount() }, global: global() })
+  await flushPromises()
+  expect(wrapper.text()).toContain('新增符合条件的代理自动参与')
+  expect(wrapper.text()).toContain('达标备选：0 条')
+  expect(wrapper.find('input[type="checkbox"]').exists()).toBe(true)
+  expect(wrapper.findAll('input[type="checkbox"]')).toHaveLength(1)
+  await wrapper.find('input[type="checkbox"]').setValue(true)
+  const save = wrapper.findAll('button').find(b => b.text() === '保存配置')!
+  expect(save.attributes('disabled')).toBeUndefined()
+  await save.trigger('click'); await flushPromises()
+  expect(saveSettings).toHaveBeenLastCalledWith(1, { enabled: true, all_eligible: true, proxy_ids: [], version: 0 }, expect.any(AbortSignal))
+  wrapper.unmount()
 })

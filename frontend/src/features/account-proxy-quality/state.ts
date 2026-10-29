@@ -4,6 +4,7 @@ import { loadSettings, saveSettings, type Settings } from './api'
 export function useProxyQuality() {
   const settings = ref<Settings | null>(null)
   const enabled = ref(false)
+  const allEligible = ref(true)
   const ids = ref<number[]>([])
   const busy = ref(false)
   const saving = ref(false)
@@ -19,6 +20,7 @@ export function useProxyQuality() {
     accountID = 0
     settings.value = null
     enabled.value = false
+    allEligible.value = true
     ids.value = []
     busy.value = saving.value = error.value = saved.value = false
   }
@@ -34,6 +36,7 @@ export function useProxyQuality() {
       if (token !== epoch) return
       settings.value = result
       enabled.value = result.enabled
+      allEligible.value = result.all_eligible
       ids.value = [...result.proxy_ids]
     } catch {
       if (token === epoch) error.value = true
@@ -51,12 +54,13 @@ export function useProxyQuality() {
     saving.value = true
     error.value = saved.value = false
     try {
-      await saveSettings(id, { enabled: enabled.value, proxy_ids: [...ids.value], version: settings.value.version }, signal)
+      await saveSettings(id, { enabled: enabled.value, all_eligible: allEligible.value, proxy_ids: [...ids.value], version: settings.value.version }, signal)
       if (token !== epoch) return false
       const result = await loadSettings(id, signal)
       if (token !== epoch) return false
       settings.value = result
       enabled.value = result.enabled
+      allEligible.value = result.all_eligible
       ids.value = [...result.proxy_ids]
       saved.value = true
       return true
@@ -68,5 +72,5 @@ export function useProxyQuality() {
     }
   }
   onScopeDispose(close)
-  return { settings, enabled, ids, busy, saving, error, saved, close, load, save }
+  return { settings, enabled, allEligible, ids, busy, saving, error, saved, close, load, save }
 }

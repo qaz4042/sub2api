@@ -1,7 +1,8 @@
 import { apiClient } from '@/api/client'
 
-export interface Config { enabled: boolean; proxy_ids: number[]; version: number }
+export interface Config { enabled: boolean; all_eligible: boolean; proxy_ids: number[]; version: number }
 export interface Settings extends Config {
+  candidate_count: number
   current_proxy_id: number | null
   reason: string
   last_evaluated_at: string | null

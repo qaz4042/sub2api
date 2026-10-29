@@ -37,7 +37,7 @@ func testStore(t *testing.T) *Store {
  CREATE TABLE scheduler_outbox(id bigserial PRIMARY KEY,event_type text NOT NULL,account_id bigint,payload jsonb);
  INSERT INTO proxies(id) VALUES(1),(2),(3);INSERT INTO accounts(id,proxy_id) VALUES(1,1),(2,1);`)
 	require.NoError(t, err)
-	for _, name := range []string{"244_proxy_openai_monitor.sql", "250_account_proxy_quality.sql", "251_account_proxy_quality_observations.sql", "252_account_proxy_quality_safety.sql"} {
+	for _, name := range []string{"244_proxy_openai_monitor.sql", "250_account_proxy_quality.sql", "251_account_proxy_quality_observations.sql", "252_account_proxy_quality_safety.sql", "253_account_proxy_quality_scope.sql"} {
 		b, e := os.ReadFile(filepath.Join("..", "..", "..", "migrations", name))
 		require.NoError(t, e)
 		_, e = db.Exec(string(b))
@@ -614,4 +614,54 @@ func TestAdminRouteBoundaryAndBadInput(t *testing.T) {
 		require.NotContains(t, w.Body.String(), "password")
 		require.NotContains(t, w.Body.String(), "fingerprint")
 	}
+}
+
+func TestDynamicScopeAndLegacyCompatibility(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	r, err := s.Read(ctx, 1)
+	require.NoError(t, err)
+	require.True(t, r.AllEligible, "new accounts default to dynamic scope")
+	configured(t, s)
+	r, err = s.Read(ctx, 1)
+	require.NoError(t, err)
+	require.False(t, r.AllEligible, "legacy API writes retain explicit scope")
+	require.NoError(t, s.Configure(ctx, 1, Config{Enabled: true, AllEligible: true, Version: r.Version}))
+	// A later addition participates without rewriting the account configuration.
+	_, err = s.DB.Exec(`INSERT INTO proxies(id) VALUES(4); INSERT INTO proxy_openai_monitor_configs(proxy_id,enabled,interval_seconds) VALUES(4,true,30);
+ UPDATE proxies SET status='inactive' WHERE id=2;
+ UPDATE proxies SET fallback_mode='primary' WHERE id=3;
+ UPDATE account_proxy_quality_account_health SET last_gap_at=now()-interval '1 hour' WHERE account_id=1`)
+	require.NoError(t, err)
+	samples(t, s)
+	r, err = s.Read(ctx, 1)
+	require.NoError(t, err)
+	require.Equal(t, 1, r.CandidateCount)
+	require.Empty(t, r.ProxyIDs, "dynamic membership is not a saved snapshot")
+	evaluate(t, s)
+	require.EqualValues(t, 4, binding(t, s))
+	r, err = s.Read(ctx, 1)
+	require.NoError(t, err)
+	require.NoError(t, s.Configure(ctx, 1, Config{Enabled: false, AllEligible: true, Version: r.Version}))
+	require.EqualValues(t, 4, binding(t, s), "disable preserves binding")
+}
+
+func TestDynamicScopeRecordsRealObservations(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	require.NoError(t, s.Configure(ctx, 1, Config{Enabled: true, AllEligible: true}))
+	event := observation{accountID: 1, proxy: service.Proxy{ID: 1, Protocol: "http", Host: "localhost", Port: 8080}, model: "gpt", transport: "http", success: true, at: time.Now()}
+	require.NoError(t, s.recordObservation(ctx, event))
+	var count int
+	require.NoError(t, s.DB.QueryRow(`SELECT count(*) FROM account_proxy_quality_observations`).Scan(&count))
+	require.Equal(t, 1, count, "dynamic scope must collect even with an empty explicit pool")
+	event.proxy.Password = "stale"
+	require.NoError(t, s.recordObservation(ctx, event))
+	require.NoError(t, s.DB.QueryRow(`SELECT count(*) FROM account_proxy_quality_observations`).Scan(&count))
+	require.Equal(t, 1, count, "snapshot validation still applies")
+	event.proxy.Password = ""
+	require.NoError(t, s.Configure(ctx, 1, Config{Enabled: false, AllEligible: true, Version: 1}))
+	require.NoError(t, s.recordObservation(ctx, event))
+	require.NoError(t, s.DB.QueryRow(`SELECT count(*) FROM account_proxy_quality_observations`).Scan(&count))
+	require.Equal(t, 1, count, "disabled accounts stop collecting")
 }

@@ -1,9 +1,10 @@
 export const copy = {
   zh: {
     title: '自动切换优质代理', enabled: '开启账号自动切换', loading: '加载中…', save: '保存配置', saving: '保存中…', refresh: '刷新配置', saved: '配置已保存。关闭开关后保留当前代理。',
-    description: '仅在所选代理池内按近期质量切换，不定时轮换 IP。默认关闭，关闭后保留当前绑定。',
+    description: '在允许的代理范围内按近期质量切换，不定时轮换 IP。默认关闭，关闭后保留当前绑定。',
     rule: '以实际请求的成功和传输失败为依据，按同一账号、同一模型、同一入口类型比较首字耗时。候选需要该账号在近一小时的历史样本及近期连通监测。',
     trigger: '同模型、同入口出现持久传输故障、连续 3 次传输失败或成功率低于 80% 时可切换；连续 3 次 5xx 须有候选近期成功证据。首字耗时同时改善 30% 和 200ms 时可优化。',
+    scope: '代理范围', allEligible: '全部符合条件的代理（推荐）', selected: '指定代理', allHint: '新增符合条件的代理自动参与，可能切换出口地区；请确保这些代理均适合该账号。', candidates: (count: number) => `已保存配置中达标备选：${count} 条。`, candidateHint: '需满足同账号、同模型、同入口历史及连通要求，实际切换还受触发条件和冷却限制。', noCandidateHint: '当前没有达标备选：可能尚无可比历史、监测未达标或采集尚未恢复；保持当前代理，不主动试用。',
     pool: '候选代理（2–10 条，须包含当前代理）', search: '搜索已开启监测的代理', empty: '暂无可选代理，请先在代理管理中开启 OpenAI 监测。', unavailable: '当前不可选',
     hint: '仅列出已开启监测、启用且未过期的非主备代理（最多 500 条）。手工改绑会暂停托管；固定主备不可同时使用。',
     current: '当前代理', status: '最近评估', evaluated: '评估时间', history: '最近切换（最多 20 条）', noHistory: '暂无自动切换记录',
@@ -15,9 +16,10 @@ export const copy = {
   },
   en: {
     title: 'Automatic proxy quality routing', enabled: 'Enable for this account', loading: 'Loading…', save: 'Save configuration', saving: 'Saving…', refresh: 'Reload configuration', saved: 'Saved. Disabling keeps the current proxy.',
-    description: 'Switch within the selected pool using recent quality. No timed IP rotation. Disabled by default; disabling keeps the current binding.',
+    description: 'Switch within the allowed pool using recent quality. No timed IP rotation. Disabled by default; disabling keeps the current binding.',
     rule: 'Use successful requests and confirmed transport failures. Compare time to first token for the same account, model and ingress type. Candidates need recent connectivity checks and actual request history from this account within the last hour.',
     trigger: 'Switch on persistent transport faults, 3 consecutive transport failures or success below 80% in the same model and ingress. Three consecutive 5xx responses also require recent candidate successes. Improve for at least 30% and 200ms faster first token.',
+    scope: 'Proxy scope', allEligible: 'All eligible proxies (recommended)', selected: 'Selected proxies', allHint: 'New eligible proxies join automatically and may change the exit region. Ensure all proxies are suitable for this account.', candidates: (count: number) => `Qualified alternatives in saved configuration: ${count}.`, candidateHint: 'Requires comparable account/model/ingress history and connectivity. Switch triggers and cooldown still apply.', noCandidateHint: 'No qualified alternatives: comparable history, monitoring or collection may be insufficient. Keeps the current proxy without trial requests.',
     pool: 'Proxy pool (2–10, including the current proxy)', search: 'Search monitored proxies', empty: 'No candidates. Enable OpenAI monitoring in proxy management first.', unavailable: 'Unavailable',
     hint: 'Lists up to 500 active, unexpired, monitored proxies without fixed failover. Manual reassignment pauses routing; fixed failover cannot run alongside it.',
     current: 'Current proxy', status: 'Latest decision', evaluated: 'Evaluated at', history: 'Recent switches (up to 20)', noHistory: 'No automatic switches yet',

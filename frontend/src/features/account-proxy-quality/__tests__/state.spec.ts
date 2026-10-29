@@ -5,7 +5,7 @@ import { loadSettings, saveSettings, type Settings } from '../api'
 
 vi.mock('../api', () => ({ loadSettings: vi.fn(), saveSettings: vi.fn() }))
 const settings = (overrides: Partial<Settings> = {}): Settings => ({
-  enabled: false, proxy_ids: [], version: 0, current_proxy_id: 1, reason: 'disabled',
+  enabled: false, all_eligible: false, candidate_count: 0, proxy_ids: [], version: 0, current_proxy_id: 1, reason: 'disabled',
   last_evaluated_at: null, last_switch_at: null, choices: [{ id: 1, name: 'A' }, { id: 2, name: 'B' }], events: [], samples: [], ...overrides
 })
 function harness() {
@@ -23,7 +23,7 @@ describe('account proxy quality state', () => {
     await state.load(7)
     state.enabled.value = true; state.ids.value = [1, 2]
     expect(await state.save()).toBe(true)
-    expect(saveSettings).toHaveBeenCalledWith(7, { enabled: true, proxy_ids: [1, 2], version: 0 }, expect.any(AbortSignal))
+    expect(saveSettings).toHaveBeenCalledWith(7, { enabled: true, all_eligible: false, proxy_ids: [1, 2], version: 0 }, expect.any(AbortSignal))
     expect(state.settings.value?.version).toBe(1)
     expect(state.saved.value).toBe(true)
     stop()

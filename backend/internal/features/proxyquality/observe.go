@@ -171,7 +171,7 @@ func (s *Store) recordObservation(ctx context.Context, e observation) error {
  SELECT $1,p.id,encode(sha256(convert_to(jsonb_build_array(p.protocol,p.host,p.port,coalesce(p.username,''),coalesce(p.password,''))::text,'UTF8')),'hex'),$2,$3,$4,$5,$12,$13,$14
  FROM proxies p WHERE p.id=$6 AND p.deleted_at IS NULL AND p.protocol=$7 AND p.host=$8 AND p.port=$9
  AND coalesce(p.username,'')=$10 AND coalesce(p.password,'')=$11
- AND EXISTS(SELECT 1 FROM account_proxy_quality_configs c WHERE c.account_id=$1 AND c.enabled AND p.id=ANY(c.proxy_ids))`,
+ AND EXISTS(SELECT 1 FROM account_proxy_quality_configs c WHERE c.account_id=$1 AND c.enabled AND (c.all_eligible OR p.id=ANY(c.proxy_ids)))`,
 		e.accountID, e.model, e.success, e.firstToken, e.at, p.ID, p.Protocol, p.Host, p.Port, p.Username, p.Password, e.transport, e.persistent, e.http5xx)
 	return err
 }

@@ -11,26 +11,28 @@ import (
 )
 
 var (
-	ErrInvalid        = errors.New("需要独立 OpenAI 账号、池内当前代理及 2–10 条已开启监测的有效非主备代理")
+	ErrInvalid        = errors.New("需要绑定有效监测代理的独立 OpenAI 账号；指定范围须包含当前代理及 2–10 条有效非主备代理")
 	ErrConflict       = errors.New("配置已变化，请刷新后重试")
 	ErrNotFound       = errors.New("账号不存在")
 	errObservationGap = errors.New("observation gap changed during decision")
 )
 
 type Config struct {
-	Enabled  bool    `json:"enabled"`
-	ProxyIDs []int64 `json:"proxy_ids"`
-	Version  int64   `json:"version"`
+	Enabled     bool    `json:"enabled"`
+	AllEligible bool    `json:"all_eligible"`
+	ProxyIDs    []int64 `json:"proxy_ids"`
+	Version     int64   `json:"version"`
 }
 type Settings struct {
 	Config
-	Current   *int64          `json:"current_proxy_id"`
-	Reason    string          `json:"reason"`
-	Evaluated *time.Time      `json:"last_evaluated_at"`
-	Switched  *time.Time      `json:"last_switch_at"`
-	Choices   []Choice        `json:"choices"`
-	Events    []Event         `json:"events"`
-	Samples   []SampleSummary `json:"samples"`
+	CandidateCount int             `json:"candidate_count"`
+	Current        *int64          `json:"current_proxy_id"`
+	Reason         string          `json:"reason"`
+	Evaluated      *time.Time      `json:"last_evaluated_at"`
+	Switched       *time.Time      `json:"last_switch_at"`
+	Choices        []Choice        `json:"choices"`
+	Events         []Event         `json:"events"`
+	Samples        []SampleSummary `json:"samples"`
 }
 type Choice struct {
 	ID   int64  `json:"id"`
@@ -80,9 +82,9 @@ func (s *Store) Read(ctx context.Context, id int64) (*Settings, error) {
 	}
 	defer tx.Rollback()
 	r := &Settings{Config: Config{ProxyIDs: []int64{}}, Choices: []Choice{}, Events: []Event{}, Samples: []SampleSummary{}}
-	err = tx.QueryRowContext(ctx, `SELECT a.proxy_id,coalesce(c.enabled,false),coalesce(c.proxy_ids,'{}'),coalesce(c.version,0),coalesce(c.reason,'disabled'),c.last_evaluated_at,c.last_switch_at
+	err = tx.QueryRowContext(ctx, `SELECT a.proxy_id,coalesce(c.enabled,false),coalesce(c.proxy_ids,'{}'),coalesce(c.version,0),coalesce(c.reason,'disabled'),c.last_evaluated_at,c.last_switch_at,coalesce(c.all_eligible,c.account_id IS NULL)
  FROM accounts a LEFT JOIN account_proxy_quality_configs c ON c.account_id=a.id WHERE a.id=$1 AND a.deleted_at IS NULL`, id).
-		Scan(&r.Current, &r.Enabled, pq.Array(&r.ProxyIDs), &r.Version, &r.Reason, &r.Evaluated, &r.Switched)
+		Scan(&r.Current, &r.Enabled, pq.Array(&r.ProxyIDs), &r.Version, &r.Reason, &r.Evaluated, &r.Switched, &r.AllEligible)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -126,7 +128,23 @@ func (s *Store) Read(ctx context.Context, id int64) (*Settings, error) {
 	if err = rows.Close(); err != nil {
 		return nil, err
 	}
-	if len(r.ProxyIDs) > 0 {
+	sampleIDs := r.ProxyIDs
+	if r.AllEligible {
+		sampleIDs, err = eligibleIDs(ctx, tx)
+		if err != nil {
+			return nil, err
+		}
+		if r.Current != nil {
+			found := false
+			for _, proxyID := range sampleIDs {
+				found = found || proxyID == *r.Current
+			}
+			if !found {
+				sampleIDs = append(sampleIDs, *r.Current)
+			}
+		}
+	}
+	if len(sampleIDs) > 0 {
 		rows, err = tx.QueryContext(ctx, `SELECT proxy_id,model,transport,total,successes,first_tokens,http_5xx FROM (
  SELECT s.proxy_id,s.model,s.transport,count(*) FILTER(WHERE NOT s.http_5xx) AS total,
  count(*) FILTER(WHERE s.success) AS successes,count(s.first_token_ms) FILTER(WHERE s.success) AS first_tokens,
@@ -135,7 +153,7 @@ func (s *Store) Read(ctx context.Context, id int64) (*Settings, error) {
  FROM account_proxy_quality_observations s JOIN proxies p ON p.id=s.proxy_id
  WHERE s.account_id=$1 AND s.proxy_id=ANY($2) AND s.observed_at>=now()-interval '1 hour' AND s.observed_at<now()
  AND s.fingerprint=encode(sha256(convert_to(jsonb_build_array(p.protocol,p.host,p.port,coalesce(p.username,''),coalesce(p.password,''))::text,'UTF8')),'hex')
- GROUP BY s.proxy_id,s.model,s.transport) ranked WHERE rank<=5 ORDER BY proxy_id,rank`, id, pq.Array(r.ProxyIDs))
+ GROUP BY s.proxy_id,s.model,s.transport) ranked WHERE rank<=5 ORDER BY proxy_id,rank`, id, pq.Array(sampleIDs))
 		if err != nil {
 			return nil, err
 		}
@@ -152,6 +170,18 @@ func (s *Store) Read(ctx context.Context, id int64) (*Settings, error) {
 		if err != nil {
 			return nil, err
 		}
+	}
+	if r.Current != nil && len(sampleIDs) > 0 {
+		now := time.Now()
+		qs, e := proxyopen.ReadQuality(ctx, tx, sampleIDs, now)
+		if e != nil {
+			return nil, e
+		}
+		actual, e := readBusiness(ctx, tx, id, *r.Current, sampleIDs, now, r.Switched)
+		if e != nil {
+			return nil, e
+		}
+		r.CandidateCount = candidateCount(*r.Current, qs, actual, now)
 	}
 	return r, tx.Commit()
 }
@@ -210,8 +240,28 @@ func lockPool(ctx context.Context, tx *sql.Tx, ids []int64) (bool, error) {
 	rows.Close()
 	return ok && count == len(ids), err
 }
+
+// Resolve dynamic membership on every evaluation; never persist a truncated UI list.
+func eligibleIDs(ctx context.Context, tx *sql.Tx) ([]int64, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT p.id FROM proxies p JOIN proxy_openai_monitor_configs c ON c.proxy_id=p.id
+ WHERE p.deleted_at IS NULL AND p.status='active' AND (p.expires_at IS NULL OR p.expires_at>now())
+ AND p.protocol IN ('http','https','socks5','socks5h') AND p.fallback_mode='none' AND c.enabled ORDER BY p.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := []int64{}
+	for rows.Next() {
+		var id int64
+		if err = rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
 func (s *Store) Configure(ctx context.Context, id int64, c Config) error {
-	if c.Version < 0 || !validIDs(c.ProxyIDs) || (c.Enabled && !validPool(c.ProxyIDs)) {
+	if c.Version < 0 || !validIDs(c.ProxyIDs) || (c.Enabled && !c.AllEligible && !validPool(c.ProxyIDs)) {
 		return ErrInvalid
 	}
 	tx, err := s.DB.BeginTx(ctx, nil)
@@ -238,14 +288,21 @@ func (s *Store) Configure(ctx context.Context, id int64, c Config) error {
 		if a.Platform != "openai" || a.Status != "active" || a.Parent != nil || a.Origin != nil || a.Proxy == nil {
 			return ErrInvalid
 		}
+		poolIDs := c.ProxyIDs
+		if c.AllEligible {
+			poolIDs, err = eligibleIDs(ctx, tx)
+			if err != nil {
+				return err
+			}
+		}
 		contains := false
-		for _, p := range c.ProxyIDs {
+		for _, p := range poolIDs {
 			contains = contains || p == *a.Proxy
 		}
 		if !contains {
 			return ErrInvalid
 		}
-		ok, poolErr := lockPool(ctx, tx, c.ProxyIDs)
+		ok, poolErr := lockPool(ctx, tx, poolIDs)
 		if poolErr != nil {
 			return poolErr
 		}
@@ -256,7 +313,7 @@ func (s *Store) Configure(ctx context.Context, id int64, c Config) error {
 		if err = tx.QueryRowContext(ctx, `SELECT clock_timestamp()`).Scan(&now); err != nil {
 			return err
 		}
-		qs, qualityErr := proxyopen.ReadQuality(ctx, tx, c.ProxyIDs, now)
+		qs, qualityErr := proxyopen.ReadQuality(ctx, tx, poolIDs, now)
 		if qualityErr != nil {
 			return qualityErr
 		}
@@ -265,13 +322,13 @@ func (s *Store) Configure(ctx context.Context, id int64, c Config) error {
 				return ErrInvalid
 			}
 		}
-		_, err = tx.ExecContext(ctx, `UPDATE account_proxy_quality_configs SET enabled=true,proxy_ids=$2,expected_proxy_id=$3,version=version+1,next_at=now(),reason='waiting',updated_at=now() WHERE account_id=$1`, id, pq.Array(c.ProxyIDs), a.Proxy)
+		_, err = tx.ExecContext(ctx, `UPDATE account_proxy_quality_configs SET enabled=true,proxy_ids=coalesce($2::bigint[],'{}'),expected_proxy_id=$3,all_eligible=$4,version=version+1,next_at=now(),reason='waiting',updated_at=now() WHERE account_id=$1`, id, pq.Array(c.ProxyIDs), a.Proxy, c.AllEligible)
 		if err == nil {
 			_, err = tx.ExecContext(ctx, `INSERT INTO account_proxy_quality_account_health(account_id,version,last_gap_at) VALUES($1,1,clock_timestamp()) ON CONFLICT(account_id) DO UPDATE SET version=account_proxy_quality_account_health.version+1,last_gap_at=excluded.last_gap_at`, id)
 		}
 	} else {
 		// Disabling remains possible even if the account/pool is no longer eligible.
-		_, err = tx.ExecContext(ctx, `UPDATE account_proxy_quality_configs SET enabled=false,proxy_ids=coalesce($2::bigint[],proxy_ids),version=version+1,reason='disabled',updated_at=now() WHERE account_id=$1`, id, pq.Array(c.ProxyIDs))
+		_, err = tx.ExecContext(ctx, `UPDATE account_proxy_quality_configs SET enabled=false,all_eligible=$3,proxy_ids=coalesce($2::bigint[],proxy_ids),version=version+1,reason='disabled',updated_at=now() WHERE account_id=$1`, id, pq.Array(c.ProxyIDs), c.AllEligible)
 	}
 	if err != nil {
 		return err
@@ -304,10 +361,11 @@ func (s *Store) Step(ctx context.Context) (processed bool, stepErr error) {
 		}
 	}()
 	var ids []int64
+	var allEligible bool
 	var expected *int64
 	var last *time.Time
-	err = tx.QueryRowContext(ctx, `SELECT account_id,proxy_ids,expected_proxy_id,last_switch_at,version FROM account_proxy_quality_configs WHERE enabled AND next_at<=now() ORDER BY next_at,account_id LIMIT 1 FOR UPDATE SKIP LOCKED`).
-		Scan(&id, pq.Array(&ids), &expected, &last, &version)
+	err = tx.QueryRowContext(ctx, `SELECT account_id,proxy_ids,expected_proxy_id,last_switch_at,version,all_eligible FROM account_proxy_quality_configs WHERE enabled AND next_at<=now() ORDER BY next_at,account_id LIMIT 1 FOR UPDATE SKIP LOCKED`).
+		Scan(&id, pq.Array(&ids), &expected, &last, &version, &allEligible)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -342,6 +400,20 @@ func (s *Store) Step(ctx context.Context) (processed bool, stepErr error) {
 			if pending {
 				reason = "collection_unavailable"
 				break
+			}
+		}
+		if allEligible {
+			ids, err = eligibleIDs(ctx, tx)
+			if err != nil {
+				return true, err
+			}
+			// Always lock/check the current binding even if it left the dynamic pool.
+			found := false
+			for _, proxyID := range ids {
+				found = found || proxyID == *a.Proxy
+			}
+			if !found {
+				ids = append(ids, *a.Proxy)
 			}
 		}
 		ok, e := lockPool(ctx, tx, ids)

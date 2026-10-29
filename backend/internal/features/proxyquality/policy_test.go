@@ -108,3 +108,20 @@ func TestFailureMustMatchCohortAndHTTP5xxNeedsRecentCandidateSuccess(t *testing.
 	require.Zero(t, target)
 	_ = slow
 }
+
+func TestCandidateCountRequiresComparableHealthyHistory(t *testing.T) {
+	now := time.Now()
+	qs := []proxyopen.Quality{good(1, 100, now), good(2, 100, now), good(3, 100, now)}
+	actual := businessSummary{Metrics: []businessMetric{
+		{ProxyID: 1, Model: "gpt", Transport: "http", RecentTotal: 1},
+		{ProxyID: 2, Model: "gpt", Transport: "http", Total: 5, Successes: 4, Last: &now},
+		{ProxyID: 2, Model: "other", Transport: "http", Total: 5, Successes: 5, Last: &now},
+		{ProxyID: 3, Model: "gpt", Transport: "ws", Total: 5, Successes: 5, Last: &now},
+	}}
+	require.Equal(t, 1, candidateCount(1, qs, actual, now))
+	actual.Gap = true
+	require.Zero(t, candidateCount(1, qs, actual, now))
+	actual.Gap = false
+	qs[1].Enabled = false
+	require.Zero(t, candidateCount(1, qs, actual, now))
+}
