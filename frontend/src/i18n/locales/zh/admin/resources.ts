@@ -42,6 +42,8 @@ export default {
 
     // Proxies Management
     proxies: {
+      monitorOverviewTitle: '代理延迟总览',
+      monitorOverviewDescription: '查看后台 OpenAI 监测的当前状态和历史汇总',
       title: 'IP管理',
       description: '管理代理服务器配置',
       createProxy: '添加代理',

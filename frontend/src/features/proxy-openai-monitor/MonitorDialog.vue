@@ -1,6 +1,6 @@
 <template>
   <button type="button" class="text-xs text-primary-600 hover:underline dark:text-primary-400" @click="open = true">
-    {{ text.monitor }}
+    {{ label || text.monitor }}
   </button>
   <BaseDialog :show="open" :title="`${text.title} · ${proxy.name}`" width="extra-wide" @close="open = false">
     <div class="space-y-4">
@@ -84,7 +84,7 @@ import { useMonitor } from './state'
 import { copy } from './text'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend)
-const props = defineProps<{ proxy: Proxy }>()
+const props = defineProps<{ proxy: Pick<Proxy, 'id' | 'name'>; label?: string }>()
 const { locale } = useI18n()
 const text = computed(() => locale.value.startsWith('zh') ? copy.zh : copy.en)
 const open = ref(false)

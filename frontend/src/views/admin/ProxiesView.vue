@@ -38,6 +38,7 @@
 
           <!-- Right: All action buttons -->
           <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
+            <RouterLink to="/admin/proxies/monitor" class="btn btn-secondary">{{ t('admin.proxies.monitorOverviewTitle') }}</RouterLink>
             <button
               @click="loadProxies"
               :disabled="loading"

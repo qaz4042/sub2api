@@ -42,6 +42,8 @@ export default {
 
     // Proxies
     proxies: {
+      monitorOverviewTitle: 'Proxy latency overview',
+      monitorOverviewDescription: 'Background OpenAI connectivity status and history summary',
       title: 'Proxy Management',
       description: 'Manage proxy servers for accounts',
       createProxy: 'Create Proxy',

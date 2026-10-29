@@ -13,6 +13,8 @@ import (
 
 // Register must only be called on the admin-authenticated proxy route group.
 func (r *Runner) Register(group *gin.RouterGroup) {
+	group.GET("/openai-monitor/overview", r.overview)
+	group.GET("/openai-monitor/trends", r.trends)
 	group.GET("/:id/openai-monitor", r.handle)
 	group.GET("/:id/openai-monitor/config", r.readConfig)
 	group.PUT("/:id/openai-monitor", r.handle)

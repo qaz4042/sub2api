@@ -556,6 +556,12 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/proxies/monitor',
+    name: 'AdminProxyMonitor',
+    component: () => import('@/features/proxy-openai-monitor/OverviewPage.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: 'Proxy latency overview', titleKey: 'admin.proxies.monitorOverviewTitle', descriptionKey: 'admin.proxies.monitorOverviewDescription' }
+  },
+  {
     path: '/admin/proxies',
     name: 'AdminProxies',
     component: () => import('@/views/admin/ProxiesView.vue'),

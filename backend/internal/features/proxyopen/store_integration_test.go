@@ -34,7 +34,7 @@ func testStoreWithData(t *testing.T, existing bool) *Store {
 	db, err := sql.Open("postgres", dsn+" search_path="+schema)
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close(); admin.Exec(`DROP SCHEMA ` + schema + ` CASCADE`); admin.Close() })
-	_, err = db.Exec(`CREATE TABLE proxies(id bigint PRIMARY KEY,protocol text NOT NULL DEFAULT 'http',host text NOT NULL DEFAULT 'localhost',port int NOT NULL DEFAULT 8080,username text,password text,status text NOT NULL DEFAULT 'active',expires_at timestamptz,deleted_at timestamptz)`)
+	_, err = db.Exec(`CREATE TABLE proxies(id bigint PRIMARY KEY,name text NOT NULL DEFAULT 'test proxy',protocol text NOT NULL DEFAULT 'http',host text NOT NULL DEFAULT 'localhost',port int NOT NULL DEFAULT 8080,username text,password text,status text NOT NULL DEFAULT 'active',expires_at timestamptz,deleted_at timestamptz)`)
 	require.NoError(t, err)
 	// Existing proxy data remains untouched and monitoring is opt-in.
 	if existing {
@@ -352,6 +352,31 @@ func TestQueryCapacity(t *testing.T) {
 	_, err = s.Query(bounded, 1, 168, 1)
 	require.NoError(t, err)
 	t.Logf("warm 7-day report %s", time.Since(start))
+	start = time.Now()
+	overviewCtx, overviewCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer overviewCancel()
+	overview, err := s.Overview(overviewCtx, OverviewOptions{Hours: 168, Page: 1, Mode: "all", Sort: "failures"})
+	require.NoError(t, err)
+	require.EqualValues(t, 10, overview.Total)
+	for _, row := range overview.Rows {
+		require.EqualValues(t, 60480, row.Summary.Count)
+	}
+	t.Logf("604800 rows / ten-proxy 7-day overview %s", time.Since(start))
+	start = time.Now()
+	trendCtx, trendCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer trendCancel()
+	trends, err := s.Trends(trendCtx, []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, 168, overview.To)
+	require.NoError(t, err)
+	require.Len(t, trends.Series, 10)
+	for _, series := range trends.Series {
+		require.Len(t, series.Points, 168)
+		var n int64
+		for _, point := range series.Points {
+			n += point.Count
+		}
+		require.EqualValues(t, 60480, n)
+	}
+	t.Logf("604800 rows / ten-proxy 7-day trends %s", time.Since(start))
 	rows, err := s.DB.Query(`EXPLAIN (ANALYZE,BUFFERS) SELECT ` + metricsSQL + ` FROM proxy_openai_monitor_samples WHERE proxy_id=1 AND fingerprint=(SELECT ` + fingerprintSQL + ` FROM proxies p WHERE p.id=1) AND started_at>=now()-interval '7 days' AND started_at<now()`)
 	require.NoError(t, err)
 	defer rows.Close()
