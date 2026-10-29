@@ -199,11 +199,23 @@ func (s *OpenAIGatewayService) tempUnscheduleOpenAITransportError(ctx context.Co
 
 	bgCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), openAIAccountStateUpdateTimeout)
 	defer cancel()
-	if err := s.accountRepo.SetTempUnschedulable(bgCtx, account.ID, until, reason); err != nil {
+	var updateErr error
+	if guarded, ok := s.accountRepo.(interface {
+		SetTempUnschedulableForProxy(context.Context, int64, *int64, time.Time, string) (bool, error)
+	}); ok {
+		var updated bool
+		updated, updateErr = guarded.SetTempUnschedulableForProxy(bgCtx, account.ID, account.ProxyID, until, reason)
+		if updateErr == nil && !updated {
+			return
+		}
+	} else {
+		updateErr = s.accountRepo.SetTempUnschedulable(bgCtx, account.ID, until, reason)
+	}
+	if updateErr != nil {
 		logger.L().With(zap.String("component", "service.openai_gateway")).Warn(
 			"openai.account_temp_unscheduled_transport_failed",
 			zap.Int64("account_id", account.ID),
-			zap.Error(err),
+			zap.Error(updateErr),
 		)
 		return
 	}
