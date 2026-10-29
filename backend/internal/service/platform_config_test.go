@@ -6,8 +6,19 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDefaultPlatformConfigsCoverUpstreamPlatforms(t *testing.T) {
+	enabled := make(map[string]bool)
+	for _, cfg := range DefaultPlatformConfigs() {
+		enabled[cfg.Key] = cfg.Enabled
+	}
+	for _, platform := range append(domain.ConcretePlatformIDs(), domain.PlatformComposite) {
+		require.True(t, enabled[platform], "platform %s must be enabled by default", platform)
+	}
+}
 
 type platformConfigServiceRepoStub struct {
 	items        []PlatformConfig

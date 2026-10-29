@@ -81,6 +81,15 @@ func DefaultPlatformConfigs() []PlatformConfig {
 		{Key: PlatformGemini, Label: "Gemini", Description: "Google Gemini interface.", Enabled: true, SortOrder: 30, CreatedAt: now, UpdatedAt: now},
 		{Key: PlatformAntigravity, Label: "Antigravity", Description: "Antigravity interface.", Enabled: true, SortOrder: 40, CreatedAt: now, UpdatedAt: now},
 		{Key: PlatformGrok, Label: "Grok", Description: "Grok-compatible interface.", Enabled: true, SortOrder: 50, CreatedAt: now, UpdatedAt: now},
+		{Key: PlatformKimi, Label: "Kimi", Enabled: true, SortOrder: 60},
+		{Key: PlatformZhipu, Label: "Zhipu", Enabled: true, SortOrder: 70},
+		{Key: PlatformDeepseek, Label: "DeepSeek", Enabled: true, SortOrder: 80},
+		{Key: PlatformMiniMax, Label: "MiniMax", Enabled: true, SortOrder: 90},
+		{Key: PlatformOpenCodeGo, Label: "OpenCode Go", Enabled: true, SortOrder: 100},
+		{Key: PlatformTypeSafe, Label: "TypeSafe", Enabled: true, SortOrder: 110},
+		{Key: PlatformCommandCode, Label: "Command Code", Enabled: true, SortOrder: 120},
+		{Key: PlatformCline, Label: "Cline", Enabled: true, SortOrder: 130},
+		{Key: PlatformComposite, Label: "Composite", Enabled: true, SortOrder: 140},
 	}
 	sort.SliceStable(items, func(i, j int) bool {
 		return items[i].SortOrder < items[j].SortOrder
