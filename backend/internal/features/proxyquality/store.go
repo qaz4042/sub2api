@@ -177,11 +177,7 @@ func (s *Store) Read(ctx context.Context, id int64) (*Settings, error) {
 		if e != nil {
 			return nil, e
 		}
-		actual, e := readBusiness(ctx, tx, id, *r.Current, sampleIDs, now, r.Switched)
-		if e != nil {
-			return nil, e
-		}
-		r.CandidateCount = candidateCount(*r.Current, qs, actual, now)
+		r.CandidateCount = candidateCount(*r.Current, qs, now)
 	}
 	return r, tx.Commit()
 }
@@ -322,13 +318,13 @@ func (s *Store) Configure(ctx context.Context, id int64, c Config) error {
 				return ErrInvalid
 			}
 		}
-		_, err = tx.ExecContext(ctx, `UPDATE account_proxy_quality_configs SET enabled=true,proxy_ids=coalesce($2::bigint[],'{}'),expected_proxy_id=$3,all_eligible=$4,version=version+1,next_at=now(),reason='waiting',updated_at=now() WHERE account_id=$1`, id, pq.Array(c.ProxyIDs), a.Proxy, c.AllEligible)
+		_, err = tx.ExecContext(ctx, `UPDATE account_proxy_quality_configs SET enabled=true,proxy_ids=coalesce($2::bigint[],'{}'),expected_proxy_id=$3,all_eligible=$4,version=version+1,next_at=now(),reason='waiting',updated_at=now(),monitor_candidate_id=NULL,monitor_confirmations=0,monitor_current_sample_at=NULL,monitor_candidate_sample_at=NULL,monitor_current_fingerprint=NULL,monitor_candidate_fingerprint=NULL WHERE account_id=$1`, id, pq.Array(c.ProxyIDs), a.Proxy, c.AllEligible)
 		if err == nil {
 			_, err = tx.ExecContext(ctx, `INSERT INTO account_proxy_quality_account_health(account_id,version,last_gap_at) VALUES($1,1,clock_timestamp()) ON CONFLICT(account_id) DO UPDATE SET version=account_proxy_quality_account_health.version+1,last_gap_at=excluded.last_gap_at`, id)
 		}
 	} else {
 		// Disabling remains possible even if the account/pool is no longer eligible.
-		_, err = tx.ExecContext(ctx, `UPDATE account_proxy_quality_configs SET enabled=false,all_eligible=$3,proxy_ids=coalesce($2::bigint[],proxy_ids),version=version+1,reason='disabled',updated_at=now() WHERE account_id=$1`, id, pq.Array(c.ProxyIDs), c.AllEligible)
+		_, err = tx.ExecContext(ctx, `UPDATE account_proxy_quality_configs SET enabled=false,all_eligible=$3,proxy_ids=coalesce($2::bigint[],proxy_ids),version=version+1,reason='disabled',updated_at=now(),monitor_candidate_id=NULL,monitor_confirmations=0,monitor_current_sample_at=NULL,monitor_candidate_sample_at=NULL,monitor_current_fingerprint=NULL,monitor_candidate_fingerprint=NULL WHERE account_id=$1`, id, pq.Array(c.ProxyIDs), c.AllEligible)
 	}
 	if err != nil {
 		return err
@@ -357,15 +353,16 @@ func (s *Store) Step(ctx context.Context) (processed bool, stepErr error) {
 			if errors.Is(stepErr, errObservationGap) {
 				reason = "collection_unavailable"
 			}
-			_, _ = s.DB.ExecContext(retryCtx, `UPDATE account_proxy_quality_configs SET next_at=now()+interval '30 seconds',reason=$3 WHERE account_id=$1 AND version=$2 AND enabled AND next_at<=now()`, id, version, reason)
+			_, _ = s.DB.ExecContext(retryCtx, `UPDATE account_proxy_quality_configs SET next_at=now()+interval '30 seconds',reason=$3,monitor_candidate_id=NULL,monitor_confirmations=0,monitor_current_sample_at=NULL,monitor_candidate_sample_at=NULL,monitor_current_fingerprint=NULL,monitor_candidate_fingerprint=NULL WHERE account_id=$1 AND version=$2 AND enabled AND next_at<=now()`, id, version, reason)
 		}
 	}()
 	var ids []int64
 	var allEligible bool
 	var expected *int64
 	var last *time.Time
-	err = tx.QueryRowContext(ctx, `SELECT account_id,proxy_ids,expected_proxy_id,last_switch_at,version,all_eligible FROM account_proxy_quality_configs WHERE enabled AND next_at<=now() ORDER BY next_at,account_id LIMIT 1 FOR UPDATE SKIP LOCKED`).
-		Scan(&id, pq.Array(&ids), &expected, &last, &version, &allEligible)
+	var previous monitorConfirmation
+	err = tx.QueryRowContext(ctx, `SELECT account_id,proxy_ids,expected_proxy_id,last_switch_at,version,all_eligible,coalesce(monitor_candidate_id,0),monitor_confirmations,monitor_current_sample_at,monitor_candidate_sample_at,coalesce(monitor_current_fingerprint,''),coalesce(monitor_candidate_fingerprint,'') FROM account_proxy_quality_configs WHERE enabled AND next_at<=now() ORDER BY next_at,account_id LIMIT 1 FOR UPDATE SKIP LOCKED`).
+		Scan(&id, pq.Array(&ids), &expected, &last, &version, &allEligible, &previous.CandidateID, &previous.Count, &previous.CurrentAt, &previous.CandidateAt, &previous.CurrentFingerprint, &previous.CandidateFingerprint)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -376,6 +373,7 @@ func (s *Store) Step(ctx context.Context) (processed bool, stepErr error) {
 	reason := ""
 	disable := false
 	var target int64
+	var confirmation monitorConfirmation
 	var gapGeneration uint64
 	var hasGuard bool
 	switch {
@@ -437,6 +435,16 @@ func (s *Store) Step(ctx context.Context) (processed bool, stepErr error) {
 			return true, e
 		}
 		target, reason = choose(*a.Proxy, qs, actual, now, last)
+		if target == 0 && reason == "business_insufficient" {
+			target, confirmation = confirmMonitor(*a.Proxy, qs, now, previous)
+			if target != 0 {
+				reason = "monitor_improved"
+			} else if confirmation.Count > 0 {
+				reason = "monitor_confirming"
+			} else {
+				reason = "monitor_stable"
+			}
+		}
 		if target != 0 {
 			var gapVersion int64
 			var gapAt time.Time
@@ -455,7 +463,9 @@ func (s *Store) Step(ctx context.Context) (processed bool, stepErr error) {
 	_, err = tx.ExecContext(ctx, `UPDATE account_proxy_quality_configs SET enabled=enabled AND NOT $2,reason=$3,
  expected_proxy_id=CASE WHEN $4::bigint>0 THEN $4 ELSE expected_proxy_id END,
  last_switch_at=CASE WHEN $4::bigint>0 THEN now() ELSE last_switch_at END,
- last_evaluated_at=now(),next_at=now()+interval '30 seconds',updated_at=now(),version=version+CASE WHEN $2 THEN 1 ELSE 0 END WHERE account_id=$1`, id, disable, reason, target)
+ last_evaluated_at=now(),next_at=now()+interval '30 seconds',updated_at=now(),version=version+CASE WHEN $2 THEN 1 ELSE 0 END,
+ monitor_candidate_id=NULLIF($5,0),monitor_confirmations=$6,monitor_current_sample_at=$7,monitor_candidate_sample_at=$8,
+ monitor_current_fingerprint=NULLIF($9,''),monitor_candidate_fingerprint=NULLIF($10,'') WHERE account_id=$1`, id, disable, reason, target, confirmation.CandidateID, confirmation.Count, confirmation.CurrentAt, confirmation.CandidateAt, confirmation.CurrentFingerprint, confirmation.CandidateFingerprint)
 	if err != nil {
 		return true, err
 	}

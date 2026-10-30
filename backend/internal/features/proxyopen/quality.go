@@ -13,6 +13,7 @@ import (
 // optional routing features. Monitoring itself never changes account bindings.
 type Quality struct {
 	ID                              int64
+	Fingerprint                     string
 	Eligible, Enabled               bool
 	Interval                        int
 	Count, Successes                int
@@ -27,7 +28,7 @@ type Quality struct {
 func ReadQuality(ctx context.Context, tx *sql.Tx, ids []int64, now time.Time) ([]Quality, error) {
 	// Use the decision clock rather than transaction start after lock waits.
 	eligibleAt := strings.ReplaceAll(eligibleSQL, "now()", "$2::timestamptz")
-	rows, err := tx.QueryContext(ctx, `SELECT p.id,(`+eligibleAt+`),coalesce(c.enabled,false),coalesce(c.interval_seconds,30),
+	rows, err := tx.QueryContext(ctx, `SELECT p.id,`+fingerprintSQL+`,(`+eligibleAt+`),coalesce(c.enabled,false),coalesce(c.interval_seconds,30),
  stats.n,stats.ok,stats.p95,stats.first_at,stats.last_at,stats.recent_ok,stats.recent_fail
  FROM proxies p LEFT JOIN proxy_openai_monitor_configs c ON c.proxy_id=p.id
  CROSS JOIN LATERAL (
@@ -47,7 +48,7 @@ func ReadQuality(ctx context.Context, tx *sql.Tx, ids []int64, now time.Time) ([
 	result := []Quality{}
 	for rows.Next() {
 		var q Quality
-		if err = rows.Scan(&q.ID, &q.Eligible, &q.Enabled, &q.Interval, &q.Count, &q.Successes, &q.P95, &q.First, &q.Last, &q.RecentSuccesses, &q.RecentFailures); err != nil {
+		if err = rows.Scan(&q.ID, &q.Fingerprint, &q.Eligible, &q.Enabled, &q.Interval, &q.Count, &q.Successes, &q.P95, &q.First, &q.Last, &q.RecentSuccesses, &q.RecentFailures); err != nil {
 			return nil, err
 		}
 		result = append(result, q)

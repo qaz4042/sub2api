@@ -12,6 +12,13 @@ const fixture: Settings = { enabled: false, all_eligible: false, candidate_count
 const global = () => ({ plugins: [createI18n({ legacy: false, locale: 'zh' })], stubs: { BaseDialog: { template: '<div><slot /><slot name="footer" /></div>' } } })
 
 describe('proxy quality dialog', () => {
+  it('shows when consecutive 5xx pauses optimization', async () => {
+    vi.mocked(loadSettings).mockResolvedValue({ ...fixture, enabled: true, reason: 'business_5xx_waiting' })
+    const wrapper = mount(ConfigDialog, { props: { account: makeAccount() }, global: global() })
+    await flushPromises()
+    expect(wrapper.text()).toContain('连续 5xx，等待候选业务成功证据')
+    wrapper.unmount()
+  })
   it('requires a bounded pool containing the current proxy before enabling', async () => {
     vi.mocked(loadSettings).mockResolvedValue(fixture)
     const wrapper = mount(ConfigDialog, { props: { account: makeAccount() }, global: global() })
@@ -65,7 +72,7 @@ it('enables dynamic scope without selecting a pool and sends the scope explicitl
   const wrapper = mount(ConfigDialog, { props: { account: makeAccount() }, global: global() })
   await flushPromises()
   expect(wrapper.text()).toContain('新增符合条件的代理自动参与')
-  expect(wrapper.text()).toContain('达标备选：0 条')
+  expect(wrapper.text()).toContain('监测合格备选：0 条')
   expect(wrapper.find('input[type="checkbox"]').exists()).toBe(true)
   expect(wrapper.findAll('input[type="checkbox"]')).toHaveLength(1)
   await wrapper.find('input[type="checkbox"]').setValue(true)

@@ -39,8 +39,7 @@ type businessSummary struct {
 	GapVersion int64
 }
 
-// The probe is a candidate reachability guard; it cannot supply model speed or
-// substitute for missing business observations.
+// Business observations drive fault handling; probes drive normal optimization.
 func choose(current int64, quality []proxyopen.Quality, actual businessSummary, now time.Time, lastSwitch *time.Time) (int64, string) {
 	if actual.Gap {
 		return 0, "collection_unavailable"
@@ -72,14 +71,12 @@ func choose(current int64, quality []proxyopen.Quality, actual businessSummary, 
 	// fresh, healthy monitor candidate may take over even without account
 	// history; the first real request after the switch supplies that history.
 	if unavailable {
-		return lowestCandidate(candidates), "business_degraded"
+		return fastestCandidate(quality, candidates), "business_degraded"
 	}
-	var bestID int64
 	var failureID int64
 	var coldFailureID int64
+	var waitingFor5xxEvidence bool
 	failureReason := ""
-	bestImprovement := 0.0
-	compared := false
 	cooling := elapsed < cooldown
 	for _, currentMetric := range actual.Metrics {
 		if currentMetric.ProxyID != current || currentMetric.Transport == "" {
@@ -90,6 +87,7 @@ func choose(current int64, quality []proxyopen.Quality, actual businessSummary, 
 		}
 		degraded := unavailable || currentMetric.RecentPersistent || currentMetric.RecentFailures >= 3 || (currentMetric.RecentTotal >= 5 && currentMetric.RecentSuccesses*100 < currentMetric.RecentTotal*80)
 		serverDegraded := currentMetric.RecentHTTP5xx >= 3 && currentMetric.FirstHTTP5xx != nil
+		waitingFor5xxEvidence = waitingFor5xxEvidence || serverDegraded
 		if !degraded && !serverDegraded && currentMetric.RecentTotal < 5 {
 			continue
 		}
@@ -117,20 +115,11 @@ func choose(current int64, quality []proxyopen.Quality, actual businessSummary, 
 				}
 				continue
 			}
-			if currentMetric.RecentTTFTCount < 3 || currentMetric.RecentMedian == nil || target.TTFTCount < 3 || target.Median == nil {
-				continue
-			}
-			compared = true
-			improvement := *currentMetric.RecentMedian - *target.Median
-			if improvement >= 200 && *target.Median <= *currentMetric.RecentMedian*0.7 && (improvement > bestImprovement || (improvement == bestImprovement && (bestID == 0 || target.ProxyID < bestID))) {
-				bestID = target.ProxyID
-				bestImprovement = improvement
-			}
 		}
 		// Transport failures are sufficient to use a monitor-only candidate.
 		// HTTP 5xx remains history-gated because it may be account/model-specific.
 		if degraded && coldFailureID == 0 {
-			coldFailureID = lowestCandidate(candidates)
+			coldFailureID = fastestCandidate(quality, candidates)
 		}
 	}
 	if failureID != 0 {
@@ -139,49 +128,77 @@ func choose(current int64, quality []proxyopen.Quality, actual businessSummary, 
 	if coldFailureID != 0 {
 		return coldFailureID, "business_degraded"
 	}
-	if bestID != 0 {
-		return bestID, "business_improved"
+	if waitingFor5xxEvidence {
+		return 0, "business_5xx_waiting"
 	}
 	if cooling {
 		return 0, "cooldown"
 	}
-	if compared {
-		return 0, "business_stable"
-	}
 	return 0, "business_insufficient"
 }
 
-func lowestCandidate(candidates map[int64]bool) int64 {
+func fastestCandidate(quality []proxyopen.Quality, candidates map[int64]bool) int64 {
 	var result int64
-	for id := range candidates {
-		if result == 0 || id < result {
-			result = id
+	var latency float64
+	for _, q := range quality {
+		if candidates[q.ID] && q.P95 != nil && (result == 0 || *q.P95 < latency || (*q.P95 == latency && q.ID < result)) {
+			result, latency = q.ID, *q.P95
 		}
 	}
 	return result
 }
 
-// Counts qualified alternatives with comparable actual history, not an immediate
-// switch promise: cooldown and trigger-specific checks still apply in choose.
-func candidateCount(current int64, quality []proxyopen.Quality, actual businessSummary, now time.Time) int {
-	if actual.Gap {
-		return 0
-	}
-	ids := map[int64]bool{}
+// Counts healthy monitor candidates; switch triggers and cooldown still apply.
+func candidateCount(current int64, quality []proxyopen.Quality, now time.Time) int {
+	count := 0
 	for _, q := range quality {
-		if q.ID == current || !qualified(q, now) {
+		if q.ID != current && qualified(q, now) {
+			count++
+		}
+	}
+	return count
+}
+
+type monitorConfirmation struct {
+	CandidateID                              int64
+	Count                                    int
+	CurrentAt, CandidateAt                   *time.Time
+	CurrentFingerprint, CandidateFingerprint string
+}
+
+// Each confirmation uses new completed probes from both connections.
+func confirmMonitor(current int64, quality []proxyopen.Quality, now time.Time, state monitorConfirmation) (int64, monitorConfirmation) {
+	var source *proxyopen.Quality
+	for i := range quality {
+		if quality[i].ID == current {
+			source = &quality[i]
+			break
+		}
+	}
+	if source == nil || !qualified(*source, now) {
+		return 0, monitorConfirmation{}
+	}
+	var best *proxyopen.Quality
+	for i := range quality {
+		q := &quality[i]
+		if q.ID == current || !qualified(*q, now) || *source.P95-*q.P95 < 200 || *q.P95 > *source.P95*0.7 {
 			continue
 		}
-		for _, target := range actual.Metrics {
-			if target.ProxyID != q.ID || target.Transport == "" || target.Total < 5 || target.Successes*100 < target.Total*80 || target.Last == nil {
-				continue
-			}
-			for _, source := range actual.Metrics {
-				if source.ProxyID == current && source.Model == target.Model && source.Transport == target.Transport && (source.RecentTotal > 0 || source.RecentHTTP5xx > 0) {
-					ids[q.ID] = true
-				}
-			}
+		if best == nil || *q.P95 < *best.P95 || (*q.P95 == *best.P95 && q.ID < best.ID) {
+			best = q
 		}
 	}
-	return len(ids)
+	if best == nil {
+		return 0, monitorConfirmation{}
+	}
+	if state.CandidateID != best.ID || state.CurrentFingerprint != source.Fingerprint || state.CandidateFingerprint != best.Fingerprint || state.CurrentAt == nil || state.CandidateAt == nil {
+		state = monitorConfirmation{CandidateID: best.ID, Count: 1, CurrentAt: source.Last, CandidateAt: best.Last, CurrentFingerprint: source.Fingerprint, CandidateFingerprint: best.Fingerprint}
+	} else if source.Last.After(*state.CurrentAt) && best.Last.After(*state.CandidateAt) {
+		state.Count++
+		state.CurrentAt, state.CandidateAt = source.Last, best.Last
+	}
+	if state.Count >= 3 {
+		return best.ID, monitorConfirmation{}
+	}
+	return 0, state
 }

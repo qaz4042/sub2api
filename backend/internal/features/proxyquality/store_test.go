@@ -37,7 +37,7 @@ func testStore(t *testing.T) *Store {
  CREATE TABLE scheduler_outbox(id bigserial PRIMARY KEY,event_type text NOT NULL,account_id bigint,payload jsonb);
  INSERT INTO proxies(id) VALUES(1),(2),(3);INSERT INTO accounts(id,proxy_id) VALUES(1,1),(2,1);`)
 	require.NoError(t, err)
-	for _, name := range []string{"244_proxy_openai_monitor.sql", "250_account_proxy_quality.sql", "251_account_proxy_quality_observations.sql", "252_account_proxy_quality_safety.sql", "253_account_proxy_quality_scope.sql"} {
+	for _, name := range []string{"244_proxy_openai_monitor.sql", "250_account_proxy_quality.sql", "251_account_proxy_quality_observations.sql", "252_account_proxy_quality_safety.sql", "253_account_proxy_quality_scope.sql", "254_account_proxy_quality_monitor_confirmation.sql"} {
 		b, e := os.ReadFile(filepath.Join("..", "..", "..", "migrations", name))
 		require.NoError(t, e)
 		_, e = db.Exec(string(b))
@@ -67,6 +67,12 @@ func configured(t *testing.T, s *Store) {
 	t.Helper()
 	require.NoError(t, s.Configure(context.Background(), 1, Config{Enabled: true, ProxyIDs: []int64{1, 2}}))
 	_, err := s.DB.Exec(`UPDATE account_proxy_quality_account_health SET last_gap_at=now()-interval '1 hour' WHERE account_id=1`)
+	require.NoError(t, err)
+}
+func addTransportFailure(t *testing.T, s *Store, accountID int64) {
+	t.Helper()
+	_, err := s.DB.Exec(`INSERT INTO account_proxy_quality_observations(account_id,proxy_id,fingerprint,model,transport,success,persistent_failure,observed_at)
+ SELECT $1,p.id,encode(sha256(convert_to(jsonb_build_array(p.protocol,p.host,p.port,coalesce(p.username,''),coalesce(p.password,''))::text,'UTF8')),'hex'),'gpt','http',false,true,clock_timestamp() FROM accounts a JOIN proxies p ON p.id=a.proxy_id WHERE a.id=$1`, accountID)
 	require.NoError(t, err)
 }
 func binding(t *testing.T, s *Store) int64 {
@@ -124,11 +130,12 @@ func TestSwitchAtomicAuditOutboxCooldownAndDisable(t *testing.T) {
 	ctx := context.Background()
 	samples(t, s)
 	configured(t, s)
+	addTransportFailure(t, s, 1)
 	evaluate(t, s)
 	require.EqualValues(t, 2, binding(t, s))
 	r, err := s.Read(ctx, 1)
 	require.NoError(t, err)
-	require.Equal(t, "business_improved", r.Reason)
+	require.Equal(t, "business_degraded", r.Reason)
 	require.Len(t, r.Events, 1)
 	require.NotNil(t, r.Switched)
 	var kind string
@@ -203,6 +210,7 @@ func TestRollbackOnOutboxFailure(t *testing.T) {
 	s := testStore(t)
 	samples(t, s)
 	configured(t, s)
+	addTransportFailure(t, s, 1)
 	_, err := s.DB.Exec(`ALTER TABLE scheduler_outbox ADD CONSTRAINT reject_outbox CHECK(false)`)
 	require.NoError(t, err)
 	_, err = s.Step(context.Background())
@@ -224,6 +232,8 @@ func TestFailedAccountDoesNotStarveOtherAccounts(t *testing.T) {
 	samples(t, s)
 	configured(t, s)
 	require.NoError(t, s.Configure(context.Background(), 2, Config{Enabled: true, ProxyIDs: []int64{1, 2}}))
+	addTransportFailure(t, s, 1)
+	addTransportFailure(t, s, 2)
 	_, err := s.DB.Exec(`UPDATE account_proxy_quality_account_health SET last_gap_at=now()-interval '1 hour' WHERE account_id=2`)
 	require.NoError(t, err)
 	_, err = s.DB.Exec(`ALTER TABLE scheduler_outbox ADD CONSTRAINT reject_first CHECK(account_id<>1)`)
@@ -264,6 +274,7 @@ func TestRouteDependentProbeInvalidation(t *testing.T) {
 	s := testStore(t)
 	samples(t, s)
 	configured(t, s)
+	addTransportFailure(t, s, 1)
 	_, err := s.DB.Exec(`UPDATE accounts SET type='apikey',extra='{"upstream_billing_probe":{"status":"ok"},"ollama_cloud_usage_snapshot":{},"opencode_go_usage_snapshot":{},"unrelated":true}'::jsonb WHERE id=1`)
 	require.NoError(t, err)
 	evaluate(t, s)
@@ -277,6 +288,7 @@ func TestShadowProxyInheritanceAndRollback(t *testing.T) {
 	s := testStore(t)
 	samples(t, s)
 	configured(t, s)
+	addTransportFailure(t, s, 1)
 	_, err := s.DB.Exec(`UPDATE accounts SET parent_account_id=1 WHERE id=2;ALTER TABLE scheduler_outbox ADD CONSTRAINT reject_shadow CHECK(account_id<>2)`)
 	require.NoError(t, err)
 	_, err = s.Step(context.Background())
@@ -319,7 +331,7 @@ func TestActualSamplesRequireMatchingModelAndCurrentConnection(t *testing.T) {
 			if change == "collection_gap" {
 				require.Equal(t, "collection_unavailable", settings.Reason)
 			} else {
-				require.Equal(t, "business_insufficient", settings.Reason)
+				require.Equal(t, "monitor_confirming", settings.Reason)
 			}
 		})
 	}
@@ -343,7 +355,7 @@ func TestObserverMarksGapWhenQueueFullOrRouteUnknown(t *testing.T) {
 	require.True(t, pending)
 }
 
-func TestObservedRequestHistoryDrivesSwitch(t *testing.T) {
+func TestObservedRequestHistoryDoesNotDriveOptimization(t *testing.T) {
 	s := testStore(t)
 	samples(t, s)
 	configured(t, s)
@@ -373,7 +385,7 @@ func TestObservedRequestHistoryDrivesSwitch(t *testing.T) {
 	}
 	due(t, s)
 	evaluate(t, s)
-	require.EqualValues(t, 2, binding(t, s))
+	require.EqualValues(t, 1, binding(t, s))
 }
 
 func TestPersistentFailureSwitchClearsOnlyTransportCooldown(t *testing.T) {
@@ -415,6 +427,7 @@ func TestLocalGapDuringDecisionRollsBackSwitch(t *testing.T) {
 	s := testStore(t)
 	samples(t, s)
 	configured(t, s)
+	addTransportFailure(t, s, 1)
 	s.guard = &changingGapGuard{}
 	_, err := s.Step(context.Background())
 	require.ErrorIs(t, err, errObservationGap)
@@ -429,6 +442,7 @@ func TestDatabaseGapVersionChangesWhileDecisionWaits(t *testing.T) {
 	s := testStore(t)
 	samples(t, s)
 	configured(t, s)
+	addTransportFailure(t, s, 1)
 	tx, err := s.DB.Begin()
 	require.NoError(t, err)
 	defer tx.Rollback()
@@ -455,6 +469,7 @@ func TestGapOnlyPausesAffectedAccount(t *testing.T) {
 	samples(t, s)
 	configured(t, s)
 	require.NoError(t, s.Configure(context.Background(), 2, Config{Enabled: true, ProxyIDs: []int64{1, 2}}))
+	addTransportFailure(t, s, 2)
 	_, err := s.DB.Exec(`UPDATE account_proxy_quality_account_health SET last_gap_at=CASE WHEN account_id=1 THEN now() ELSE now()-interval '1 hour' END`)
 	require.NoError(t, err)
 	evaluate(t, s)
@@ -558,6 +573,7 @@ func TestConcurrentWorkersOnlySwitchOnce(t *testing.T) {
 	s := testStore(t)
 	samples(t, s)
 	configured(t, s)
+	addTransportFailure(t, s, 1)
 	var wg sync.WaitGroup
 	for i := 0; i < 8; i++ {
 		wg.Add(1)
@@ -568,6 +584,96 @@ func TestConcurrentWorkersOnlySwitchOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, r.Events, 1)
 	require.EqualValues(t, 2, binding(t, s))
+}
+
+func TestMonitorOptimizationUsesThreeFreshConfirmations(t *testing.T) {
+	s := testStore(t)
+	samples(t, s)
+	configured(t, s)
+	_, err := s.DB.Exec(`DELETE FROM account_proxy_quality_observations`)
+	require.NoError(t, err)
+	evaluate(t, s)
+	var candidate, count int
+	require.NoError(t, s.DB.QueryRow(`SELECT monitor_candidate_id,monitor_confirmations FROM account_proxy_quality_configs WHERE account_id=1`).Scan(&candidate, &count))
+	require.Equal(t, 2, candidate)
+	require.Equal(t, 1, count)
+	due(t, s)
+	evaluate(t, s)
+	require.NoError(t, s.DB.QueryRow(`SELECT monitor_confirmations FROM account_proxy_quality_configs WHERE account_id=1`).Scan(&count))
+	require.Equal(t, 1, count, "repeated probes do not count")
+	for i, seconds := range []int{10, 5} {
+		_, err = s.DB.Exec(`INSERT INTO proxy_openai_monitor_samples(proxy_id,fingerprint,version,execution_id,planned_at,started_at,finished_at,success,latency_ms,http_status)
+ SELECT p.id,encode(sha256(convert_to(jsonb_build_array(p.protocol,p.host,p.port,coalesce(p.username,''),coalesce(p.password,''))::text,'UTF8')),'hex'),1,p.id||'-new-'||$1,
+ now()-$2*interval '1 second',now()-$2*interval '1 second',now()-$2*interval '1 second',true,CASE WHEN p.id=1 THEN 1500 ELSE 300 END,401
+ FROM proxies p WHERE p.id IN (1,2)`, i, seconds)
+		require.NoError(t, err)
+		due(t, s)
+		evaluate(t, s)
+		if i == 0 {
+			require.EqualValues(t, 1, binding(t, s))
+		}
+	}
+	require.EqualValues(t, 2, binding(t, s))
+	r, err := s.Read(context.Background(), 1)
+	require.NoError(t, err)
+	require.Equal(t, "monitor_improved", r.Reason)
+	require.Len(t, r.Events, 1)
+	require.Equal(t, "monitor_improved", r.Events[0].Reason)
+	require.NoError(t, s.DB.QueryRow(`SELECT monitor_confirmations FROM account_proxy_quality_configs WHERE account_id=1`).Scan(&count))
+	require.Zero(t, count)
+}
+
+func TestHTTP5xxPausesMonitorOptimizationUntilRecovered(t *testing.T) {
+	s := testStore(t)
+	samples(t, s)
+	configured(t, s)
+	_, err := s.DB.Exec(`DELETE FROM account_proxy_quality_observations`)
+	require.NoError(t, err)
+	evaluate(t, s)
+	var count int
+	require.NoError(t, s.DB.QueryRow(`SELECT monitor_confirmations FROM account_proxy_quality_configs WHERE account_id=1`).Scan(&count))
+	require.Equal(t, 1, count)
+	_, err = s.DB.Exec(`INSERT INTO account_proxy_quality_observations(account_id,proxy_id,fingerprint,model,transport,success,http_5xx,observed_at)
+ SELECT 1,p.id,encode(sha256(convert_to(jsonb_build_array(p.protocol,p.host,p.port,coalesce(p.username,''),coalesce(p.password,''))::text,'UTF8')),'hex'),'gpt','http',false,true,now()-n*interval '1 second'
+ FROM proxies p CROSS JOIN generate_series(1,3) n WHERE p.id=1`)
+	require.NoError(t, err)
+	for i := 0; i < 3; i++ {
+		_, err = s.DB.Exec(`INSERT INTO proxy_openai_monitor_samples(proxy_id,fingerprint,version,execution_id,planned_at,started_at,finished_at,success,latency_ms,http_status)
+ SELECT p.id,encode(sha256(convert_to(jsonb_build_array(p.protocol,p.host,p.port,coalesce(p.username,''),coalesce(p.password,''))::text,'UTF8')),'hex'),1,p.id||'-5xx-'||$1,
+ now()-$2*interval '1 second',now()-$2*interval '1 second',now()-$2*interval '1 second',true,CASE WHEN p.id=1 THEN 1500 ELSE 300 END,401 FROM proxies p WHERE p.id IN (1,2)`, i, 15-i*5)
+		require.NoError(t, err)
+		due(t, s)
+		evaluate(t, s)
+		r, e := s.Read(context.Background(), 1)
+		require.NoError(t, e)
+		require.Equal(t, "business_5xx_waiting", r.Reason)
+		require.Empty(t, r.Events)
+		require.EqualValues(t, 1, binding(t, s))
+		require.NoError(t, s.DB.QueryRow(`SELECT monitor_confirmations FROM account_proxy_quality_configs WHERE account_id=1`).Scan(&count))
+		require.Zero(t, count)
+	}
+	_, err = s.DB.Exec(`INSERT INTO account_proxy_quality_observations(account_id,proxy_id,fingerprint,model,transport,success,observed_at)
+ SELECT 1,p.id,encode(sha256(convert_to(jsonb_build_array(p.protocol,p.host,p.port,coalesce(p.username,''),coalesce(p.password,''))::text,'UTF8')),'hex'),'gpt','http',true,clock_timestamp() FROM proxies p WHERE id=1`)
+	require.NoError(t, err)
+	due(t, s)
+	evaluate(t, s)
+	r, err := s.Read(context.Background(), 1)
+	require.NoError(t, err)
+	require.Equal(t, "monitor_confirming", r.Reason)
+	require.EqualValues(t, 1, binding(t, s))
+}
+
+func TestSavingConfigResetsMonitorConfirmation(t *testing.T) {
+	s := testStore(t)
+	samples(t, s)
+	configured(t, s)
+	evaluate(t, s)
+	var count int
+	require.NoError(t, s.DB.QueryRow(`SELECT monitor_confirmations FROM account_proxy_quality_configs WHERE account_id=1`).Scan(&count))
+	require.Equal(t, 1, count)
+	require.NoError(t, s.Configure(context.Background(), 1, Config{Enabled: true, ProxyIDs: []int64{1, 2}, Version: 1}))
+	require.NoError(t, s.DB.QueryRow(`SELECT monitor_confirmations FROM account_proxy_quality_configs WHERE account_id=1`).Scan(&count))
+	require.Zero(t, count)
 }
 func TestPausedAndUnsupportedPoolsCannotEnable(t *testing.T) {
 	for _, change := range []string{"paused", "expired", "fixed", "unsupported", "shadow", "origin"} {
@@ -634,6 +740,7 @@ func TestDynamicScopeAndLegacyCompatibility(t *testing.T) {
  UPDATE account_proxy_quality_account_health SET last_gap_at=now()-interval '1 hour' WHERE account_id=1`)
 	require.NoError(t, err)
 	samples(t, s)
+	addTransportFailure(t, s, 1)
 	r, err = s.Read(ctx, 1)
 	require.NoError(t, err)
 	require.Equal(t, 1, r.CandidateCount)

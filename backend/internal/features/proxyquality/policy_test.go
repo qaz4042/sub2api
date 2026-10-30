@@ -20,8 +20,8 @@ func TestBusinessPolicy(t *testing.T) {
 	}}
 	qs := []proxyopen.Quality{good(1, 2500, now), good(2, 500, now)}
 	target, reason := choose(1, qs, baseline, now, nil)
-	require.EqualValues(t, 2, target)
-	require.Equal(t, "business_improved", reason)
+	require.Zero(t, target)
+	require.Equal(t, "business_insufficient", reason)
 	mismatched := baseline
 	mismatched.Metrics = append([]businessMetric(nil), baseline.Metrics...)
 	mismatched.Metrics[1].Model = "other"
@@ -112,13 +112,31 @@ func TestFailureMustMatchCohortAndHTTP5xxNeedsRecentCandidateSuccess(t *testing.
 
 func TestTransportFailureCanUseMonitorOnlyCandidate(t *testing.T) {
 	now := time.Now()
-	qs := []proxyopen.Quality{good(1, 1500, now), good(2, 300, now)}
+	qs := []proxyopen.Quality{good(1, 1500, now), good(2, 500, now), good(3, 300, now)}
 	actual := businessSummary{Metrics: []businessMetric{
 		{ProxyID: 1, Model: "gpt", Transport: "http", RecentTotal: 3, RecentFailures: 3},
 	}}
 	target, reason := choose(1, qs, actual, now, nil)
-	require.EqualValues(t, 2, target)
+	require.EqualValues(t, 3, target)
 	require.Equal(t, "business_degraded", reason)
+}
+
+func TestMonitorThresholdAndCandidateChanges(t *testing.T) {
+	now := time.Now()
+	qs := []proxyopen.Quality{good(1, 1000, now), good(2, 700, now), good(3, 800, now)}
+	_, state := confirmMonitor(1, qs, now, monitorConfirmation{})
+	require.EqualValues(t, 2, state.CandidateID, "both thresholds include their boundaries")
+	qs[2] = good(3, 600, now)
+	_, state = confirmMonitor(1, qs, now, state)
+	require.EqualValues(t, 3, state.CandidateID)
+	require.Equal(t, 1, state.Count, "a new candidate restarts confirmation")
+	qs[0] = good(1, 600, now)
+	_, state = confirmMonitor(1, qs, now, state)
+	require.Zero(t, state.Count, "insufficient improvement resets confirmation")
+	qs[0] = good(1, 1000, now)
+	qs[0].Enabled = false
+	_, state = confirmMonitor(1, qs, now, monitorConfirmation{})
+	require.Zero(t, state.Count, "current monitor must be healthy")
 }
 
 func TestUnavailableCurrentCanUseMonitorOnlyCandidate(t *testing.T) {
@@ -138,22 +156,52 @@ func TestHTTP5xxStillRequiresCandidateHistory(t *testing.T) {
 	}}
 	target, reason := choose(1, qs, actual, now, nil)
 	require.Zero(t, target)
-	require.Equal(t, "business_insufficient", reason)
+	require.Equal(t, "business_5xx_waiting", reason)
+	actual.Metrics = append(actual.Metrics, businessMetric{ProxyID: 1, Model: "other", Transport: "http", RecentTotal: 1, RecentPersistent: true})
+	target, reason = choose(1, qs, actual, now, nil)
+	require.EqualValues(t, 2, target, "confirmed transport failure retains its emergency path")
+	require.Equal(t, "business_degraded", reason)
 }
 
-func TestCandidateCountRequiresComparableHealthyHistory(t *testing.T) {
+func TestCandidateCountUsesMonitorHealth(t *testing.T) {
 	now := time.Now()
 	qs := []proxyopen.Quality{good(1, 100, now), good(2, 100, now), good(3, 100, now)}
-	actual := businessSummary{Metrics: []businessMetric{
-		{ProxyID: 1, Model: "gpt", Transport: "http", RecentTotal: 1},
-		{ProxyID: 2, Model: "gpt", Transport: "http", Total: 5, Successes: 4, Last: &now},
-		{ProxyID: 2, Model: "other", Transport: "http", Total: 5, Successes: 5, Last: &now},
-		{ProxyID: 3, Model: "gpt", Transport: "ws", Total: 5, Successes: 5, Last: &now},
-	}}
-	require.Equal(t, 1, candidateCount(1, qs, actual, now))
-	actual.Gap = true
-	require.Zero(t, candidateCount(1, qs, actual, now))
-	actual.Gap = false
+	require.Equal(t, 2, candidateCount(1, qs, now))
 	qs[1].Enabled = false
-	require.Zero(t, candidateCount(1, qs, actual, now))
+	require.Equal(t, 1, candidateCount(1, qs, now))
+}
+
+func TestMonitorConfirmationRequiresNewSamplesAndSameConnections(t *testing.T) {
+	now := time.Now()
+	qs := []proxyopen.Quality{good(1, 1500, now), good(2, 300, now), good(3, 500, now)}
+	qs[0].Fingerprint, qs[1].Fingerprint = "current", "candidate"
+	target, state := confirmMonitor(1, qs, now, monitorConfirmation{})
+	require.Zero(t, target)
+	require.Equal(t, 1, state.Count)
+	require.EqualValues(t, 2, state.CandidateID)
+	_, state = confirmMonitor(1, qs, now, state)
+	require.Equal(t, 1, state.Count, "repeated samples do not confirm")
+	newTime := now
+	qs[0].Last = &newTime
+	_, state = confirmMonitor(1, qs, now.Add(time.Second), state)
+	require.Equal(t, 1, state.Count, "both sides need new probes")
+	qs[1].Last = &newTime
+	_, state = confirmMonitor(1, qs, now.Add(time.Second), state)
+	require.Equal(t, 2, state.Count)
+	qs[1].Fingerprint = "changed"
+	_, state = confirmMonitor(1, qs, now.Add(time.Second), state)
+	require.Equal(t, 1, state.Count, "connection changes reset confirmation")
+	for i := 1; i <= 2; i++ {
+		at := now.Add(time.Duration(i) * time.Second)
+		qs[0].Last, qs[1].Last = &at, &at
+		target, state = confirmMonitor(1, qs, at.Add(time.Second), state)
+	}
+	require.EqualValues(t, 2, target)
+	require.Zero(t, state.Count)
+	qs[1].RecentSuccesses = 2
+	_, state = confirmMonitor(1, qs, now.Add(3*time.Second), monitorConfirmation{})
+	require.EqualValues(t, 3, state.CandidateID)
+	qs[2].Enabled = false
+	_, state = confirmMonitor(1, qs, now.Add(3*time.Second), state)
+	require.Zero(t, state.Count)
 }
