@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 
 import DateRangePicker from '../DateRangePicker.vue'
 
@@ -8,6 +8,7 @@ const messages: Record<string, string> = {
   'dates.today': 'Today',
   'dates.yesterday': 'Yesterday',
   'dates.last24Hours': 'Last 24 Hours',
+  'dates.last3Days': 'Last 3 Days',
   'dates.last7Days': 'Last 7 Days',
   'dates.last14Days': 'Last 14 Days',
   'dates.last30Days': 'Last 30 Days',
@@ -34,6 +35,24 @@ const formatLocalDate = (date: Date): string => {
 }
 
 describe('DateRangePicker', () => {
+  it('recognizes and applies the inclusive three-day preset', async () => {
+    const end = new Date()
+    const start = new Date(end)
+    start.setDate(start.getDate() - 2)
+    const range = { startDate: formatLocalDate(start), endDate: formatLocalDate(end) }
+    const wrapper = mount(DateRangePicker, {
+      props: { ...range, calendarDaysOnly: true },
+      global: { stubs: { Icon: true } }
+    })
+    await nextTick()
+    expect(wrapper.find('.date-picker-trigger').text()).toContain('Last 3 Days')
+    await wrapper.find('.date-picker-trigger').trigger('click')
+    const preset = wrapper.findAll('.date-picker-preset').find((node) => node.text() === 'Last 3 Days')!
+    await preset.trigger('click')
+    await wrapper.find('.date-picker-apply').trigger('click')
+    expect(wrapper.emitted('change')?.[0]).toEqual([{ ...range, preset: '3days' }])
+  })
+
   it('uses last 24 hours as the default recognized preset', () => {
     const now = new Date()
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)

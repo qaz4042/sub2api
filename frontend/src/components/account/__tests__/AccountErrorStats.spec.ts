@@ -9,7 +9,7 @@ vi.mock('vue-chartjs', () => ({
 }))
 
 describe('AccountErrorStats', () => {
-  it('compares total and failed requests on the same count axis with a separate rate axis', () => {
+  it('combines requests, errors, rate and duration with aligned dates and independent units', () => {
     const stats: ErrorStats = {
       coverage_start: "2026-10-21T00:00:00+08:00", coverage_end: "2026-10-23T00:00:00+08:00", partial: false, uncorrelated_ws_errors: 0,
       total_requests: 100, error_count: 3, error_rate: 3,
@@ -18,14 +18,19 @@ describe('AccountErrorStats', () => {
         { date: '2026-10-22', label: '10/22', requests: 0, error_count: 0, error_rate: null }
       ]
     }
-    const wrapper = mount(AccountErrorStats, { props: { stats } })
+    const wrapper = mount(AccountErrorStats, { props: { stats, usageHistory: [
+      { date: '2026-10-22', label: '10/22', requests: 0, tokens: 0, cost: 0, actual_cost: 0, user_cost: 0 },
+      { date: '2026-10-21', label: '10/21', requests: 100, tokens: 0, cost: 0, actual_cost: 0, user_cost: 0, avg_duration_ms: 2500, duration_sample_count: 100 }
+    ] } })
     expect(wrapper.get('[data-testid="total-requests"]').text()).toBe('100')
     expect(wrapper.get('[data-testid="error-count"]').text()).toBe('3')
     expect(wrapper.get('[data-testid="error-rate"]').text()).toBe('3.00%')
     const chart = wrapper.getComponent({ name: 'Line' })
-    expect(chart.props('data').datasets.map((dataset: { data: number[] }) => dataset.data)).toEqual([[100, 0], [3, 0], [3, null]])
-    expect(chart.props('data').datasets.map((dataset: { yAxisID: string }) => dataset.yAxisID)).toEqual(['y', 'y', 'rate'])
+    expect(chart.props('data').datasets.map((dataset: { data: number[] }) => dataset.data)).toEqual([[100, 0], [3, 0], [3, null], [2.5, null]])
+    expect(chart.props('data').datasets.map((dataset: { yAxisID: string }) => dataset.yAxisID)).toEqual(['y', 'y', 'rate', 'duration'])
     expect(chart.props('options').scales.rate.max).toBe(4)
+    expect(chart.props('options').scales.duration.beginAtZero).toBe(true)
+    expect(wrapper.findAllComponents({ name: 'Line' })).toHaveLength(1)
   })
 
   it('distinguishes unavailable data from zero errors', () => {

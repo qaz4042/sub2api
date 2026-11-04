@@ -1688,7 +1688,7 @@ export default {
         errorStatsUncorrelated: 'Some WebSocket or policy errors lack reliable request correlation. Showing recorded errors; total requests and error rate are unavailable.',
         errorMonitoringDisabled: 'Error monitoring is disabled. Error rate is unavailable.',
         errorOutsideRetention: 'The selected interval is outside error log retention.',
-        errorTrend: 'Total Requests, Errors & Rate Trend',
+        errorTrend: 'Total Requests, Failed Requests, Recorded Error Rate & Average Duration Trend',
         errorRateBasis: 'Failed requests ÷ total requests ({count})',
         errorStatsHint: 'Final failed requests observed in retained logs, excluding recovered upstream errors and token-count requests. Missing or deleted records cannot be reconstructed. Intervals without requests have no error rate.',
         timeRange: 'Time range',
@@ -1732,7 +1732,7 @@ export default {
         todayRequests: 'Today Requests',
         todayTokens: 'Today Tokens',
         todayCost: 'Today Cost',
-        usageTrend: 'Cost, Requests & Duration Trend',
+        usageTrend: 'Cost & Requests Trend',
         noData: 'No usage data available for this account'
       },
       usageWindow: {

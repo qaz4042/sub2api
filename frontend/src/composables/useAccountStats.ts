@@ -5,8 +5,8 @@ import { formatLocalDate } from '@/utils/usageDateRange'
 import { isValidAccountStatsDateRange } from '@/utils/accountStatsDateRange'
 
 export function useAccountStats(show: () => boolean, accountId: () => number | undefined) {
-  // 默认展示今天的使用情况，并按小时查看趋势，便于打开弹窗后直接关注当前用量。
-  const days = ref(1)
+  // 默认展示近 3 天的使用情况，并按小时查看趋势，便于打开弹窗后直接关注当前用量。
+  const days = ref(3)
   const dateRange = ref<{ startDate: string; endDate: string } | null>(null)
   const rollingRange = (count: number) => {
     const end = new Date()

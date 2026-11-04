@@ -180,7 +180,7 @@
           </div>
         </div>
 
-        <AccountErrorStats :stats="stats.errors" :unavailable-reason="stats.errors_unavailable_reason" />
+        <AccountErrorStats :stats="stats.errors" :usage-history="stats.history" :unavailable-reason="stats.errors_unavailable_reason" />
 
         <!-- Row 2: Today, Highest Cost, Highest Requests -->
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -520,7 +520,7 @@ import ModelDistributionChart from '@/components/charts/ModelDistributionChart.v
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAccountStats } from '@/composables/useAccountStats'
-import { accountStatsDurationSeconds, accountStatsTrendHistory, formatAccountStatsDuration } from '@/utils/accountStatsDuration'
+import { accountStatsTrendHistory, formatAccountStatsDuration } from '@/utils/accountStatsDuration'
 import AccountStatsFilters from '@/components/account/AccountStatsFilters.vue'
 import type { Account } from '@/types'
 
@@ -599,24 +599,12 @@ const trendChartData = computed(() => {
         fill: false,
         tension: 0.3,
         yAxisID: 'y1'
-      },
-      {
-        label: t('admin.accounts.stats.avgRequestDuration'),
-        data: trendHistory.value.map(accountStatsDurationSeconds),
-        borderColor: '#f43f5e',
-        backgroundColor: 'rgba(244, 63, 94, 0.1)',
-        fill: false,
-        tension: 0,
-        spanGaps: false,
-        pointRadius: trendHistory.value.length > 100 ? 0 : 2,
-        pointHitRadius: 8,
-        yAxisID: 'y2'
       }
     ]
   }
 })
 
-// Keep duration, request count and cost on independent scales.
+// Keep request count and cost on independent scales.
 const lineChartOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
@@ -642,9 +630,6 @@ const lineChartOptions = computed(() => ({
         label: (context: any) => {
           const label = context.dataset.label || ''
           const value = context.raw
-          if (context.dataset.yAxisID === 'y2') {
-            return `${label}: ${Number(value).toFixed(2)}s`
-          }
           if (label.includes('USD')) {
             return `${label}: $${formatCost(value)}`
           }
@@ -689,23 +674,6 @@ const lineChartOptions = computed(() => ({
         font: {
           size: 11
         }
-      }
-    },
-    y2: {
-      type: 'linear' as const,
-      position: 'right' as const,
-      beginAtZero: true,
-      grid: { drawOnChartArea: false },
-      ticks: {
-        color: '#f43f5e',
-        font: { size: 10 },
-        callback: (value: string | number) => `${value}s`
-      },
-      title: {
-        display: true,
-        text: t('admin.accounts.stats.avgRequestDuration') + ' (s)',
-        color: '#f43f5e',
-        font: { size: 11 }
       }
     },
     y1: {

@@ -1073,6 +1073,7 @@ export default {
     thisMonth: '本月',
     lastMonth: '上月',
     last24Hours: '近24小时',
+    last3Days: '近 3 天',
     last7Days: '近 7 天',
     last14Days: '近 14 天',
     last30Days: '近 30 天',

@@ -159,6 +159,16 @@ const allPresets: DatePreset[] = [
     }
   },
   {
+    labelKey: 'dates.last3Days',
+    value: '3days',
+    getRange: () => {
+      const end = today()
+      const d = new Date()
+      d.setDate(d.getDate() - 2)
+      return { start: formatDateToString(d), end }
+    }
+  },
+  {
     labelKey: 'dates.last7Days',
     value: '7days',
     getRange: () => {

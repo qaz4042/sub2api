@@ -1776,7 +1776,7 @@ export default {
         errorStatsUncorrelated: '含无法可靠关联请求的 WebSocket 或安全策略异常，仅展示异常记录数量，总请求数与异常率暂不可用。',
         errorMonitoringDisabled: '异常监控未开启，无法计算异常率。',
         errorOutsideRetention: '所选时段不在异常日志保留范围内。',
-        errorTrend: '总请求、异常数量与异常率趋势',
+        errorTrend: '总请求、异常请求数、已记录异常率与平均请求耗时趋势',
         errorRateBasis: '异常请求数 ÷ 总请求数（{count} 次）',
         errorStatsHint: '基于当前留存日志统计最终失败的请求，不含重试后成功的上游异常和 Token 计数请求。未采集或已清理的记录无法还原；无请求时段不计算异常率。',
         timeRange: '统计范围',
@@ -1820,7 +1820,7 @@ export default {
         todayRequests: '今日请求',
         todayTokens: '今日 Token',
         todayCost: '今日费用',
-        usageTrend: '费用、请求与耗时趋势',
+        usageTrend: '费用与请求趋势',
         noData: '该账号暂无使用数据'
       }
     },

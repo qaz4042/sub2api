@@ -45,7 +45,7 @@
       <h4 class="mb-2 mt-4 text-xs font-medium text-gray-700 dark:text-gray-300">
         {{ t('admin.accounts.stats.errorTrend') }}
       </h4>
-      <div v-if="stats.history.length" class="h-56">
+      <div v-if="stats.history.length" class="h-64 sm:h-72">
         <Line :data="chartData" :options="chartOptions" />
       </div>
       <p class="mt-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
@@ -72,11 +72,12 @@ import {
   type ChartOptions
 } from 'chart.js'
 import { Line } from 'vue-chartjs'
-import type { AccountErrorStats } from '@/types'
+import { accountStatsDurationSeconds } from '@/utils/accountStatsDuration'
+import type { AccountErrorStats, AccountUsageHistory } from '@/types'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend)
 
-const props = defineProps<{ stats?: AccountErrorStats | null; unavailableReason?: string }>()
+const props = defineProps<{ stats?: AccountErrorStats | null; unavailableReason?: string; usageHistory?: AccountUsageHistory[] }>()
 const { t } = useI18n()
 const hasUncorrelatedErrors = computed(() =>
   (props.stats?.uncorrelated_errors ?? props.stats?.uncorrelated_ws_errors ?? 0) > 0
@@ -89,6 +90,10 @@ const unavailableMessage = computed(() => {
 const formatCoverage = (value: string) => new Date(value).toLocaleString(undefined, {
   month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
 })
+
+const durationByDate = computed(() => new Map(
+  (props.usageHistory ?? []).map((point) => [point.date, accountStatsDurationSeconds(point)])
+))
 
 const chartData = computed(() => ({
   labels: props.stats?.history.map((point) => point.label) ?? [],
@@ -117,6 +122,17 @@ const chartData = computed(() => ({
       borderDash: [5, 5],
       yAxisID: 'rate',
       tension: 0.2
+    },
+    {
+      label: t('admin.accounts.stats.avgRequestDuration'),
+      data: props.stats?.history.map((point) => durationByDate.value.get(point.date) ?? null) ?? [],
+      borderColor: '#8b5cf6',
+      backgroundColor: '#8b5cf6',
+      yAxisID: 'duration',
+      tension: 0,
+      spanGaps: false,
+      pointRadius: (props.stats?.history.length ?? 0) > 100 ? 0 : 2,
+      pointHitRadius: 8
     }
   ]
 }))
@@ -136,6 +152,7 @@ const chartOptions = computed<ChartOptions<'line'>>(() => {
         callbacks: {
           label: (context) => {
             const value = context.parsed.y ?? 0
+            if (context.dataset.yAxisID === 'duration') return `${context.dataset.label}: ${value.toFixed(2)}s`
             return `${context.dataset.label}: ${context.dataset.yAxisID === 'rate' ? value.toFixed(2) + '%' : value.toLocaleString()}`
           }
         }
@@ -148,6 +165,13 @@ const chartOptions = computed<ChartOptions<'line'>>(() => {
         ticks: { color: text, precision: 0 },
         grid: { color: grid },
         title: { display: true, text: t('admin.accounts.stats.requests'), color: text }
+      },
+      duration: {
+        position: 'right',
+        beginAtZero: true,
+        ticks: { color: '#8b5cf6', callback: (value) => `${value}s` },
+        grid: { drawOnChartArea: false },
+        title: { display: true, text: t('admin.accounts.stats.avgRequestDuration') + ' (s)', color: '#8b5cf6' }
       },
       rate: {
         position: 'right',
