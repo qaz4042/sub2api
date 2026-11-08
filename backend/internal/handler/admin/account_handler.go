@@ -1801,7 +1801,7 @@ func (h *AccountHandler) GetStats(c *gin.Context) {
 
 	stats, err := h.accountUsageService.GetAccountUsageStatsWithOptions(c.Request.Context(), accountID, startTime, endTime, granularity, includeTests)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		scopedOpenAIError(c, err)
 		return
 	}
 
