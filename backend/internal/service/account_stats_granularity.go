@@ -17,6 +17,9 @@ func (s *AccountUsageService) GetAccountUsageStatsWithGranularity(ctx context.Co
 }
 
 func (s *AccountUsageService) GetAccountUsageStatsWithOptions(ctx context.Context, accountID int64, start, end time.Time, granularity string, includeTests bool) (*usagestats.AccountUsageStatsResponse, error) {
+	if err := scopedAccountIDAccess(ctx, s.accountRepo, accountID, "accounts.stats.read", false); err != nil {
+		return nil, err
+	}
 	if granularity == "" {
 		granularity = "day"
 	}
