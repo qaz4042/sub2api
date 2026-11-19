@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -121,27 +122,36 @@ func (s *ScheduledTestRunnerService) runScheduled() {
 
 func (s *ScheduledTestRunnerService) runOnePlan(ctx context.Context, plan *ScheduledTestPlan) {
 	result, err := s.accountTestSvc.RunTestBackground(ctx, plan.AccountID, plan.ModelID)
-	if err != nil {
+	skipped := errors.Is(err, errScheduledTestRateLimited)
+	if err != nil && !skipped {
 		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] plan=%d RunTestBackground error: %v", plan.ID, err)
 		return
 	}
 
-	if err := s.scheduledSvc.SaveResult(ctx, plan.ID, plan.MaxResults, result); err != nil {
-		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] plan=%d SaveResult error: %v", plan.ID, err)
+	var lastRunAt *time.Time
+	if skipped {
+		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] plan=%d account=%d skipped: account is rate limited", plan.ID, plan.AccountID)
+	} else {
+		if err := s.scheduledSvc.SaveResult(ctx, plan.ID, plan.MaxResults, result); err != nil {
+			logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] plan=%d SaveResult error: %v", plan.ID, err)
+		}
+
+		if result.Status == "success" && plan.AutoRecover {
+			s.tryRecoverAccount(ctx, plan.AccountID, plan.ID)
+		}
 	}
 
-	// Auto-recover account if test succeeded and auto_recover is enabled.
-	if result.Status == "success" && plan.AutoRecover {
-		s.tryRecoverAccount(ctx, plan.AccountID, plan.ID)
+	now := time.Now()
+	if !skipped {
+		lastRunAt = &now
 	}
-
-	nextRun, err := computeNextRun(plan.CronExpression, time.Now())
+	nextRun, err := computeNextRun(plan.CronExpression, now)
 	if err != nil {
 		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] plan=%d computeNextRun error: %v", plan.ID, err)
 		return
 	}
 
-	if err := s.planRepo.UpdateAfterRun(ctx, plan.ID, time.Now(), nextRun); err != nil {
+	if err := s.planRepo.UpdateAfterRun(ctx, plan.ID, lastRunAt, nextRun); err != nil {
 		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] plan=%d UpdateAfterRun error: %v", plan.ID, err)
 	}
 }

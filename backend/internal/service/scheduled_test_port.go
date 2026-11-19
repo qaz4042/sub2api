@@ -41,7 +41,8 @@ type ScheduledTestPlanRepository interface {
 	ListDue(ctx context.Context, now time.Time) ([]*ScheduledTestPlan, error)
 	Update(ctx context.Context, plan *ScheduledTestPlan) (*ScheduledTestPlan, error)
 	Delete(ctx context.Context, id int64) error
-	UpdateAfterRun(ctx context.Context, id int64, lastRunAt time.Time, nextRunAt time.Time) error
+	// A nil lastRunAt advances the schedule after a skipped test.
+	UpdateAfterRun(ctx context.Context, id int64, lastRunAt *time.Time, nextRunAt time.Time) error
 }
 
 // ScheduledTestResultRepository defines the data access interface for test results.

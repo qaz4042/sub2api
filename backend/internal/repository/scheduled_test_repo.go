@@ -77,9 +77,9 @@ func (r *scheduledTestPlanRepository) Delete(ctx context.Context, id int64) erro
 	return err
 }
 
-func (r *scheduledTestPlanRepository) UpdateAfterRun(ctx context.Context, id int64, lastRunAt time.Time, nextRunAt time.Time) error {
+func (r *scheduledTestPlanRepository) UpdateAfterRun(ctx context.Context, id int64, lastRunAt *time.Time, nextRunAt time.Time) error {
 	_, err := r.db.ExecContext(ctx, `
-		UPDATE scheduled_test_plans SET last_run_at = $2, next_run_at = $3, updated_at = NOW() WHERE id = $1
+		UPDATE scheduled_test_plans SET last_run_at = COALESCE($2, last_run_at), next_run_at = $3, updated_at = NOW() WHERE id = $1
 	`, id, lastRunAt, nextRunAt)
 	return err
 }

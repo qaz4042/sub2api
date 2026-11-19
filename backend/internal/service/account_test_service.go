@@ -42,6 +42,8 @@ import (
 // Some upstream APIs return non-standard "data:" without space (should be "data: ").
 var sseDataPrefix = regexp.MustCompile(`^data:\s*`)
 
+var errScheduledTestRateLimited = errors.New("account is rate limited")
+
 const (
 	testClaudeAPIURL            = "https://api.anthropic.com/v1/messages?beta=true"
 	chatgptCodexAPIURL          = "https://chatgpt.com/backend-api/codex/responses"
@@ -367,6 +369,9 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	account, err := s.accountRepo.GetByID(ctx, accountID)
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Account not found")
+	}
+	if c.GetBool(accountTestBackgroundKey) && account.IsRateLimited() {
+		return errScheduledTestRateLimited
 	}
 	bindAccountTestPlatform(c, account)
 
@@ -3306,6 +3311,7 @@ func (s *AccountTestService) sendErrorAndEnd(c *gin.Context, errorMsg string) er
 
 // RunTestBackground executes an account test in-memory (no real HTTP client),
 // capturing SSE output via httptest.NewRecorder, then parses the result.
+// An active account-wide rate limit returns errScheduledTestRateLimited.
 func (s *AccountTestService) RunTestBackground(ctx context.Context, accountID int64, modelID string) (*ScheduledTestResult, error) {
 	startedAt := time.Now()
 
@@ -3315,6 +3321,9 @@ func (s *AccountTestService) RunTestBackground(ctx context.Context, accountID in
 	ginCtx.Set(accountTestBackgroundKey, true)
 
 	testErr := s.TestAccountConnection(ginCtx, accountID, modelID, "", AccountTestModeDefault)
+	if errors.Is(testErr, errScheduledTestRateLimited) {
+		return nil, testErr
+	}
 
 	finishedAt := time.Now()
 	body := w.Body.String()
