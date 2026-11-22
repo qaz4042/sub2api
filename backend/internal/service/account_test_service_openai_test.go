@@ -175,7 +175,7 @@ func TestAccountTestService_FetchOpenAIAccountModelsUsesIDForBlankDisplayName(t 
 
 	require.NoError(t, err)
 	require.Len(t, models, 2)
-	require.Equal(t, "gpt-6-astra", models[0].DisplayName)
+	require.Equal(t, "GPT-6 Astra", models[0].DisplayName)
 	require.Equal(t, "GPT-5.6 Sol", models[1].DisplayName)
 }
 

@@ -40,7 +40,7 @@ func ProvideProxyMonitorHandler(adminService service.AdminService, monitor *Prox
 	return h
 }
 func (h *ProxyHandler) RegisterOpenAIMonitor(group *gin.RouterGroup) {
-	if h.monitor != nil {
+	if h != nil && h.monitor != nil {
 		h.monitor.Register(group)
 	}
 }
