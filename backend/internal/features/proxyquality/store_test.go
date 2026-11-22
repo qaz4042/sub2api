@@ -586,6 +586,55 @@ func TestConcurrentWorkersOnlySwitchOnce(t *testing.T) {
 	require.EqualValues(t, 2, binding(t, s))
 }
 
+func TestMonitorTransportFailover(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		change      string
+		switchProxy bool
+	}{
+		{name: "idle account", switchProxy: true},
+		{name: "business success", change: `UPDATE account_proxy_quality_observations SET observed_at=now()-interval '5 seconds' WHERE account_id=1 AND proxy_id=1`},
+		{name: "missed round", change: `DELETE FROM proxy_openai_monitor_samples WHERE execution_id='1-4'`},
+		{name: "probe recovered", change: `UPDATE proxy_openai_monitor_samples SET success=true,latency_ms=300,http_status=401,error_class='' WHERE execution_id='1-1'`},
+		{name: "HTTP error", change: `UPDATE proxy_openai_monitor_samples SET http_status=503,error_class='http_5xx' WHERE execution_id='1-2'`},
+		{name: "old probe configuration", change: `UPDATE proxy_openai_monitor_configs SET version=2 WHERE proxy_id=1`},
+		{name: "paused monitoring", change: `UPDATE proxy_openai_monitor_configs SET enabled=false WHERE proxy_id=1`},
+		{name: "stale probes", change: `UPDATE proxy_openai_monitor_samples SET planned_at=planned_at-interval '1 minute',started_at=started_at-interval '1 minute',finished_at=finished_at-interval '1 minute' WHERE proxy_id=1`},
+		{name: "no healthy alternative", change: `UPDATE proxy_openai_monitor_samples SET success=false,latency_ms=NULL,http_status=0,error_class='connection' WHERE proxy_id=2`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := testStore(t)
+			samples(t, s)
+			configured(t, s)
+			_, err := s.DB.Exec(`UPDATE proxy_openai_monitor_configs SET interval_seconds=10 WHERE proxy_id=1;
+ UPDATE proxy_openai_monitor_samples
+ SET planned_at=at,started_at=at,finished_at=at+interval '1 second',
+ success=false,latency_ms=NULL,http_status=0,error_class=CASE WHEN rounds.id%2=0 THEN 'timeout' ELSE 'connection' END
+ FROM (SELECT id,now()-split_part(execution_id,'-',2)::int*interval '10 seconds' AS at
+ FROM proxy_openai_monitor_samples WHERE proxy_id=1) rounds WHERE proxy_openai_monitor_samples.id=rounds.id;
+ UPDATE account_proxy_quality_observations SET observed_at=observed_at-interval '5 minutes';
+ UPDATE account_proxy_quality_configs SET last_switch_at=now()-interval '2 minutes' WHERE account_id=1`)
+			require.NoError(t, err)
+			if tc.change != "" {
+				_, err = s.DB.Exec(tc.change)
+				require.NoError(t, err)
+			}
+			evaluate(t, s)
+			r, err := s.Read(context.Background(), 1)
+			require.NoError(t, err)
+			if tc.switchProxy {
+				require.EqualValues(t, 2, binding(t, s))
+				require.Equal(t, "monitor_degraded", r.Reason)
+				require.Len(t, r.Events, 1)
+				require.Equal(t, "monitor_degraded", r.Events[0].Reason)
+			} else {
+				require.EqualValues(t, 1, binding(t, s))
+				require.Empty(t, r.Events)
+			}
+		})
+	}
+}
+
 func TestMonitorOptimizationUsesThreeFreshConfirmations(t *testing.T) {
 	s := testStore(t)
 	samples(t, s)

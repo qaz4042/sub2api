@@ -2,8 +2,9 @@
 package proxyquality
 
 import (
-	"github.com/Wei-Shaw/sub2api/internal/features/proxyopen"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/features/proxyopen"
 )
 
 const cooldown = 5 * time.Minute
@@ -39,15 +40,15 @@ type businessSummary struct {
 	GapVersion int64
 }
 
-// Business observations drive fault handling; probes drive normal optimization.
+// Prefer business fault evidence, then use sustained probe failures for idle or low-traffic accounts.
 func choose(current int64, quality []proxyopen.Quality, actual businessSummary, now time.Time, lastSwitch *time.Time) (int64, string) {
 	if actual.Gap {
 		return 0, "collection_unavailable"
 	}
-	unavailable := false
+	var source proxyopen.Quality
 	for _, q := range quality {
-		if q.ID == current && !q.Eligible {
-			unavailable = true
+		if q.ID == current {
+			source = q
 			break
 		}
 	}
@@ -70,7 +71,7 @@ func choose(current int64, quality []proxyopen.Quality, actual businessSummary, 
 	// An ineligible current connection is an explicit availability failure. A
 	// fresh, healthy monitor candidate may take over even without account
 	// history; the first real request after the switch supplies that history.
-	if unavailable {
+	if source.ID != 0 && !source.Eligible {
 		return fastestCandidate(quality, candidates), "business_degraded"
 	}
 	var failureID int64
@@ -85,7 +86,7 @@ func choose(current int64, quality []proxyopen.Quality, actual businessSummary, 
 		if currentMetric.RecentTotal == 0 && currentMetric.RecentHTTP5xx == 0 {
 			continue
 		}
-		degraded := unavailable || currentMetric.RecentPersistent || currentMetric.RecentFailures >= 3 || (currentMetric.RecentTotal >= 5 && currentMetric.RecentSuccesses*100 < currentMetric.RecentTotal*80)
+		degraded := currentMetric.RecentPersistent || currentMetric.RecentFailures >= 3 || (currentMetric.RecentTotal >= 5 && currentMetric.RecentSuccesses*100 < currentMetric.RecentTotal*80)
 		serverDegraded := currentMetric.RecentHTTP5xx >= 3 && currentMetric.FirstHTTP5xx != nil
 		waitingFor5xxEvidence = waitingFor5xxEvidence || serverDegraded
 		if !degraded && !serverDegraded && currentMetric.RecentTotal < 5 {
@@ -128,6 +129,9 @@ func choose(current int64, quality []proxyopen.Quality, actual businessSummary, 
 	if coldFailureID != 0 {
 		return coldFailureID, "business_degraded"
 	}
+	if target := monitorFailover(source, quality, candidates, actual, now); target != 0 {
+		return target, "monitor_degraded"
+	}
 	if waitingFor5xxEvidence {
 		return 0, "business_5xx_waiting"
 	}
@@ -135,6 +139,26 @@ func choose(current int64, quality []proxyopen.Quality, actual businessSummary, 
 		return 0, "cooldown"
 	}
 	return 0, "business_insufficient"
+}
+
+func monitorFailover(source proxyopen.Quality, quality []proxyopen.Quality, candidates map[int64]bool, actual businessSummary, now time.Time) int64 {
+	since := source.TransportOutageSince
+	if !source.Enabled || since == nil || source.Last == nil || now.Sub(*source.Last) > time.Duration(source.Interval+16)*time.Second {
+		return 0
+	}
+	for _, metric := range actual.Metrics {
+		if metric.ProxyID == source.ID && metric.LastRecentSuccess != nil && !metric.LastRecentSuccess.Before(*since) {
+			return 0
+		}
+	}
+	// Require a healthy alternative with a successful probe during the outage.
+	available := map[int64]bool{}
+	for _, q := range quality {
+		if candidates[q.ID] && !q.Last.Before(*since) {
+			available[q.ID] = true
+		}
+	}
+	return fastestCandidate(quality, available)
 }
 
 func fastestCandidate(quality []proxyopen.Quality, candidates map[int64]bool) int64 {
